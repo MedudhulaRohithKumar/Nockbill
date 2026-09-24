@@ -387,9 +387,16 @@ def refill_stock(
         product.expiry_date = expiry_dt
 
     # Update or create ProductBatch for multi-batch tracking
-    p_price = Decimal(str(payload.purchase_price)) if (payload.purchase_price is not None and payload.purchase_price > 0) else (product.purchase_price or Decimal("0"))
-    s_price = Decimal(str(payload.selling_price)) if (payload.selling_price is not None and payload.selling_price > 0) else (product.selling_price or Decimal("0"))
-    mrp_val = Decimal(str(payload.mrp)) if (payload.mrp is not None and payload.mrp > 0) else s_price
+    p_price = Decimal(str(payload.purchase_price)) if (payload.purchase_price is not None and Decimal(str(payload.purchase_price)) > 0) else (product.purchase_price or Decimal("0"))
+    s_price_raw = Decimal(str(payload.selling_price)) if payload.selling_price is not None else None
+    if s_price_raw is not None and s_price_raw > 0:
+        s_price = s_price_raw
+    else:
+        s_price = product.selling_price or Decimal("0")
+    # ProductBatch.selling_price is NOT NULL — ensure we never insert 0 or None
+    if s_price <= Decimal("0"):
+        s_price = p_price if p_price > 0 else Decimal("1")
+    mrp_val = Decimal(str(payload.mrp)) if (payload.mrp is not None and Decimal(str(payload.mrp)) > 0) else s_price
 
     batch = db.query(ProductBatch).filter(
         ProductBatch.product_id == product.id,
@@ -471,7 +478,12 @@ def refill_stock(
         description=f"Refilled {qty} units of {product.product_name}. Previous: {prev_stock}, New: {product.current_stock}"
     ))
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save refill: {str(e)}")
+
     db.refresh(product)
 
     return {
@@ -654,14 +666,18 @@ def create_product(
         ))
 
     # 6. Create initial ProductBatch for tracking
+    initial_selling = product.selling_price or Decimal("0")
+    # ProductBatch.selling_price is NOT NULL — ensure a valid value
+    if initial_selling <= Decimal("0"):
+        initial_selling = product.purchase_price or Decimal("1")
     initial_batch = ProductBatch(
         product_id=product.id,
         batch_number=payload.batch_number or product.product_code or f"BAT-{product.id}",
         manufacture_date=product.manufacture_date,
         expiry_date=product.expiry_date or "2028-12",
         purchase_price=product.purchase_price or Decimal("0"),
-        selling_price=product.selling_price or Decimal("0"),
-        mrp=Decimal(str(payload.mrp)) if payload.mrp else (product.selling_price or Decimal("0")),
+        selling_price=initial_selling,
+        mrp=Decimal(str(payload.mrp)) if payload.mrp else initial_selling,
         current_stock=product.current_stock or Decimal("0"),
         is_active=True
     )

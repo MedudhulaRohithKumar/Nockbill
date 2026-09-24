@@ -26,7 +26,7 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
       {/* Top Banner */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
             Fertilizer Store Settings
@@ -252,7 +252,7 @@ export const SettingsPage: React.FC = () => {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="bg-brand-700 hover:bg-brand-600 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg shadow-brand-900/20 active:scale-95 transition-all text-xs"
+            className="w-full sm:w-auto bg-brand-700 hover:bg-brand-600 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 active:scale-95 transition-all text-sm"
           >
             <Save className="w-4 h-4" />
             <span>Save Store Settings</span>

@@ -254,11 +254,29 @@ def serialize_sale(s: Sale) -> dict:
 @router.get("")
 def list_sales(
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 200,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sales = db.query(Sale).order_by(Sale.sale_date.desc()).offset(skip).limit(limit).all()
+    query = db.query(Sale)
+    if start_date:
+        try:
+            from datetime import date as date_type
+            sd = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(Sale.sale_date >= sd)
+        except Exception:
+            pass
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, "%Y-%m-%d")
+            # Include the full end day
+            ed = ed.replace(hour=23, minute=59, second=59)
+            query = query.filter(Sale.sale_date <= ed)
+        except Exception:
+            pass
+    sales = query.order_by(Sale.sale_date.desc()).offset(skip).limit(limit).all()
     return [serialize_sale(s) for s in sales]
 
 

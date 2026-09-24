@@ -52,7 +52,7 @@ export const AppLayout: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row pb-16 md:pb-0">
+    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row pb-24 md:pb-0">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 flex-col bg-brand-900 text-white shadow-xl z-20 sticky top-0 h-screen">
         {/* Brand header */}
@@ -204,15 +204,38 @@ export const AppLayout: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-1.5 px-3 flex items-center justify-around z-30 shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-1.5 px-2 flex items-center justify-around z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] pb-[max(0.375rem,env(safe-area-inset-bottom))]">
         {bottomNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.to;
+          const isBilling = item.to === '/billing';
+          
+          if (isBilling) {
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className="flex flex-col items-center -mt-4 relative group"
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
+                  isActive 
+                    ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-emerald-700/30' 
+                    : 'bg-brand-800 text-emerald-300 ring-4 ring-white shadow-brand-900/20'
+                }`}>
+                  <Icon className="w-6 h-6 stroke-[2.2]" />
+                </div>
+                <span className={`text-[10px] font-bold mt-1 ${isActive ? 'text-emerald-700' : 'text-slate-600'}`}>
+                  {item.label}
+                </span>
+              </NavLink>
+            );
+          }
+
           return (
             <NavLink
               key={item.to}
               to={item.to}
-              className={`flex flex-col items-center py-1 px-3 rounded-lg text-[11px] font-medium transition-colors ${
+              className={`flex flex-col items-center py-1 px-2.5 rounded-xl text-[11px] font-medium transition-colors ${
                 isActive ? 'text-brand-700 font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -221,6 +244,21 @@ export const AppLayout: React.FC = () => {
             </NavLink>
           );
         })}
+        {/* Quick Menu Button for Mobile */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(prev => !prev)}
+          className={`flex flex-col items-center py-1 px-2.5 rounded-xl text-[11px] font-medium transition-colors ${
+            mobileMenuOpen ? 'text-brand-800 font-bold' : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5 mb-0.5 text-brand-800 stroke-[2.5]" />
+          ) : (
+            <Menu className="w-5 h-5 mb-0.5 text-slate-400" />
+          )}
+          <span>More</span>
+        </button>
       </nav>
     </div>
   );

@@ -516,9 +516,135 @@ export const InventoryPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Product List Table */}
+      {/* Product List - Responsive Dual View */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* MOBILE VIEW (< md): Touch-Friendly Product Cards */}
+        <div className="md:hidden p-3 space-y-3 bg-slate-50/50">
+          {filteredProducts.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No products match your search or filter.
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20);
+              const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
+              const sellingPrice = safeNumber(p.selling_price);
+              const prodName = p.name || p.product_name || 'Fertilizer Product';
+              const batchNo = p.batch_number || p.product_code || 'N/A';
+              const unitStr = p.unit || 'Bags';
+              const barcodeStr = p.barcode || String(10000 + p.id);
+
+              return (
+                <div
+                  key={p.id}
+                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5"
+                >
+                  {/* Card Header: Name, Category, Barcode */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                          {p.category}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBarcodeProduct({ ...p, barcode: barcodeStr });
+                            setIsBarcodeModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-mono font-semibold border border-slate-200"
+                        >
+                          <Barcode className="w-3 h-3 text-slate-500" />
+                          <span>{barcodeStr}</span>
+                        </button>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900 mt-1 leading-tight">
+                        {prodName}
+                      </h4>
+                      {p.company_name && (
+                        <p className="text-[11px] text-slate-500">{p.company_name}</p>
+                      )}
+                    </div>
+
+                    {/* Stock level badge */}
+                    <div className={`px-2.5 py-1 rounded-xl text-center shrink-0 ${
+                      isLow
+                        ? 'bg-red-50 text-red-700 ring-1 ring-red-300'
+                        : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+                    }`}>
+                      <span className="block text-[10px] font-semibold uppercase leading-none">Stock</span>
+                      <span className="font-black text-xs font-mono">
+                        {safeNumber(p.current_stock)} {unitStr}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pricing and Batch Info */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Selling Rate:</span>
+                      <span className="font-black text-slate-900 text-sm font-mono">
+                        ₹{formatCurrency(sellingPrice)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Cost / Inward:</span>
+                      <span className="font-semibold text-slate-600 font-mono">
+                        ₹{formatCurrency(costPrice)}
+                      </span>
+                    </div>
+                    <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Batch: <strong className="font-mono text-slate-700">{batchNo}</strong></span>
+                      <span>Exp: {p.expiry_date || '-'}</span>
+                    </div>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => openRefillModal(p)}
+                      className="flex-1 py-2 px-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Refill Stock</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdjustingProduct(p);
+                        setAdjustQty(0);
+                        setAdjustReason('');
+                        setIsAdjustModalOpen(true);
+                      }}
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
+                      title="Adjust Stock"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5" />
+                      <span>Adjust</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingProduct(p);
+                        setProductVariants(p.variants || []);
+                        setDuplicateAlert(null);
+                        setIsEditModalOpen(true);
+                      }}
+                      className="p-2 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition"
+                      title="Edit Product"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* DESKTOP VIEW (>= md): Full Detail Data Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
               <tr>
@@ -806,7 +932,7 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               {/* Pricing */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Inward Cost Price (₹)</label>
                   <input
@@ -840,7 +966,7 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               {/* Supplier & Inward Bill No */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name</label>
                   <input
@@ -897,8 +1023,8 @@ export const InventoryPage: React.FC = () => {
 
       {/* Add / Edit Product Modal */}
       {isEditModalOpen && editingProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden my-6">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden my-4 max-h-[92vh] flex flex-col">
             <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
               <h3 className="font-bold text-sm">
                 {editingProduct.id ? 'Edit Product Details' : 'Add New Product (Generates Barcode & Packaging)'}
@@ -911,7 +1037,7 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSaveProduct} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
               {/* Duplicate Prevention Alert */}
               {duplicateAlert?.exists && !editingProduct.id && (
                 <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2">
@@ -978,7 +1104,7 @@ export const InventoryPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Category</label>
                   <select
@@ -1024,7 +1150,7 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               {/* Batch & Expiry */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Batch Number</label>
                   <input
@@ -1047,9 +1173,9 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               {/* Default Pricing & Stock */}
-              <div className="grid grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Purchase Price (₹)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Purchase (₹)</label>
                   <input
                     type="number"
                     step="0.5"
@@ -1060,7 +1186,7 @@ export const InventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Selling Rate (₹)</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Selling (₹)</label>
                   <input
                     type="number"
                     step="0.5"

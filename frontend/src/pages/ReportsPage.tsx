@@ -209,11 +209,11 @@ export const ReportsPage: React.FC = () => {
       {/* Tabs & Date Range Filter */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          {/* Tabs - Horizontal Scroll on mobile */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full pb-1 sm:pb-1">
             <button
               onClick={() => setActiveTab('sales')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'sales' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -221,7 +221,7 @@ export const ReportsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('purchases')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'purchases' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -229,7 +229,7 @@ export const ReportsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('gst')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'gst' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -237,7 +237,7 @@ export const ReportsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('stock')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'stock' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -245,7 +245,7 @@ export const ReportsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('pnl')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === 'pnl' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -255,8 +255,8 @@ export const ReportsPage: React.FC = () => {
 
           {/* Date Range Inputs */}
           {activeTab !== 'stock' && activeTab !== 'purchases' && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 text-xs">
+              <div className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
                 <span className="text-slate-400 font-medium">From:</span>
                 <input
                   type="date"
@@ -265,7 +265,7 @@ export const ReportsPage: React.FC = () => {
                   className="bg-transparent font-semibold text-slate-800 focus:outline-none"
                 />
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+              <div className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
                 <span className="text-slate-400 font-medium">To:</span>
                 <input
                   type="date"
@@ -282,7 +282,72 @@ export const ReportsPage: React.FC = () => {
       {/* Tab Content 1: Sales Register */}
       {activeTab === 'sales' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* MOBILE VIEW (< md): Touch-Friendly Sales Cards */}
+          <div className="md:hidden p-3 space-y-3 bg-slate-50/50">
+            {salesList.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No invoices found for the selected period.
+              </div>
+            ) : (
+              salesList.map((sale: any) => {
+                const invNo = sale.invoice_number || `INV-${sale.id}`;
+                const invDate = sale.invoice_date || sale.sale_date || '';
+                const custName = sale.customer_name || 'Cash Customer / Farmer';
+                const payMode = sale.payment_mode || sale.payment_method || 'Cash';
+                const taxable = safeNumber(sale.total_taxable ?? sale.subtotal);
+                const grandTotal = safeNumber(sale.grand_total);
+
+                return (
+                  <div key={sale.id} className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-xs text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            {invNo}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {invDate ? new Date(invDate).toLocaleDateString('en-IN') : '-'}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-xs text-slate-900 mt-1">{custName}</h4>
+                        {sale.customer_phone && (
+                          <p className="text-[11px] text-slate-500">{sale.customer_phone}</p>
+                        )}
+                      </div>
+
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase shrink-0">
+                        {payMode}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500 font-mono text-[11px]">Taxable: ₹{formatCurrency(taxable)}</span>
+                      <div className="text-right">
+                        <span className="font-black text-sm text-slate-900 font-mono">
+                          ₹{formatCurrency(grandTotal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <a
+                        href={salesApi.getPdfUrl(sale.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border border-emerald-200 transition"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Print Bill PDF</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* DESKTOP VIEW (>= md): Full Data Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                 <tr>
@@ -349,7 +414,64 @@ export const ReportsPage: React.FC = () => {
       {/* Tab Content: Purchases Register */}
       {activeTab === 'purchases' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* MOBILE VIEW (< md): Touch-Friendly Purchases Cards */}
+          <div className="md:hidden p-3 space-y-3 bg-slate-50/50">
+            {purchasesList.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No inward purchases recorded yet.
+              </div>
+            ) : (
+              purchasesList.map((pur: any) => {
+                const billNo = pur.bill_number || pur.invoice_number || `INV-${pur.id}`;
+                const billDt = pur.bill_date || (pur.purchase_date ? pur.purchase_date.split('T')[0] : '');
+                const totTax = safeNumber(pur.total_tax ?? pur.gst_amount);
+                const totAmt = safeNumber(pur.total_amount ?? pur.grand_total);
+
+                return (
+                  <div key={pur.id} className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-xs text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                            {billNo}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono">{billDt}</span>
+                        </div>
+                        <h4 className="font-bold text-xs text-slate-900 mt-1">{pur.supplier_name || 'Supplier Depot'}</h4>
+                        {pur.supplier_gstin && (
+                          <p className="text-[11px] text-slate-500 font-mono">GSTIN: {pur.supplier_gstin}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500 font-mono text-[11px]">Tax: ₹{formatCurrency(totTax)}</span>
+                      <div className="text-right">
+                        <span className="font-black text-sm text-slate-900 font-mono">
+                          ₹{formatCurrency(totAmt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <a
+                        href={purchasesApi.getPdfUrl(pur.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-semibold border border-blue-200 transition"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-blue-700" />
+                        <span>Print Inward PDF</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* DESKTOP VIEW (>= md): Full Data Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                 <tr>
@@ -401,22 +523,22 @@ export const ReportsPage: React.FC = () => {
       {/* Tab Content 2: GST GSTR-1 Statement */}
       {activeTab === 'gst' && gstData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500 uppercase">Total Taxable Turnover</p>
-              <p className="text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_taxable ?? gstData.taxable_amount)}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Taxable Turnover</p>
+              <p className="text-base sm:text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_taxable ?? gstData.taxable_amount)}</p>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500 uppercase">Central GST (CGST)</p>
-              <p className="text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_cgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Central (CGST)</p>
+              <p className="text-base sm:text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_cgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500 uppercase">State GST (SGST)</p>
-              <p className="text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_sgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">State (SGST)</p>
+              <p className="text-base sm:text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_sgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500 uppercase">Total GST Output Tax</p>
-              <p className="text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_tax ?? gstData.total_gst)}</p>
+            <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Total GST Output</p>
+              <p className="text-base sm:text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_tax ?? gstData.total_gst)}</p>
             </div>
           </div>
 
@@ -425,9 +547,10 @@ export const ReportsPage: React.FC = () => {
             <div className="p-4 border-b border-slate-100 font-bold text-xs text-slate-700 uppercase">
               GST Rate-Wise Breakdown (GSTR-1 Format)
             </div>
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
-                <tr>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                  <tr>
                   <th className="py-3 px-4">Rate Bracket</th>
                   <th className="py-3 px-4 text-right">Taxable Turnover (₹)</th>
                   <th className="py-3 px-4 text-right">CGST (₹)</th>
@@ -447,6 +570,7 @@ export const ReportsPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

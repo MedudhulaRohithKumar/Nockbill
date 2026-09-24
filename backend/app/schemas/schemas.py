@@ -326,8 +326,13 @@ class SaleItemResponse(BaseModel):
     net_content: Optional[str] = None
     quantity: Decimal = Decimal("0")
     price: Decimal = Decimal("0")
+    unit_price: Decimal = Decimal("0")
+    unit: Optional[str] = "Bags"
+    hsn_code: Optional[str] = "31021000"
     gst_rate: Decimal = Decimal("0")
     gst_amount: Decimal = Decimal("0")
+    taxable_amount: Decimal = Decimal("0")
+    total_amount: Decimal = Decimal("0")
     total: Decimal = Decimal("0")
     manufacture_date: Optional[str] = None
     expiry_date: Optional[str] = None
@@ -340,6 +345,9 @@ class SaleResponse(BaseModel):
     invoice_number: str
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    customer_address: Optional[str] = None
+    customer_aadhar: Optional[str] = None
+    customer_gstin: Optional[str] = None
     subtotal: Decimal = Decimal("0")
     gst_amount: Decimal = Decimal("0")
     grand_total: Decimal = Decimal("0")
@@ -351,6 +359,10 @@ class SaleResponse(BaseModel):
     total_taxable: Optional[Decimal] = None
     total_cgst: Optional[Decimal] = None
     total_sgst: Optional[Decimal] = None
+    total_igst: Optional[Decimal] = Decimal("0")
+    total_discount: Optional[Decimal] = Decimal("0")
+    round_off: Optional[Decimal] = Decimal("0")
+    status: Optional[str] = "Completed"
     items: List[SaleItemResponse] = []
 
     class Config:

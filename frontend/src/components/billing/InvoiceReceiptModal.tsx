@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Printer, Download, X, CheckCircle, Share2 } from 'lucide-react';
 import { Sale, ShopSettings } from '../../types';
 import { salesApi } from '../../api';
+import { safeNumber, formatCurrency } from '../../utils/formatters';
 
 interface InvoiceReceiptModalProps {
   isOpen: boolean;
@@ -30,29 +31,29 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[95vh]">
         {/* Top Control Bar (Hidden on print) */}
-        <div className="no-print px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="no-print px-3 sm:px-5 py-3 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-sm">Invoice #{sale.invoice_number} Generated</span>
+            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
+            <span className="font-bold text-xs sm:text-sm truncate">Invoice #{sale.invoice_number}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={handlePrint}
-              className="bg-brand-600 hover:bg-brand-500 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs shadow transition-colors"
+              className="bg-brand-600 hover:bg-brand-500 text-white font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 text-[11px] sm:text-xs shadow transition-colors active:scale-95"
             >
-              <Printer className="w-4 h-4" />
-              Print Bill
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print</span>
             </button>
             <button
               onClick={handleDownloadPdf}
-              className="bg-slate-700 hover:bg-slate-600 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs shadow transition-colors"
+              className="bg-slate-700 hover:bg-slate-600 text-white font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 text-[11px] sm:text-xs shadow transition-colors active:scale-95"
             >
-              <Download className="w-4 h-4" />
-              Download PDF
+              <Download className="w-3.5 h-3.5" />
+              <span>PDF</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors ml-2"
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors ml-1"
             >
               <X className="w-5 h-5" />
             </button>
@@ -60,22 +61,22 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
         </div>
 
         {/* Printable Invoice Container */}
-        <div className="overflow-y-auto p-6 sm:p-8 bg-white text-slate-900 text-xs" id="printable-invoice">
+        <div className="overflow-y-auto p-4 sm:p-8 bg-white text-slate-900 text-xs" id="printable-invoice">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4 mb-4 text-center">
             <p className="text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-1">
               TAX INVOICE / RETAIL CASH MEMO
             </p>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 uppercase tracking-tight">
               {settings.shop_name}
             </h1>
-            <p className="text-xs text-slate-600 mt-1 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-600 mt-1 font-medium">
               {settings.address_line1}, {settings.city}, {settings.state} - {settings.pincode}
             </p>
-            <p className="text-xs text-slate-600">
+            <p className="text-[11px] sm:text-xs text-slate-600">
               Phone: <strong>{settings.phone}</strong> | Email: {settings.email || 'N/A'}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-2 font-mono text-[11px] bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-200">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mt-2 font-mono text-[10px] sm:text-[11px] bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-200">
               <span><strong>GSTIN:</strong> {settings.gstin}</span>
               {settings.fertilizer_license_no && (
                 <span><strong>Fertilizer Lic:</strong> {settings.fertilizer_license_no}</span>
@@ -87,7 +88,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
           </div>
 
           {/* Invoice Meta and Customer Info */}
-          <div className="grid grid-cols-2 gap-4 mb-5 pb-3 border-b border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-5 pb-3 border-b border-slate-200">
             <div>
               <p className="text-[10px] font-bold uppercase text-slate-400">Billed To (Customer):</p>
               <p className="font-bold text-sm text-slate-900">{sale.customer_name}</p>
@@ -96,12 +97,12 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
               {sale.customer_aadhar && <p className="font-mono text-[11px]">Aadhar No: {sale.customer_aadhar}</p>}
               {sale.customer_gstin && <p className="font-mono text-[11px]">GSTIN: {sale.customer_gstin}</p>}
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <p className="text-[10px] font-bold uppercase text-slate-400">Invoice Details:</p>
               <p className="font-mono font-bold text-sm text-brand-800">#{sale.invoice_number}</p>
-              <p>Date: {new Date(sale.invoice_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-              <p>Payment Mode: <strong className="uppercase bg-slate-100 px-1.5 py-0.5 rounded">{sale.payment_mode}</strong></p>
-              <p className="text-[11px] text-slate-500">Status: {sale.status}</p>
+              <p>Date: {sale.invoice_date || sale.sale_date ? new Date((sale.invoice_date || sale.sale_date) as string).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</p>
+              <p>Payment Mode: <strong className="uppercase bg-slate-100 px-1.5 py-0.5 rounded">{sale.payment_mode || sale.payment_method || 'CASH'}</strong></p>
+              <p className="text-[11px] text-slate-500">Status: {sale.status || 'Completed'}</p>
             </div>
           </div>
 
@@ -129,14 +130,14 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                     <td className="py-1.5 px-2 border-r border-slate-300 font-mono text-[10px]">
                       {item.batch_number} {item.expiry_date ? `| Exp: ${item.expiry_date}` : ''}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-slate-300 font-mono text-center">{item.hsn_code}</td>
+                    <td className="py-1.5 px-2 border-r border-slate-300 font-mono text-center">{item.hsn_code || '31021000'}</td>
                     <td className="py-1.5 px-2 border-r border-slate-300 text-right font-bold">
-                      {item.quantity} {item.unit}
+                      {item.quantity} {item.unit || 'Bags'}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">₹{item.unit_price.toFixed(2)}</td>
-                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">₹{item.taxable_amount.toFixed(2)}</td>
-                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">{item.gst_rate}%</td>
-                    <td className="py-1.5 px-2 text-right font-bold">₹{item.total_amount.toFixed(2)}</td>
+                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">₹{formatCurrency(item.unit_price ?? item.price)}</td>
+                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">₹{formatCurrency(item.taxable_amount ?? ((safeNumber(item.unit_price ?? item.price)) * safeNumber(item.quantity, 1)))}</td>
+                    <td className="py-1.5 px-2 border-r border-slate-300 text-right">{safeNumber(item.gst_rate)}%</td>
+                    <td className="py-1.5 px-2 text-right font-bold">₹{formatCurrency(item.total_amount ?? item.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -144,26 +145,26 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
           </div>
 
           {/* Tax Summary & Grand Total */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
             <div className="space-y-2">
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px] space-y-1">
                 <p className="font-bold text-slate-800">GST Breakdown:</p>
                 <div className="flex justify-between text-slate-600">
                   <span>Total Taxable Amount:</span>
-                  <span>₹{sale.total_taxable.toFixed(2)}</span>
+                  <span>₹{formatCurrency(sale.total_taxable ?? sale.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>CGST:</span>
-                  <span>₹{sale.total_cgst.toFixed(2)}</span>
+                  <span>₹{formatCurrency(sale.total_cgst ?? (safeNumber(sale.gst_amount) / 2))}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>SGST:</span>
-                  <span>₹{sale.total_sgst.toFixed(2)}</span>
+                  <span>₹{formatCurrency(sale.total_sgst ?? (safeNumber(sale.gst_amount) / 2))}</span>
                 </div>
-                {sale.total_igst > 0 && (
+                {safeNumber(sale.total_igst) > 0 && (
                   <div className="flex justify-between text-slate-600">
                     <span>IGST:</span>
-                    <span>₹{sale.total_igst.toFixed(2)}</span>
+                    <span>₹{formatCurrency(sale.total_igst)}</span>
                   </div>
                 )}
               </div>
@@ -177,43 +178,43 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
               )}
             </div>
 
-            <div className="space-y-1 text-right">
-              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+            <div className="space-y-1 sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-lg border sm:border-0 border-slate-200">
+              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600 text-xs">
                 <span>Subtotal (Gross):</span>
-                <span>₹{sale.subtotal.toFixed(2)}</span>
+                <span className="font-semibold text-slate-800">₹{formatCurrency(sale.subtotal)}</span>
               </div>
-              {sale.total_discount > 0 && (
-                <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700">
+              {safeNumber(sale.total_discount) > 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-100 text-emerald-700 text-xs">
                   <span>Discount:</span>
-                  <span>-₹{sale.total_discount.toFixed(2)}</span>
+                  <span>-₹{formatCurrency(sale.total_discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600">
+              <div className="flex justify-between py-1 border-b border-slate-100 text-slate-600 text-xs">
                 <span>GST Tax:</span>
-                <span>₹{(sale.total_cgst + sale.total_sgst + sale.total_igst).toFixed(2)}</span>
+                <span>₹{formatCurrency(sale.gst_amount ?? (safeNumber(sale.total_cgst) + safeNumber(sale.total_sgst) + safeNumber(sale.total_igst)))}</span>
               </div>
-              {sale.round_off !== 0 && (
-                <div className="flex justify-between py-1 border-b border-slate-100 text-slate-500">
+              {safeNumber(sale.round_off) !== 0 && (
+                <div className="flex justify-between py-1 border-b border-slate-100 text-slate-500 text-xs">
                   <span>Round Off:</span>
-                  <span>{sale.round_off > 0 ? `+₹${sale.round_off.toFixed(2)}` : `-₹${Math.abs(sale.round_off).toFixed(2)}`}</span>
+                  <span>{safeNumber(sale.round_off) > 0 ? `+₹${formatCurrency(sale.round_off)}` : `-₹${formatCurrency(Math.abs(safeNumber(sale.round_off)))}`}</span>
                 </div>
               )}
               <div className="flex justify-between py-2 border-t-2 border-slate-900 font-bold text-base text-slate-900">
                 <span>Grand Total:</span>
-                <span className="font-black text-lg text-brand-900">₹{sale.grand_total.toFixed(2)}</span>
+                <span className="font-black text-lg text-brand-900">₹{formatCurrency(sale.grand_total)}</span>
               </div>
             </div>
           </div>
 
           {/* Terms & Signature */}
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 text-[10px] text-slate-500">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200 text-[10px] text-slate-500">
             <div>
               <p className="font-bold text-slate-700 uppercase mb-0.5">Terms & Conditions:</p>
               <p className="whitespace-pre-line">{settings.terms_conditions || '1. Goods sold will not be returned.\n2. Store in dry place.'}</p>
             </div>
-            <div className="text-right pt-6">
+            <div className="sm:text-right pt-4 sm:pt-6">
               <p className="font-bold text-slate-800">For {settings.shop_name}</p>
-              <div className="h-10"></div>
+              <div className="h-8 sm:h-10"></div>
               <p className="border-t border-slate-300 inline-block pt-1 font-semibold">Authorized Signatory</p>
             </div>
           </div>

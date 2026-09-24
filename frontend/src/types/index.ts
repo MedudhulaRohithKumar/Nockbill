@@ -172,29 +172,35 @@ export interface SaleItem {
   unit: string;
   quantity: number;
   unit_price: number;
+  price?: number;
   mrp: number;
   discount_percent: number;
   discount_amount: number;
   taxable_amount: number;
   gst_rate: number;
+  gst_amount?: number;
   cgst_amount: number;
   sgst_amount: number;
   igst_amount: number;
   total_amount: number;
+  total?: number;
 }
 
 export interface Sale {
   id: number;
   invoice_number: string;
   invoice_date: string;
+  sale_date?: string;
   customer_name: string;
   customer_phone?: string;
   customer_address?: string;
   customer_aadhar?: string;
   customer_gstin?: string;
-  payment_mode: 'Cash' | 'UPI' | 'Card' | 'Credit' | 'Bank Transfer';
+  payment_mode: 'Cash' | 'UPI' | 'Card' | 'Credit' | 'Bank Transfer' | string;
+  payment_method?: string;
   is_interstate: boolean;
   subtotal: number;
+  gst_amount?: number;
   total_discount: number;
   total_taxable: number;
   total_cgst: number;
@@ -203,7 +209,7 @@ export interface Sale {
   round_off: number;
   grand_total: number;
   notes?: string;
-  status: 'Completed' | 'Cancelled' | 'Refunded';
+  status: 'Completed' | 'Cancelled' | 'Refunded' | string;
   items: SaleItem[];
 }
 

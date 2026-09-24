@@ -113,7 +113,7 @@ export const AnalyticsPage: React.FC = () => {
       {/* Filter Bar with Presets & Date-Time Picker */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 scrollbar-hide sm:flex-wrap">
             {[
               { id: 'today', label: 'Today' },
               { id: 'yesterday', label: 'Yesterday' },
@@ -121,7 +121,7 @@ export const AnalyticsPage: React.FC = () => {
               { id: 'this_month', label: 'This Month' },
               { id: 'last_month', label: 'Last Month' },
               { id: 'all', label: 'All Time' },
-              { id: 'custom', label: 'Custom Range' },
+              { id: 'custom', label: 'Custom' },
             ].map((p) => (
               <button
                 key={p.id}
@@ -132,7 +132,7 @@ export const AnalyticsPage: React.FC = () => {
                     setCustomEnd('');
                   }
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                   preset === p.id
                     ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-600/20'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -158,35 +158,35 @@ export const AnalyticsPage: React.FC = () => {
         {preset === 'custom' && (
           <form
             onSubmit={handleApplyCustom}
-            className="pt-3 border-t border-slate-100 flex flex-wrap items-end gap-3 bg-slate-50 p-3 rounded-xl"
+            className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 bg-slate-50 p-3 rounded-xl"
           >
-            <div>
+            <div className="flex-1 min-w-0">
               <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-slate-400" /> Start Date & Time
+                <Clock className="w-3 h-3 text-slate-400" /> Start Date &amp; Time
               </label>
               <input
                 type="datetime-local"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
                 required
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-slate-400" /> End Date & Time
+                <Clock className="w-3 h-3 text-slate-400" /> End Date &amp; Time
               </label>
               <input
                 type="datetime-local"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
                 required
-                className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
             <button
               type="submit"
-              className="flex items-center gap-1 px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition"
+              className="flex items-center justify-center gap-1 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition w-full sm:w-auto"
             >
               <Filter className="w-3 h-3" />
               Apply Range
@@ -194,6 +194,7 @@ export const AnalyticsPage: React.FC = () => {
           </form>
         )}
       </div>
+
 
       {loading && !data ? (
         <div className="min-h-[300px] flex items-center justify-center bg-white rounded-2xl border border-slate-200">
@@ -332,7 +333,7 @@ export const AnalyticsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="h-72 w-full pt-2">
+            <div className="h-56 sm:h-72 w-full pt-2">
               {activeTab === 'day' && (
                 (data?.day_wise && data.day_wise.length > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">

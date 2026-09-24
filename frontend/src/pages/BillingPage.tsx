@@ -607,20 +607,25 @@ export const BillingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Cart Table Container */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[360px]">
+          {/* Cart Items Container - Responsive Dual View */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[300px]">
             <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700 uppercase tracking-wider">
-                Bill Items ({cart.length})
+              <span className="font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <span>Bill Items ({cart.length})</span>
+                {cart.length > 0 && (
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                    Total: ₹{formatCurrency(roundedGrandTotal)}
+                  </span>
+                )}
               </span>
-              <span className="text-slate-500 font-medium">
+              <span className="text-slate-500 font-medium hidden sm:inline">
                 Prices include applicable GST
               </span>
             </div>
 
-            <div className="flex-1 overflow-x-auto">
+            <div className="flex-1">
               {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center p-12 text-center text-slate-400 space-y-3">
+                <div className="h-full flex flex-col items-center justify-center p-8 sm:p-12 text-center text-slate-400 space-y-3">
                   <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                     <Scan className="w-8 h-8" />
                   </div>
@@ -632,35 +637,50 @@ export const BillingPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100/70 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
-                    <tr>
-                      <th className="py-2.5 px-3">Product Description</th>
-                      <th className="py-2.5 px-2 text-center">Batch / HSN</th>
-                      <th className="py-2.5 px-2 text-center w-28">Quantity</th>
-                      <th className="py-2.5 px-2 text-right">Rate (₹)</th>
-                      <th className="py-2.5 px-2 text-right">Taxable</th>
-                      <th className="py-2.5 px-2 text-center">GST%</th>
-                      <th className="py-2.5 px-3 text-right">Total (₹)</th>
-                      <th className="py-2.5 px-2 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+                <>
+                  {/* MOBILE VIEW (< md): Touch-Friendly Item Cards */}
+                  <div className="md:hidden p-2.5 space-y-2.5 divide-y-0">
                     {cart.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/70">
-                        <td className="py-3 px-3">
-                          <p className="font-bold text-slate-900">{item.product_name}</p>
-                          <p className="text-[10px] text-slate-500 font-mono">Unit: {item.unit}</p>
-                        </td>
-                        <td className="py-3 px-2 text-center font-mono text-[11px]">
-                          <p className="text-slate-800">{item.batch_number}</p>
-                          <p className="text-[10px] text-slate-400">HSN: {item.hsn_code}</p>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center border border-slate-300 rounded-lg bg-white overflow-hidden max-w-[100px] mx-auto">
+                      <div
+                        key={idx}
+                        className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 shadow-xs space-y-2.5"
+                      >
+                        {/* Top: Product Name, Batch, and Trash */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate">
+                              {item.product_name}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-slate-500 font-mono">
+                              <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-700">
+                                Batch: {item.batch_number}
+                              </span>
+                              <span className="text-slate-400">Unit: {item.unit}</span>
+                              <span className="bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200 text-[10px]">
+                                GST {safeNumber(item.gst_rate)}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(idx)}
+                            className="p-2 text-slate-400 hover:text-red-500 active:text-red-600 rounded-lg -mr-1 -mt-1 transition"
+                            title="Remove Item"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Middle: Touch Quantity Controls & Price */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
+                          {/* Large Thumb-friendly Quantity Stepper */}
+                          <div className="flex items-center border border-slate-300 rounded-xl bg-white overflow-hidden shadow-xs">
                             <button
+                              type="button"
                               onClick={() => updateCartItemQty(idx, item.quantity - 1)}
-                              className="px-2 py-1 text-slate-600 hover:bg-slate-100 text-sm font-bold"
+                              className="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 active:bg-slate-200 text-base font-bold transition select-none"
+                              aria-label="Decrease quantity"
                             >
                               -
                             </button>
@@ -669,48 +689,133 @@ export const BillingPage: React.FC = () => {
                               min="1"
                               value={item.quantity}
                               onChange={(e) => updateCartItemQty(idx, parseInt(e.target.value) || 1)}
-                              className="w-10 text-center font-bold text-xs focus:outline-none"
+                              className="w-12 h-9 text-center font-bold text-sm text-slate-900 focus:outline-none bg-transparent"
                             />
                             <button
+                              type="button"
                               onClick={() => updateCartItemQty(idx, item.quantity + 1)}
-                              className="px-2 py-1 text-slate-600 hover:bg-slate-100 text-sm font-bold"
+                              className="w-9 h-9 flex items-center justify-center text-slate-700 hover:bg-slate-100 active:bg-slate-200 text-base font-bold transition select-none"
+                              aria-label="Increase quantity"
                             >
                               +
                             </button>
                           </div>
-                        </td>
-                        <td className="py-3 px-2 text-right">
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={item.unit_price}
-                            onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right px-1.5 py-1 border border-slate-200 rounded font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                          />
-                        </td>
-                        <td className="py-3 px-2 text-right text-slate-600 font-mono">
-                          ₹{formatCurrency(item.taxable_amount)}
-                        </td>
-                        <td className="py-3 px-2 text-center">
-                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                            {safeNumber(item.gst_rate)}%
+
+                          {/* Editable Price Rate */}
+                          <div className="flex items-center gap-1 text-right">
+                            <span className="text-xs text-slate-400 font-bold">Rate ₹</span>
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={item.unit_price}
+                              onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
+                              className="w-20 text-right px-2 py-1.5 border border-slate-300 rounded-lg font-bold text-xs bg-white text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Bottom: Taxable Breakdown and Total Amount */}
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+                          <span className="text-slate-500 text-[11px] font-mono">
+                            Taxable: ₹{formatCurrency(item.taxable_amount)}
                           </span>
-                        </td>
-                        <td className="py-3 px-3 text-right font-black text-slate-900">
-                          ₹{formatCurrency(item.total_amount)}
-                        </td>
-                        <td className="py-3 px-2 text-center">
-                          <button
-                            onClick={() => removeFromCart(idx)}
-                            className="text-slate-300 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 block leading-none">Line Total</span>
+                            <span className="font-black text-sm text-slate-900 font-mono">
+                              ₹{formatCurrency(item.total_amount)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* DESKTOP VIEW (>= md): Full Detail Data Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100/70 text-slate-600 font-semibold border-b border-slate-200 text-[11px]">
+                        <tr>
+                          <th className="py-2.5 px-3">Product Description</th>
+                          <th className="py-2.5 px-2 text-center">Batch / HSN</th>
+                          <th className="py-2.5 px-2 text-center w-28">Quantity</th>
+                          <th className="py-2.5 px-2 text-right">Rate (₹)</th>
+                          <th className="py-2.5 px-2 text-right">Taxable</th>
+                          <th className="py-2.5 px-2 text-center">GST%</th>
+                          <th className="py-2.5 px-3 text-right">Total (₹)</th>
+                          <th className="py-2.5 px-2 w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {cart.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/70">
+                            <td className="py-3 px-3">
+                              <p className="font-bold text-slate-900">{item.product_name}</p>
+                              <p className="text-[10px] text-slate-500 font-mono">Unit: {item.unit}</p>
+                            </td>
+                            <td className="py-3 px-2 text-center font-mono text-[11px]">
+                              <p className="text-slate-800">{item.batch_number}</p>
+                              <p className="text-[10px] text-slate-400">HSN: {item.hsn_code}</p>
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="flex items-center justify-center border border-slate-300 rounded-lg bg-white overflow-hidden max-w-[100px] mx-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => updateCartItemQty(idx, item.quantity - 1)}
+                                  className="px-2 py-1 text-slate-600 hover:bg-slate-100 text-sm font-bold"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateCartItemQty(idx, parseInt(e.target.value) || 1)}
+                                  className="w-10 text-center font-bold text-xs focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateCartItemQty(idx, item.quantity + 1)}
+                                  className="px-2 py-1 text-slate-600 hover:bg-slate-100 text-sm font-bold"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={item.unit_price}
+                                onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
+                                className="w-20 text-right px-1.5 py-1 border border-slate-200 rounded font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            </td>
+                            <td className="py-3 px-2 text-right text-slate-600 font-mono">
+                              ₹{formatCurrency(item.taxable_amount)}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                {safeNumber(item.gst_rate)}%
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-right font-black text-slate-900">
+                              ₹{formatCurrency(item.total_amount)}
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeFromCart(idx)}
+                                className="text-slate-300 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -880,10 +985,33 @@ export const BillingPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Mobile Floating Sticky Checkout Bar */}
+      {cart.length > 0 && (
+        <div className="md:hidden fixed bottom-[68px] left-2 right-2 z-20 bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-2xl shadow-2xl border border-slate-700/60 flex items-center justify-between animate-in slide-in-from-bottom-2 duration-150">
+          <div className="overflow-hidden mr-2">
+            <p className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+              {cart.length} Item{cart.length > 1 ? 's' : ''} in Bill
+            </p>
+            <p className="text-lg font-black text-white truncate font-mono">
+              ₹{formatCurrency(roundedGrandTotal)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSaveAndPrint}
+            disabled={isSaving}
+            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-1.5 text-xs shadow-lg shadow-emerald-950/40 active:scale-95 transition-all shrink-0"
+          >
+            <Printer className="w-4 h-4" />
+            <span>{isSaving ? 'Finalizing...' : 'Save & Print'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Packaging Variant Picker Modal */}
       {variantPickerProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden p-5 space-y-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-sm text-slate-900">
@@ -950,8 +1078,8 @@ export const BillingPage: React.FC = () => {
 
       {/* Batch & Expiry Selection Modal (Multi-Batch / Price Variance) */}
       {batchPickerProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div className="px-5 py-4 bg-emerald-800 text-white flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-sm flex items-center gap-2">
