@@ -6,7 +6,8 @@ import {
   Package, 
   ShoppingBag, 
   Wallet, 
-  BarChart3, 
+  BarChart3,
+  TrendingUp,
   Settings, 
   LogOut, 
   Menu, 
@@ -38,8 +39,10 @@ export const AppLayout: React.FC = () => {
     { to: '/purchases', label: 'Inward / Purchases', icon: ShoppingBag },
     { to: '/expenses', label: 'Expenses', icon: Wallet },
     { to: '/reports', label: 'GST & Reports', icon: BarChart3 },
+    { to: '/analytics', label: 'Analytics', icon: TrendingUp, badge: 'Live' },
     { to: '/settings', label: 'Shop Settings', icon: Settings },
   ];
+
 
   const bottomNavItems = [
     { to: '/', label: 'Home', icon: LayoutDashboard },

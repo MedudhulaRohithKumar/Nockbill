@@ -97,6 +97,12 @@ def create_purchase(
         raise HTTPException(500, f"Failed to save purchase: {str(e)}")
 
 
+import io
+from fastapi.responses import StreamingResponse
+from app.models.models import ShopSettings
+from app.reports.invoice_pdf import generate_purchase_pdf
+
+
 def serialize_purchase(p: Purchase) -> dict:
     b_date = p.purchase_date.strftime("%Y-%m-%d") if p.purchase_date else ""
     return {
@@ -118,6 +124,10 @@ def serialize_purchase(p: Purchase) -> dict:
             {
                 "id": it.id,
                 "product_id": it.product_id,
+                "product_name": it.product_name or (it.product.product_name if getattr(it, "product", None) else f"Product #{it.product_id}"),
+                "unit": it.unit or (it.product.unit if getattr(it, "product", None) else ""),
+                "batch_number": it.batch_number or (it.product.batch_number if getattr(it, "product", None) else ""),
+                "expiry_date": it.expiry_date or (it.product.expiry_date if getattr(it, "product", None) else ""),
                 "quantity": float(it.quantity or 0),
                 "purchase_price": float(it.purchase_price or 0),
                 "gst_rate": float(it.gst_rate or 0),
@@ -150,4 +160,28 @@ def get_purchase(
     if not purchase:
         raise HTTPException(404, "Purchase not found")
     return serialize_purchase(purchase)
+
+
+@router.get("/{purchase_id}/pdf")
+def download_purchase_pdf_direct(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(404, "Purchase not found")
+    shop = db.query(ShopSettings).first()
+    if not shop:
+        shop = ShopSettings(shop_name="My Fertilizer Shop")
+
+    pdf_bytes = generate_purchase_pdf(purchase, shop)
+    inv_name = purchase.invoice_number or f"PO-{purchase.id}"
+    filename = f"Purchase_{inv_name}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 

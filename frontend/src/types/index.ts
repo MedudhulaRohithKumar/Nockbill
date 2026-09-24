@@ -32,6 +32,33 @@ export interface ShopSettings {
   terms_conditions?: string;
 }
 
+export interface ProductBatch {
+  id: number;
+  product_id: number;
+  batch_number: string;
+  manufacture_date?: string;
+  expiry_date: string;
+  purchase_price: number;
+  selling_price: number;
+  mrp?: number;
+  current_stock: number;
+  is_active?: boolean;
+}
+
+export interface ProductVariant {
+  id?: number;
+  product_id?: number;
+  variant_name: string;
+  unit_size: number;
+  unit: string;
+  purchase_price: number;
+  selling_price: number;
+  mrp: number;
+  stock: number;
+  barcode?: string;
+  is_active?: boolean;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -41,6 +68,8 @@ export interface Product {
   category: string;
   hsn_code: string;
   unit: string;
+  net_content?: string;
+  barcode?: string;
   current_stock: number;
   cost_price: number;
   purchase_price?: number;
@@ -56,11 +85,86 @@ export interface Product {
   days_until_expiry?: number | null;
   is_low_stock?: boolean;
   is_near_expiry?: boolean;
+  variants?: ProductVariant[];
+  batches?: ProductBatch[];
 }
+
+export interface RefillRecommendation {
+  product_id: number;
+  product_name: string;
+  company_name?: string;
+  unit: string;
+  current_stock: number;
+  minimum_stock: number;
+  units_sold_30d: number;
+  sales_velocity_per_day: number;
+  days_of_stock_left: number;
+  urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM';
+  urgency_reason: string;
+  suggested_refill_quantity: number;
+}
+
+export interface AnalyticsData {
+  period: {
+    start: string;
+    end: string;
+    preset: string;
+  };
+  summary: {
+    total_revenue: number;
+    total_taxable: number;
+    total_gst: number;
+    total_bills: number;
+    average_bill_value: number;
+    total_cogs: number;
+    gross_profit: number;
+    gross_margin_percent: number;
+  };
+  day_wise: {
+    date: string;
+    label: string;
+    revenue: number;
+    bills: number;
+    gst: number;
+    profit: number;
+    cogs: number;
+  }[];
+  monthly: {
+    month: string;
+    label: string;
+    revenue: number;
+    bills: number;
+    gst: number;
+    profit: number;
+  }[];
+  hourly: {
+    hour: number;
+    label: string;
+    orders: number;
+    revenue: number;
+  }[];
+  payment_breakdown: {
+    method: string;
+    count: number;
+    amount: number;
+    percentage: number;
+  }[];
+  top_products: {
+    product_name: string;
+    quantity: number;
+    revenue: number;
+    cogs: number;
+    profit: number;
+    orders: number;
+    unit: string;
+  }[];
+}
+
 
 export interface SaleItem {
   id?: number;
   product_id: number;
+  batch_id?: number;
   product_name: string;
   batch_number: string;
   expiry_date?: string;

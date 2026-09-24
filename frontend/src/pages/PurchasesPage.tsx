@@ -183,7 +183,8 @@ export const PurchasesPage: React.FC = () => {
                 <th className="py-3 px-3">GSTIN</th>
                 <th className="py-3 px-3 text-right">Tax (₹)</th>
                 <th className="py-3 px-4 text-right">Total Amount (₹)</th>
-                <th className="py-3 px-4 text-center">Status</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-4 text-center">Inward Bill</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -198,13 +199,13 @@ export const PurchasesPage: React.FC = () => {
                     <td className="py-3 px-4 font-bold text-slate-900">
                       {pur.supplier_name || 'Supplier'}
                     </td>
-                    <td className="py-3 px-3 font-mono text-brand-800 font-semibold">
+                    <td className="py-3 px-3 font-mono text-emerald-800 font-semibold">
                       {billNo}
                     </td>
-                    <td className="py-3 px-3 text-slate-600">
+                    <td className="py-3 px-3 text-slate-600 font-mono text-xs">
                       {billDt}
                     </td>
-                    <td className="py-3 px-3 font-mono text-slate-500">
+                    <td className="py-3 px-3 font-mono text-slate-500 text-xs">
                       {pur.supplier_gstin || 'N/A'}
                     </td>
                     <td className="py-3 px-3 text-right text-slate-600">
@@ -213,11 +214,23 @@ export const PurchasesPage: React.FC = () => {
                     <td className="py-3 px-4 text-right font-black text-slate-900">
                       ₹{formatCurrency(totAmt)}
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-3 px-3 text-center">
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                         <Check className="w-3 h-3" />
                         Received
                       </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <a
+                        href={purchasesApi.getPdfUrl(pur.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 rounded-lg text-xs font-semibold border border-slate-200 transition shadow-xs"
+                        title="Download Inward Bill PDF"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Print PDF</span>
+                      </a>
                     </td>
                   </tr>
                 );
@@ -226,6 +239,7 @@ export const PurchasesPage: React.FC = () => {
           </table>
         </div>
       </div>
+
 
       {/* Record Inward Modal */}
       {isModalOpen && (

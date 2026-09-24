@@ -15,10 +15,14 @@ import {
   IndianRupee,
   CheckCircle,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Barcode,
+  Zap,
+  Package,
+  X
 } from 'lucide-react';
-import { productsApi, salesApi } from '../api';
-import { Product, SaleItem, Sale } from '../types';
+import { productsApi, salesApi, getErrorMessage } from '../api';
+import { Product, ProductVariant, ProductBatch, SaleItem, Sale } from '../types';
 import { useShop } from '../context/ShopContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
@@ -39,8 +43,15 @@ export const BillingPage: React.FC = () => {
   // Cart Items State
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [inventory, setInventory] = useState<Product[]>([]);
+  const [frequentlySold, setFrequentlySold] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [barcodeStatus, setBarcodeStatus] = useState<string | null>(null);
+
+  // Packaging Variant Selector & Batch Selector States
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+  const [batchPickerProduct, setBatchPickerProduct] = useState<{ product: Product; variant?: ProductVariant } | null>(null);
 
   // Modals & UI States
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -49,99 +60,22 @@ export const BillingPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Load products list for fast search
+  // Load products list and frequently sold products
+  const loadData = async () => {
+    try {
+      const [list, freq] = await Promise.all([
+        productsApi.getAll(),
+        salesApi.getFrequentlySold(8).catch(() => [])
+      ]);
+      setInventory(list);
+      setFrequentlySold(freq || []);
+    } catch {
+      // Local fallback
+    }
+  };
+
   useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const list = await productsApi.getAll();
-        setInventory(list);
-      } catch {
-        // Fallback default fertilizer inventory
-        setInventory([
-          {
-            id: 1,
-            name: 'IFFCO Neem Coated Urea (45 Kg)',
-            category: 'Fertilizer',
-            hsn_code: '31021000',
-            unit: 'Bags',
-            current_stock: 140,
-            cost_price: 250,
-            selling_price: 266.5,
-            mrp: 266.5,
-            gst_rate: 5,
-            batch_number: 'NCU-2024-88',
-            expiry_date: '2027-04-30',
-            min_stock_level: 30,
-            is_active: true
-          },
-          {
-            id: 2,
-            name: 'IFFCO DAP 18-46-0 (50 Kg)',
-            category: 'Fertilizer',
-            hsn_code: '31053000',
-            unit: 'Bags',
-            current_stock: 85,
-            cost_price: 1280,
-            selling_price: 1350.0,
-            mrp: 1350.0,
-            gst_rate: 5,
-            batch_number: 'DAP-901-B',
-            expiry_date: '2026-11-20',
-            min_stock_level: 25,
-            is_active: true
-          },
-          {
-            id: 3,
-            name: 'MOP - Muriate of Potash 60% K2O (50 Kg)',
-            category: 'Fertilizer',
-            hsn_code: '31042000',
-            unit: 'Bags',
-            current_stock: 45,
-            cost_price: 1600,
-            selling_price: 1700.0,
-            mrp: 1700.0,
-            gst_rate: 5,
-            batch_number: 'MOP-5521',
-            expiry_date: '2027-01-15',
-            min_stock_level: 20,
-            is_active: true
-          },
-          {
-            id: 4,
-            name: 'UPL Saaf Fungicide (500g)',
-            category: 'Pesticide',
-            hsn_code: '38089290',
-            unit: 'Packets',
-            current_stock: 35,
-            cost_price: 450,
-            selling_price: 520.0,
-            mrp: 550.0,
-            gst_rate: 18,
-            batch_number: 'SAF-24-09',
-            expiry_date: '2026-06-30',
-            min_stock_level: 15,
-            is_active: true
-          },
-          {
-            id: 5,
-            name: 'Bayer Confidor Insecticide (100ml)',
-            category: 'Pesticide',
-            hsn_code: '38089199',
-            unit: 'Bottles',
-            current_stock: 22,
-            cost_price: 320,
-            selling_price: 380.0,
-            mrp: 410.0,
-            gst_rate: 18,
-            batch_number: 'BC-2023-41',
-            expiry_date: '2025-10-15',
-            min_stock_level: 10,
-            is_active: true
-          }
-        ]);
-      }
-    };
-    loadProducts();
+    loadData();
 
     // Check if there is an OCR-scanned item passed from Dashboard
     const pendingItemStr = sessionStorage.getItem('pending_bill_item');
@@ -165,10 +99,61 @@ export const BillingPage: React.FC = () => {
       const pName = safeString(p.name || p.product_name).toLowerCase();
       const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
       const pHsn = safeString(p.hsn_code).toLowerCase();
-      return pName.includes(q) || pBatch.includes(q) || pHsn.includes(q);
+      const pBarcode = safeString(p.barcode).toLowerCase();
+      const pCompany = safeString(p.company_name).toLowerCase();
+      return pName.includes(q) || pBatch.includes(q) || pHsn.includes(q) || pBarcode.includes(q) || pCompany.includes(q);
     });
-    setSearchResults(filtered.slice(0, 6));
+    setSearchResults(filtered.slice(0, 8));
   }, [searchQuery, inventory]);
+
+  // Barcode Lookup Handler
+  const handleBarcodeLookup = async (codeToLookup?: string) => {
+    const code = (codeToLookup || barcodeInput).trim();
+    if (!code) return;
+
+    setBarcodeStatus('Searching...');
+    try {
+      const product = await productsApi.getByBarcode(code);
+      if (product) {
+        setBarcodeStatus(`Found ${product.product_name || product.name}`);
+        setBarcodeInput('');
+        
+        // If product has multiple packaging variants, prompt variant selector
+        if (product.variants && product.variants.length > 1) {
+          setVariantPickerProduct(product);
+        } else {
+          // Check if multiple active batches exist
+          const activeBatches = product.batches && product.batches.length > 0
+            ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
+            : [];
+          if (activeBatches.length > 1) {
+            setBatchPickerProduct({ product });
+          } else {
+            addProductToCart(product, undefined, activeBatches[0]);
+          }
+        }
+      }
+    } catch {
+      setBarcodeStatus('Barcode not found in inventory');
+      setTimeout(() => setBarcodeStatus(null), 3000);
+    }
+  };
+
+  // Fast Product Selector from Search (handles variants & batches)
+  const handleSelectProductFromSearch = (product: Product) => {
+    if (product.variants && product.variants.length > 1) {
+      setVariantPickerProduct(product);
+      return;
+    }
+    const activeBatches = product.batches && product.batches.length > 0
+      ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
+      : [];
+    if (activeBatches.length > 1) {
+      setBatchPickerProduct({ product });
+      return;
+    }
+    addProductToCart(product, undefined, activeBatches[0]);
+  };
 
   // Recalculate line item taxes
   const calculateItemTaxes = (
@@ -181,7 +166,6 @@ export const BillingPage: React.FC = () => {
     const gross = price * qty;
     const discountAmt = (gross * discountPercent) / 100;
     const netGross = gross - discountAmt;
-    // Since selling_price is inclusive of GST in Indian retail fertilizer billing:
     const taxable = netGross / (1 + gstRate / 100);
     const totalTax = netGross - taxable;
 
@@ -206,9 +190,56 @@ export const BillingPage: React.FC = () => {
     };
   };
 
+  // Add Product object to Cart (with optional packaging variant and optional batch)
+  const addProductToCart = (product: Product, variant?: ProductVariant, batch?: ProductBatch) => {
+    const activeBatches = product.batches && product.batches.length > 0
+      ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
+      : [];
+
+    if (!batch && activeBatches.length > 1) {
+      setBatchPickerProduct({ product, variant });
+      return;
+    }
+
+    const selectedBatch = batch || (activeBatches.length === 1 ? activeBatches[0] : undefined);
+
+    const pName = variant
+      ? `${product.product_name || product.name} (${variant.variant_name || `${variant.unit_size} ${variant.unit}`})`
+      : (product.product_name || product.name);
+
+    // Prioritize batch selling price if batch selected
+    const price = selectedBatch?.selling_price
+      ? selectedBatch.selling_price
+      : (variant ? variant.selling_price : (product.selling_price || 100));
+
+    const mrp = selectedBatch?.mrp
+      ? selectedBatch.mrp
+      : (variant ? variant.mrp : (product.mrp || price));
+
+    const unit = variant ? variant.unit : (product.unit || 'Bags');
+    const batchNo = selectedBatch?.batch_number || product.batch_number || product.product_code || 'DEFAULT';
+    const expiryDate = selectedBatch?.expiry_date || product.expiry_date;
+
+    addItemToCart({
+      product_id: product.id,
+      batch_id: selectedBatch?.id,
+      product_name: pName,
+      batch_number: batchNo,
+      expiry_date: expiryDate,
+      hsn_code: product.hsn_code || '31021000',
+      unit: unit,
+      unit_price: price,
+      mrp: mrp,
+      gst_rate: product.gst_rate ?? 5,
+      quantity: 1,
+    });
+  };
+
   const addItemToCart = (item: Partial<SaleItem>) => {
     const existingIndex = cart.findIndex(
-      c => c.product_id === item.product_id && c.batch_number === item.batch_number
+      c => c.product_id === item.product_id && 
+           c.product_name === item.product_name && 
+           c.batch_number === item.batch_number
     );
 
     const price = item.unit_price || item.mrp || 100;
@@ -342,6 +373,7 @@ export const BillingPage: React.FC = () => {
       customer_address: customerAddress,
       customer_aadhar: customerAadhar,
       customer_gstin: customerGstin,
+      payment_method: paymentMode,
       payment_mode: paymentMode,
       is_interstate: isInterstate,
       subtotal: Math.round(subtotal * 100) / 100,
@@ -354,12 +386,14 @@ export const BillingPage: React.FC = () => {
       grand_total: roundedGrandTotal,
       items: cart.map(item => ({
         product_id: item.product_id,
+        batch_id: item.batch_id,
         product_name: item.product_name,
         batch_number: item.batch_number,
         expiry_date: item.expiry_date,
         hsn_code: item.hsn_code,
         unit: item.unit,
         quantity: item.quantity,
+        price: item.unit_price,
         unit_price: item.unit_price,
         mrp: item.mrp,
         discount_percent: item.discount_percent,
@@ -379,20 +413,8 @@ export const BillingPage: React.FC = () => {
       setIsReceiptOpen(true);
       clearBill();
     } catch (err: any) {
-      console.warn('Backend save failed, generating local offline invoice for preview');
-      // Create local fallback invoice
-      const randomInvNo = `${settings.invoice_prefix || 'KSK/'}${Math.floor(1000 + Math.random() * 9000)}`;
-      const localInvoice: Sale = {
-        id: Math.floor(1000 + Math.random() * 9000),
-        invoice_number: randomInvNo,
-        invoice_date: new Date().toISOString(),
-        ...salePayload,
-        status: 'Completed',
-        items: cart,
-      };
-      setSavedSale(localInvoice);
-      setIsReceiptOpen(true);
-      clearBill();
+      console.error('Invoice creation error:', err);
+      alert(`Could not save invoice in database: ${getErrorMessage(err, 'Failed to save bill')}`);
     } finally {
       setIsSaving(false);
     }
@@ -405,20 +427,20 @@ export const BillingPage: React.FC = () => {
         <div>
           <h1 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
             <span>Fertilizer POS Billing Counter</span>
-            <span className="text-[11px] bg-brand-100 text-brand-800 font-bold px-2 py-0.5 rounded-full">
+            <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
               GST Ready
             </span>
           </h1>
-          <p className="text-xs text-slate-500">Scan product label or select from warehouse stock</p>
+          <p className="text-xs text-slate-500">Scan barcodes with camera, typeahead search, or 1-click popular pills</p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsScannerOpen(true)}
-            className="bg-brand-700 hover:bg-brand-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md shadow-brand-900/10 active:scale-95 transition-all"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md shadow-emerald-900/10 active:scale-95 transition-all"
           >
-            <Scan className="w-4 h-4 text-emerald-300" />
-            <span>Scan Fertilizer Label (Camera)</span>
+            <Scan className="w-4 h-4 text-emerald-200" />
+            <span>Scan with Camera</span>
           </button>
           <button
             onClick={clearBill}
@@ -437,59 +459,152 @@ export const BillingPage: React.FC = () => {
         </div>
       )}
 
+      {/* Frequently Sold Quick Pills */}
+      {frequentlySold && frequentlySold.length > 0 && (
+        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+              <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              Frequently Billed Products (1-Click Add):
+            </span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            {frequentlySold.map((fItem) => {
+              const matchedProduct = inventory.find(p => p.id === fItem.id);
+              return (
+                <button
+                  key={fItem.id}
+                  onClick={() => {
+                    if (matchedProduct) {
+                      if (matchedProduct.variants && matchedProduct.variants.length > 1) {
+                        setVariantPickerProduct(matchedProduct);
+                      } else {
+                        addProductToCart(matchedProduct);
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl font-medium text-slate-800 flex items-center gap-2 shrink-0 transition shadow-xs active:scale-95"
+                >
+                  <span className="font-bold text-slate-900">{fItem.product_name}</span>
+                  <span className="font-semibold text-emerald-700 font-mono">
+                    ₹{formatCurrency(fItem.selling_price)}
+                  </span>
+                  <span className="text-[10px] bg-slate-200 text-slate-600 px-1 rounded font-mono">
+                    {fItem.current_stock} {fItem.unit}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Main Layout: Left Billing Items (8 Cols), Right Customer & Payment Summary (4 Cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Column: Product Search & Items Table (8 Cols) */}
         <div className="lg:col-span-8 space-y-3">
-          {/* Fast Product Search Bar */}
-          <div className="relative">
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Type Fertilizer Name, HSN code or Batch No (e.g. Urea, DAP, Potash, 3102)..."
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm"
-              />
+          {/* Dual Bar: Barcode Scanner Input + Search Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            {/* Direct Barcode Entry */}
+            <div className="sm:col-span-5 relative">
+              <div className="relative">
+                <Barcode className="w-4 h-4 text-emerald-700 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  value={barcodeInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setBarcodeInput(val);
+                    if (val.trim().length === 5) {
+                      handleBarcodeLookup(val);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleBarcodeLookup();
+                    }
+                  }}
+                  placeholder="Scan / Type 5-Digit Barcode (e.g. 10001)"
+                  className="w-full pl-10 pr-16 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBarcodeLookup()}
+                  className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[11px] font-bold"
+                >
+                  Lookup
+                </button>
+              </div>
+              {barcodeStatus && (
+                <div className="absolute z-20 left-0 mt-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {barcodeStatus}
+                </div>
+              )}
             </div>
 
-            {/* Auto-suggest dropdown */}
-            {searchResults.length > 0 && (
-              <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100">
-                {searchResults.map((product) => (
-                  <div
-                    key={product.id}
-                    onClick={() => addItemToCart({
-                      product_id: product.id,
-                      product_name: product.name,
-                      batch_number: product.batch_number,
-                      expiry_date: product.expiry_date,
-                      hsn_code: product.hsn_code,
-                      unit: product.unit,
-                      unit_price: product.selling_price,
-                      mrp: product.mrp,
-                      gst_rate: product.gst_rate,
-                      quantity: 1,
-                    })}
-                    className="p-3 hover:bg-brand-50/70 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-800">{product.name}</p>
-                      <p className="text-[11px] text-slate-500">
-                        HSN: <span className="font-mono">{product.hsn_code}</span> | Batch: <span className="font-mono">{product.batch_number}</span> | Stock: <strong className="text-brand-700">{product.current_stock} {product.unit}</strong>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-black text-slate-900 text-sm">₹{formatCurrency(product.selling_price)}</p>
-                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">
-                        GST {safeNumber(product.gst_rate)}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            {/* Fast Product Search Bar */}
+            <div className="sm:col-span-7 relative">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (searchResults.length > 0) {
+                        handleSelectProductFromSearch(searchResults[0]);
+                        setSearchQuery('');
+                        setSearchResults([]);
+                      }
+                    }
+                  }}
+                  placeholder="Type product name (Press Enter to Add) or brand, HSN..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
+                />
               </div>
-            )}
+
+              {/* Auto-suggest dropdown */}
+              {searchResults.length > 0 && (
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                  {searchResults.map((product) => (
+                    <div
+                      key={product.id}
+                      onClick={() => {
+                        handleSelectProductFromSearch(product);
+                        setSearchQuery('');
+                        setSearchResults([]);
+                      }}
+                      className="p-3 hover:bg-emerald-50/70 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800">{product.name || product.product_name}</p>
+                          {product.barcode && (
+                            <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
+                              {product.barcode}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          {product.company_name ? `${product.company_name} • ` : ''}
+                          Batch: <span className="font-mono">{product.batch_number}</span> | Stock: <strong className="text-emerald-700">{product.current_stock} {product.unit}</strong>
+                          {product.variants && product.variants.length > 1 ? ` • (${product.variants.length} packaging sizes)` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-slate-900 text-sm">₹{formatCurrency(product.selling_price)}</p>
+                        <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-100 px-1.5 py-0.5 rounded">
+                          GST {safeNumber(product.gst_rate)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Cart Table Container */}
@@ -506,13 +621,13 @@ export const BillingPage: React.FC = () => {
             <div className="flex-1 overflow-x-auto">
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-12 text-center text-slate-400 space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                     <Scan className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="font-bold text-slate-700 text-sm">Cart is currently empty</p>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs">
-                      Click <strong>Scan Fertilizer Label</strong> to take a photo of the bag or search products above to add items.
+                      Scan product barcode with camera or scanner, or search product above to start billing.
                     </p>
                   </div>
                 </div>
@@ -570,7 +685,7 @@ export const BillingPage: React.FC = () => {
                             step="0.5"
                             value={item.unit_price}
                             onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
-                            className="w-20 text-right px-1.5 py-1 border border-slate-200 rounded font-semibold text-xs focus:ring-1 focus:ring-brand-500 focus:outline-none"
+                            className="w-20 text-right px-1.5 py-1 border border-slate-200 rounded font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                           />
                         </td>
                         <td className="py-3 px-2 text-right text-slate-600 font-mono">
@@ -606,7 +721,7 @@ export const BillingPage: React.FC = () => {
           {/* Customer Details Card */}
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
             <h3 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-brand-700" />
+              <User className="w-3.5 h-3.5 text-emerald-800" />
               Customer Information
             </h3>
 
@@ -618,7 +733,7 @@ export const BillingPage: React.FC = () => {
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 placeholder="Ramesh Patel"
               />
             </div>
@@ -632,7 +747,7 @@ export const BillingPage: React.FC = () => {
                   type="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   placeholder="98250..."
                 />
               </div>
@@ -646,7 +761,7 @@ export const BillingPage: React.FC = () => {
                   maxLength={12}
                   value={customerAadhar}
                   onChange={(e) => setCustomerAadhar(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   placeholder="XXXX-XXXX-XXXX"
                 />
               </div>
@@ -660,7 +775,7 @@ export const BillingPage: React.FC = () => {
                 type="text"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 placeholder="Anand Rural"
               />
             </div>
@@ -671,7 +786,7 @@ export const BillingPage: React.FC = () => {
                   type="checkbox"
                   checked={isInterstate}
                   onChange={(e) => setIsInterstate(e.target.checked)}
-                  className="rounded text-brand-600 focus:ring-brand-500"
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
                 />
                 <span>Interstate Supply (IGST)</span>
               </label>
@@ -681,7 +796,7 @@ export const BillingPage: React.FC = () => {
           {/* Payment Mode Selector */}
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
             <h3 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-brand-700" />
+              <CreditCard className="w-3.5 h-3.5 text-emerald-800" />
               Payment Method
             </h3>
 
@@ -693,7 +808,7 @@ export const BillingPage: React.FC = () => {
                   onClick={() => setPaymentMode(mode)}
                   className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
                     paymentMode === mode
-                      ? 'bg-brand-800 text-white shadow-sm ring-2 ring-brand-500/50'
+                      ? 'bg-emerald-800 text-white shadow-sm ring-2 ring-emerald-500/50'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -745,9 +860,9 @@ export const BillingPage: React.FC = () => {
             <div className="flex items-baseline justify-between pt-1">
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Total Payable</p>
-                <p className="text-2xl font-black text-brand-900">₹{formatCurrency(roundedGrandTotal)}</p>
+                <p className="text-2xl font-black text-slate-900">₹{formatCurrency(roundedGrandTotal)}</p>
               </div>
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
                 {cart.length} item(s)
               </span>
             </div>
@@ -756,7 +871,7 @@ export const BillingPage: React.FC = () => {
             <button
               onClick={handleSaveAndPrint}
               disabled={cart.length === 0 || isSaving}
-              className="w-full bg-brand-700 hover:bg-brand-800 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 active:scale-95 transition-all text-sm disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 active:scale-95 transition-all text-sm disabled:opacity-50 disabled:pointer-events-none"
             >
               <Printer className="w-4 h-4" />
               <span>{isSaving ? 'Finalizing Invoice...' : 'Save & Print Invoice'}</span>
@@ -764,6 +879,165 @@ export const BillingPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Packaging Variant Picker Modal */}
+      {variantPickerProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden p-5 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">
+                  Select Packaging Size & Price
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {variantPickerProduct.product_name || variantPickerProduct.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setVariantPickerProduct(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {variantPickerProduct.variants?.map((v) => (
+                <button
+                  key={v.variant_name}
+                  onClick={() => {
+                    const prod = variantPickerProduct;
+                    setVariantPickerProduct(null);
+                    const activeBatches = prod.batches && prod.batches.length > 0
+                      ? prod.batches.filter(b => b.current_stock > 0 || prod.batches!.length === 1)
+                      : [];
+                    if (activeBatches.length > 1) {
+                      setBatchPickerProduct({ product: prod, variant: v });
+                    } else {
+                      addProductToCart(prod, v, activeBatches[0]);
+                    }
+                  }}
+                  className="w-full p-3.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 flex items-center justify-between transition text-left group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900">
+                        {v.variant_name || `${v.unit_size} ${v.unit}`}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Size: {v.unit_size} {v.unit} • MRP: ₹{formatCurrency(v.mrp || v.selling_price)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="font-black text-sm text-slate-900 block">
+                      ₹{formatCurrency(v.selling_price)}
+                    </span>
+                    <span className="text-[10px] text-emerald-700 font-semibold">
+                      Select Size
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch & Expiry Selection Modal (Multi-Batch / Price Variance) */}
+      {batchPickerProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+            <div className="px-5 py-4 bg-emerald-800 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-300" />
+                  Select Batch & Expiry Date
+                </h3>
+                <p className="text-[11px] text-emerald-200">
+                  {batchPickerProduct.product.product_name || batchPickerProduct.product.name}
+                  {batchPickerProduct.variant ? ` (${batchPickerProduct.variant.variant_name})` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setBatchPickerProduct(null)}
+                className="text-emerald-200 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Multiple batches found in godown. <strong>FIFO Recommendation:</strong> Hand over older batch to farmer first.
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {batchPickerProduct.product.batches?.map((b, idx) => {
+                  const isOldest = idx === 0;
+                  return (
+                    <button
+                      key={b.id || idx}
+                      onClick={() => {
+                        addProductToCart(batchPickerProduct.product, batchPickerProduct.variant, b);
+                        setBatchPickerProduct(null);
+                      }}
+                      className={`w-full p-3.5 text-left border rounded-xl transition flex items-center justify-between group ${
+                        isOldest
+                          ? 'border-emerald-500 bg-emerald-50/50 hover:bg-emerald-100/60'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            {b.batch_number}
+                          </span>
+                          {isOldest && (
+                            <span className="text-[10px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
+                              FIFO Sell First
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-600 flex items-center gap-3">
+                          <span>Expiry: <strong className="text-slate-800">{b.expiry_date}</strong></span>
+                          <span>•</span>
+                          <span>Stock: <strong className="text-slate-800">{b.current_stock}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="font-black text-sm text-emerald-800 font-mono">
+                          ₹{formatCurrency(b.selling_price)}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">
+                          Select [{idx + 1}]
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setBatchPickerProduct(null)}
+                className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* OCR Scanner Modal */}
       <CameraScannerModal

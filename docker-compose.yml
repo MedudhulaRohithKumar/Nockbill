@@ -39,6 +39,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./backend/app:/app/app
       - ./backend/uploads:/app/uploads
 
   # 3. React + Vite Frontend

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sprout, Lock, User as UserIcon, AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
+import { getErrorMessage } from '../api';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -21,7 +22,7 @@ export const LoginPage: React.FC = () => {
       await login(username, password);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Invalid username or password');
+      setError(getErrorMessage(err, 'Invalid username or password'));
     } finally {
       setIsLoading(false);
     }

@@ -144,3 +144,128 @@ def generate_invoice_pdf(sale, shop) -> bytes:
 
     doc.build(elements)
     return buf.getvalue()
+
+
+def generate_purchase_pdf(purchase, shop) -> bytes:
+    """
+    Generate a PDF for an inward purchase bill / goods receipt note.
+    Returns raw PDF bytes.
+    """
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=15 * mm,
+        rightMargin=15 * mm,
+        topMargin=15 * mm,
+        bottomMargin=15 * mm,
+    )
+
+    elements = []
+
+    # ── Shop Header ──────────────────────────────────────────
+    elements.append(Paragraph(shop.shop_name or "Fertilizer Shop", _header_style(18)))
+    if shop.address:
+        elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
+    if shop.phone:
+        elements.append(Paragraph(f"Phone: {shop.phone}", _header_style(9, bold=False, color=DARK_TEXT)))
+    if shop.gstin:
+        elements.append(Paragraph(f"GSTIN: {shop.gstin}", _header_style(9, bold=False, color=DARK_TEXT)))
+
+    elements.append(HRFlowable(width="100%", thickness=1, color=HexColor("#1565C0"), spaceAfter=4))
+    elements.append(Paragraph("<b>GOODS INWARD & PURCHASE RECEIPT</b>", _header_style(12, bold=True, color=HexColor("#1565C0"))))
+    elements.append(Spacer(1, 4))
+
+    # ── Bill Details ──────────────────────────────────────────
+    p_date = purchase.purchase_date.strftime('%d/%m/%Y %I:%M %p') if purchase.purchase_date else "-"
+    inv_num = purchase.invoice_number or f"PO-{purchase.id}"
+    supp_name = purchase.supplier_name or "Direct Supplier / Depot"
+
+    purchase_data = [
+        [
+            Paragraph(f"<b>Inward / Bill No:</b> {inv_num}", styles["Normal"]),
+            Paragraph(f"<b>Date:</b> {p_date}", _header_style(9, align=TA_RIGHT)),
+        ],
+        [
+            Paragraph(f"<b>Supplier:</b> {supp_name}", styles["Normal"]),
+            Paragraph("<b>Type:</b> Stock Refill / Inward Entry", _header_style(9, align=TA_RIGHT)),
+        ]
+    ]
+
+    elements.append(Table(purchase_data, colWidths=["55%", "45%"]))
+    elements.append(Spacer(1, 6))
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))
+
+    # ── Items Table ───────────────────────────────────────────
+    headers = ["#", "Product Name", "Unit / Batch", "Qty", "Cost Price", "GST%", "Total ₹"]
+    rows = [headers]
+    for i, item in enumerate(purchase.items, 1):
+        p_name = item.product_name or (item.product.product_name if getattr(item, "product", None) else f"Product #{item.product_id}")
+        u_info = f"{item.unit or ''}"
+        if item.batch_number:
+            u_info += f"\nB: {item.batch_number}"
+        if item.expiry_date:
+            u_info += f" Exp: {item.expiry_date}"
+
+        rows.append([
+            str(i),
+            p_name,
+            u_info.strip() or "-",
+            str(item.quantity),
+            f"₹{item.purchase_price:,.2f}",
+            f"{item.gst_rate}%",
+            f"₹{item.total:,.2f}",
+        ])
+
+    item_table = Table(
+        rows,
+        colWidths=[8 * mm, 60 * mm, 35 * mm, 16 * mm, 23 * mm, 16 * mm, 22 * mm],
+        repeatRows=1,
+    )
+    item_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), HexColor("#1565C0")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (3, 0), (-1, -1), "RIGHT"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, HexColor("#E3F2FD")]),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(item_table)
+    elements.append(Spacer(1, 6))
+
+    # ── Totals ───────────────────────────────────────────────
+    totals = [
+        ["", "", "", "", "", "Subtotal:", f"₹{purchase.subtotal:,.2f}"],
+        ["", "", "", "", "", "GST Amount:", f"₹{purchase.gst_amount:,.2f}"],
+        ["", "", "", "", "", "GRAND TOTAL:", f"₹{purchase.grand_total:,.2f}"],
+    ]
+    totals_table = Table(
+        totals,
+        colWidths=[8 * mm, 60 * mm, 35 * mm, 16 * mm, 18 * mm, 21 * mm, 22 * mm],
+    )
+    totals_table.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (4, 2), (6, 2), "Helvetica-Bold"),
+        ("ALIGN", (4, 0), (6, -1), "RIGHT"),
+        ("LINEABOVE", (4, 2), (6, 2), 1, HexColor("#1565C0")),
+        ("TEXTCOLOR", (4, 2), (6, 2), HexColor("#1565C0")),
+    ]))
+    elements.append(totals_table)
+
+    if purchase.notes:
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph(f"<b>Notes:</b> {purchase.notes}", styles["Normal"]))
+
+    elements.append(Spacer(1, 14))
+    elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+    elements.append(Paragraph(
+        "Stock verified and entered into Kisan Seva Kendra inventory.",
+        _header_style(9, bold=False, color=colors.grey),
+    ))
+
+    doc.build(elements)
+    return buf.getvalue()
+

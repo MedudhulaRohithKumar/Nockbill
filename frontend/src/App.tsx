@@ -11,6 +11,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 // Protected route wrapper
@@ -54,8 +55,10 @@ export const App: React.FC = () => {
                 <Route path="purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />
                 <Route path="expenses" element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />
                 <Route path="reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+                <Route path="analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
                 <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
               </Route>
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ShopProvider>

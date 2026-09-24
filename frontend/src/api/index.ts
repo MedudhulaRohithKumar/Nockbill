@@ -1,5 +1,5 @@
 import api from './client';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData } from '../types';
 
 export const authApi = {
   login: async (credentials: { username: string; password: string } | FormData) => {
@@ -30,6 +30,42 @@ export const productsApi = {
     const res = await api.get<Product>(`/products/${id}`);
     return res.data;
   },
+  getByBarcode: async (barcode: string): Promise<Product> => {
+    const res = await api.get<{ found: boolean; product: Product; matched_variant?: any }>(`/products/by-barcode/${encodeURIComponent(barcode)}`);
+    return (res.data as any).product || res.data;
+  },
+
+  checkDuplicate: async (name: string, company?: string, barcode?: string) => {
+    const res = await api.get<{ exists: boolean; message: string; product?: Product }>('/products/check-duplicate', {
+      params: { name, company, barcode }
+    });
+    return res.data;
+  },
+  getRefillRecommendations: async () => {
+    const res = await api.get<RefillRecommendation[]>('/products/recommend-refill');
+    return res.data;
+  },
+  refillStock: async (data: {
+    product_id: number;
+    quantity: number;
+    unit?: string;
+    batch_number?: string;
+    expiry_date?: string;
+    purchase_price?: number;
+    selling_price?: number;
+    mrp?: number;
+    supplier_name?: string;
+    invoice_number?: string;
+    notes?: string;
+  }) => {
+    const res = await api.post<{ success: boolean; message: string; product: Product; purchase_id: number }>('/products/refill', {
+      ...data,
+      additional_quantity: data.quantity,
+      new_batch_number: data.batch_number,
+      new_expiry_date: data.expiry_date,
+    });
+    return res.data;
+  },
   create: async (data: Partial<Product>) => {
     const res = await api.post<Product>('/products', data);
     return res.data;
@@ -53,6 +89,19 @@ export const salesApi = {
     const res = await api.get<Sale>(`/sales/${id}`);
     return res.data;
   },
+  getFrequentlySold: async (limit: number = 8) => {
+    const res = await api.get<{
+      id: number;
+      product_name: string;
+      company_name?: string;
+      selling_price: number;
+      current_stock: number;
+      unit: string;
+      variants?: any[];
+      times_billed: number;
+    }[]>('/sales/frequently-sold', { params: { limit } });
+    return res.data;
+  },
   create: async (data: any) => {
     const res = await api.post<Sale>('/sales', data);
     return res.data;
@@ -72,7 +121,8 @@ export const purchasesApi = {
   create: async (data: any) => {
     const res = await api.post<Purchase>('/purchases', data);
     return res.data;
-  }
+  },
+  getPdfUrl: (purchaseId: number) => `/api/purchases/${purchaseId}/pdf`,
 };
 
 export const inventoryApi = {
@@ -141,8 +191,13 @@ export const reportsApi = {
   getDashboard: async (): Promise<DashboardSummary> => {
     const res = await api.get('/reports/dashboard');
     return res.data;
+  },
+  getAnalytics: async (params?: { start_date?: string; end_date?: string; preset?: string }): Promise<AnalyticsData> => {
+    const res = await api.get<AnalyticsData>('/reports/analytics', { params });
+    return res.data;
   }
 };
+
 
 export const ocrApi = {
   scanImage: async (file: File) => {
@@ -165,3 +220,23 @@ export const settingsApi = {
     return res.data;
   }
 };
+
+export function getErrorMessage(err: any, fallback: string = 'An unexpected error occurred'): string {
+  if (!err) return fallback;
+  const detail = err.response?.data?.detail ?? err.response?.data?.message ?? err.message;
+  if (!detail) return fallback;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d: any) => {
+      if (typeof d === 'string') return d;
+      const field = Array.isArray(d.loc) ? d.loc.filter((x: any) => x !== 'body').join('.') : '';
+      return field ? `${field}: ${d.msg || 'invalid'}` : (d.msg || JSON.stringify(d));
+    }).join('\n');
+  }
+  if (typeof detail === 'object') {
+    if (detail.message) return detail.message;
+    return JSON.stringify(detail);
+  }
+  return String(detail);
+}
+

@@ -11,13 +11,13 @@ import {
   ArrowUpRight,
   Printer
 } from 'lucide-react';
-import { reportsApi, salesApi } from '../api';
-import { Sale } from '../types';
+import { reportsApi, salesApi, purchasesApi } from '../api';
+import { Sale, Purchase } from '../types';
 import { safeNumber, safeString, formatCurrency, formatINR } from '../utils/formatters';
 
 
 export const ReportsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'sales' | 'gst' | 'stock' | 'pnl'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'purchases' | 'gst' | 'stock' | 'pnl'>('sales');
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setDate(1); // First day of current month
@@ -27,6 +27,7 @@ export const ReportsPage: React.FC = () => {
 
   // Data states
   const [salesList, setSalesList] = useState<Sale[]>([]);
+  const [purchasesList, setPurchasesList] = useState<Purchase[]>([]);
   const [gstData, setGstData] = useState<any>(null);
   const [stockData, setStockData] = useState<any>(null);
   const [pnlData, setPnlData] = useState<any>(null);
@@ -42,6 +43,9 @@ export const ReportsPage: React.FC = () => {
       if (activeTab === 'sales') {
         const sales = await salesApi.getAll({ start_date: fromDate, end_date: toDate });
         setSalesList(sales);
+      } else if (activeTab === 'purchases') {
+        const purchases = await purchasesApi.getAll();
+        setPurchasesList(purchases);
       } else if (activeTab === 'gst') {
         const gst = await reportsApi.getGstReport(fromDate, toDate);
         setGstData(gst);
@@ -58,6 +62,7 @@ export const ReportsPage: React.FC = () => {
         setSalesList([
           {
             id: 101,
+
             invoice_number: 'KSK/24-25/0142',
             invoice_date: new Date().toISOString(),
             customer_name: 'Bhavesh Patel (Farmer)',
@@ -215,6 +220,14 @@ export const ReportsPage: React.FC = () => {
               Sales Register
             </button>
             <button
+              onClick={() => setActiveTab('purchases')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'purchases' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Purchases / Inward
+            </button>
+            <button
               onClick={() => setActiveTab('gst')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === 'gst' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
@@ -241,7 +254,7 @@ export const ReportsPage: React.FC = () => {
           </div>
 
           {/* Date Range Inputs */}
-          {activeTab !== 'stock' && (
+          {activeTab !== 'stock' && activeTab !== 'purchases' && (
             <div className="flex items-center gap-2 text-xs">
               <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
                 <span className="text-slate-400 font-medium">From:</span>
@@ -281,7 +294,8 @@ export const ReportsPage: React.FC = () => {
                   <th className="py-3 px-3 text-right">Taxable</th>
                   <th className="py-3 px-3 text-right">CGST</th>
                   <th className="py-3 px-3 text-right">SGST</th>
-                  <th className="py-3 px-4 text-right">Total (₹)</th>
+                  <th className="py-3 px-3 text-right">Total (₹)</th>
+                  <th className="py-3 px-4 text-center">Bill PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -297,7 +311,7 @@ export const ReportsPage: React.FC = () => {
 
                   return (
                     <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-brand-800">{invNo}</td>
+                      <td className="py-3 px-4 font-mono font-bold text-emerald-800">{invNo}</td>
                       <td className="py-3 px-3 text-slate-600 font-mono">
                         {invDate ? new Date(invDate).toLocaleDateString('en-IN') : '-'}
                       </td>
@@ -311,7 +325,18 @@ export const ReportsPage: React.FC = () => {
                       <td className="py-3 px-3 text-right font-mono text-slate-600">₹{formatCurrency(taxable)}</td>
                       <td className="py-3 px-3 text-right font-mono text-slate-600">₹{formatCurrency(cgst)}</td>
                       <td className="py-3 px-3 text-right font-mono text-slate-600">₹{formatCurrency(sgst)}</td>
-                      <td className="py-3 px-4 text-right font-black text-slate-900">₹{formatCurrency(grandTotal)}</td>
+                      <td className="py-3 px-3 text-right font-black text-slate-900">₹{formatCurrency(grandTotal)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <a
+                          href={salesApi.getPdfUrl(sale.id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border border-emerald-200 transition"
+                        >
+                          <Printer className="w-3 h-3 text-emerald-700" />
+                          <span>PDF</span>
+                        </a>
+                      </td>
                     </tr>
                   );
                 })}
@@ -320,6 +345,58 @@ export const ReportsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Tab Content: Purchases Register */}
+      {activeTab === 'purchases' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                <tr>
+                  <th className="py-3 px-4">Supplier Name</th>
+                  <th className="py-3 px-3">Bill / Inward No</th>
+                  <th className="py-3 px-3">Date</th>
+                  <th className="py-3 px-3">GSTIN</th>
+                  <th className="py-3 px-3 text-right">Tax (₹)</th>
+                  <th className="py-3 px-4 text-right">Total Amount (₹)</th>
+                  <th className="py-3 px-4 text-center">Purchase PDF</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {purchasesList.map((pur: any) => {
+                  const billNo = pur.bill_number || pur.invoice_number || `INV-${pur.id}`;
+                  const billDt = pur.bill_date || (pur.purchase_date ? pur.purchase_date.split('T')[0] : '');
+                  const totTax = safeNumber(pur.total_tax ?? pur.gst_amount);
+                  const totAmt = safeNumber(pur.total_amount ?? pur.grand_total);
+
+                  return (
+                    <tr key={pur.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3 px-4 font-bold text-slate-900">{pur.supplier_name || 'Supplier Depot'}</td>
+                      <td className="py-3 px-3 font-mono font-bold text-blue-800">{billNo}</td>
+                      <td className="py-3 px-3 text-slate-600 font-mono">{billDt}</td>
+                      <td className="py-3 px-3 font-mono text-slate-500">{pur.supplier_gstin || 'N/A'}</td>
+                      <td className="py-3 px-3 text-right text-slate-600">₹{formatCurrency(totTax)}</td>
+                      <td className="py-3 px-4 text-right font-black text-slate-900">₹{formatCurrency(totAmt)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <a
+                          href={purchasesApi.getPdfUrl(pur.id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-semibold border border-blue-200 transition"
+                        >
+                          <Printer className="w-3 h-3 text-blue-700" />
+                          <span>PDF</span>
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
 
       {/* Tab Content 2: GST GSTR-1 Statement */}
       {activeTab === 'gst' && gstData && (

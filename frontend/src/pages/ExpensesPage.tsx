@@ -97,7 +97,7 @@ export const ExpensesPage: React.FC = () => {
     }
   };
 
-  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpense = expenses.reduce((sum, e) => sum + safeNumber(e.amount), 0);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -125,10 +125,11 @@ export const ExpensesPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Recorded Expenses</p>
-          <p className="text-2xl font-black text-slate-900 mt-1">₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-slate-900 mt-1">₹{formatCurrency(totalExpense)}</p>
           <p className="text-[11px] text-slate-400 mt-0.5">{expenses.length} transaction entries</p>
         </div>
       </div>
+
 
       {/* Expenses Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

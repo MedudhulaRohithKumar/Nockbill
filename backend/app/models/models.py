@@ -122,6 +122,8 @@ class Product(Base):
     expiry_date = Column(String(10))        # stored as YYYY-MM
     current_stock = Column(Numeric(12, 3), default=0)
     minimum_stock = Column(Numeric(12, 3), default=5)
+    barcode = Column(String(100), unique=True, index=True, nullable=True)
+    hsn_code = Column(String(50), default="31021000")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -129,10 +131,50 @@ class Product(Base):
     sale_items = relationship("SaleItem", back_populates="product")
     purchase_items = relationship("PurchaseItem", back_populates="product")
     inventory_transactions = relationship("InventoryTransaction", back_populates="product")
+    variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")
+    batches = relationship("ProductBatch", back_populates="product", cascade="all, delete-orphan", order_by="ProductBatch.expiry_date.asc()")
 
     __table_args__ = (
         Index("ix_product_name_company", "product_name", "company_name"),
     )
+
+
+class ProductBatch(Base):
+    __tablename__ = "product_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    batch_number = Column(String(100), nullable=False, index=True)
+    manufacture_date = Column(String(10))   # YYYY-MM
+    expiry_date = Column(String(10), nullable=False, index=True)        # YYYY-MM
+    purchase_price = Column(Numeric(12, 2), default=0)
+    selling_price = Column(Numeric(12, 2), nullable=False)
+    mrp = Column(Numeric(12, 2), nullable=True)
+    current_stock = Column(Numeric(12, 3), default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    product = relationship("Product", back_populates="batches")
+    sale_items = relationship("SaleItem", back_populates="batch")
+
+
+class ProductVariant(Base):
+    __tablename__ = "product_variants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_name = Column(String(100), nullable=False)   # e.g. "250 ml", "500 ml", "1 Liter", "50 kg"
+    unit_size = Column(Numeric(10, 3), nullable=False)   # e.g. 250
+    unit = Column(String(30), nullable=False)            # e.g. "ml", "liter", "gram", "kg", "Bags"
+    purchase_price = Column(Numeric(12, 2), default=0)
+    selling_price = Column(Numeric(12, 2), nullable=False)
+    mrp = Column(Numeric(12, 2), nullable=True)
+    stock = Column(Numeric(12, 3), default=0)
+    barcode = Column(String(100), index=True, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    product = relationship("Product", back_populates="variants")
 
 
 class Sale(Base):
@@ -162,6 +204,8 @@ class SaleItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)  # nullable: product may be deleted
+    batch_id = Column(Integer, ForeignKey("product_batches.id", ondelete="SET NULL"), nullable=True)
+    batch_number = Column(String(100), nullable=True)
     # Snapshot of product at time of sale
     product_name = Column(String(200), nullable=False)
     company_name = Column(String(200))
@@ -176,6 +220,7 @@ class SaleItem(Base):
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
+    batch = relationship("ProductBatch", back_populates="sale_items")
 
 
 class Purchase(Base):
@@ -201,6 +246,10 @@ class PurchaseItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     purchase_id = Column(Integer, ForeignKey("purchases.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    product_name = Column(String(200))
+    unit = Column(String(30))
+    batch_number = Column(String(100))
+    expiry_date = Column(String(30))
     quantity = Column(Numeric(10, 3), nullable=False)
     purchase_price = Column(Numeric(12, 2), nullable=False)
     gst_rate = Column(Numeric(5, 2), default=0)

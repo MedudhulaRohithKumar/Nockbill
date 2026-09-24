@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Any
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Any, Dict
 from datetime import datetime, date
 from decimal import Decimal
 from app.models.models import (
@@ -95,6 +95,8 @@ class ProductCreate(BaseModel):
     expiry_date: Optional[str] = None        # YYYY-MM
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
+    barcode: Optional[str] = None
+    variants: Optional[List[Dict[str, Any]]] = None
     current_stock: Decimal = Decimal("0")
     minimum_stock: Decimal = Decimal("5")
     min_stock_level: Optional[Decimal] = None
@@ -116,10 +118,27 @@ class ProductUpdate(BaseModel):
     expiry_date: Optional[str] = None
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
+    barcode: Optional[str] = None
+    variants: Optional[List[Dict[str, Any]]] = None
     minimum_stock: Optional[Decimal] = None
     min_stock_level: Optional[Decimal] = None
     current_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
+
+class ProductBatchResponse(BaseModel):
+    id: int
+    product_id: int
+    batch_number: str
+    manufacture_date: Optional[str] = None
+    expiry_date: str
+    purchase_price: Decimal = Decimal("0")
+    selling_price: Decimal = Decimal("0")
+    mrp: Optional[Decimal] = None
+    current_stock: Decimal = Decimal("0")
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
 
 class ProductResponse(BaseModel):
     id: int
@@ -139,15 +158,61 @@ class ProductResponse(BaseModel):
     expiry_date: Optional[str] = None
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
+    barcode: Optional[str] = None
+    variants: Optional[List[Dict[str, Any]]] = None
+    batches: Optional[List[ProductBatchResponse]] = None
     current_stock: Decimal = Decimal("0")
-    minimum_stock: Decimal = Decimal("0")
+    minimum_stock: Decimal = Decimal("5")
     min_stock_level: Optional[Decimal] = None
     is_active: bool = True
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+class ProductRefillRequest(BaseModel):
+    product_id: int
+    additional_quantity: Optional[Decimal] = None
+    quantity: Optional[Decimal] = None
+    unit: Optional[str] = None
+    purchase_price: Optional[Decimal] = None
+    selling_price: Optional[Decimal] = None
+    mrp: Optional[Decimal] = None
+    new_batch_number: Optional[str] = None
+    batch_number: Optional[str] = None
+    new_expiry_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    supplier_name: Optional[str] = None
+    invoice_number: Optional[str] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_refill_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Support both quantity and additional_quantity
+            qty = data.get('additional_quantity') if data.get('additional_quantity') is not None else data.get('quantity')
+            if qty is not None:
+                data['additional_quantity'] = qty
+                data['quantity'] = qty
+            # Support both batch_number and new_batch_number
+            batch = data.get('new_batch_number') or data.get('batch_number')
+            if batch is not None:
+                data['new_batch_number'] = batch
+                data['batch_number'] = batch
+            # Support both expiry_date and new_expiry_date
+            exp = data.get('new_expiry_date') or data.get('expiry_date')
+            if exp is not None:
+                data['new_expiry_date'] = exp
+                data['expiry_date'] = exp
+        return data
+
+    @model_validator(mode='after')
+    def validate_quantities(self) -> 'ProductRefillRequest':
+        qty = self.additional_quantity if self.additional_quantity is not None else self.quantity
+        if qty is None or qty <= Decimal("0"):
+            raise ValueError("Refill inward quantity must be greater than 0")
+        if self.additional_quantity is None:
+            self.additional_quantity = qty
+        if self.quantity is None:
+            self.quantity = qty
+        return self
 
 class ProductSearchResult(BaseModel):
     id: int
@@ -172,26 +237,90 @@ class ProductSearchResult(BaseModel):
 
 class SaleItemCreate(BaseModel):
     product_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    batch_number: Optional[str] = None
     product_name: str
     company_name: Optional[str] = None
     net_content: Optional[str] = None
     quantity: Decimal = Field(..., gt=0)
-    price: Decimal = Field(..., ge=0)
+    price: Optional[Decimal] = None
+    unit_price: Optional[Decimal] = None
     gst_rate: Decimal = Field(default=Decimal("0"), ge=0)
     manufacture_date: Optional[str] = None
     expiry_date: Optional[str] = None
+    hsn_code: Optional[str] = None
+    unit: Optional[str] = None
+    mrp: Optional[Decimal] = None
+    discount_percent: Optional[Decimal] = None
+    discount_amount: Optional[Decimal] = None
+    taxable_amount: Optional[Decimal] = None
+    cgst_amount: Optional[Decimal] = None
+    sgst_amount: Optional[Decimal] = None
+    igst_amount: Optional[Decimal] = None
+    total_amount: Optional[Decimal] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_sale_item(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            p = data.get('price') if data.get('price') is not None else data.get('unit_price')
+            if p is not None:
+                data['price'] = p
+                data['unit_price'] = p
+        return data
+
+    @model_validator(mode='after')
+    def validate_price(self) -> 'SaleItemCreate':
+        p = self.price if self.price is not None else self.unit_price
+        if p is None:
+            p = Decimal("0")
+        self.price = p
+        self.unit_price = p
+        return self
 
 class SaleCreate(BaseModel):
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
-    payment_method: PaymentMethod = PaymentMethod.CASH
+    customer_address: Optional[str] = None
+    customer_aadhar: Optional[str] = None
+    customer_gstin: Optional[str] = None
+    payment_method: Optional[Any] = None
+    payment_mode: Optional[str] = None
+    is_interstate: Optional[bool] = False
+    subtotal: Optional[Decimal] = None
+    total_discount: Optional[Decimal] = None
+    total_taxable: Optional[Decimal] = None
+    total_cgst: Optional[Decimal] = None
+    total_sgst: Optional[Decimal] = None
+    total_igst: Optional[Decimal] = None
+    round_off: Optional[Decimal] = None
+    grand_total: Optional[Decimal] = None
     notes: Optional[str] = None
     idempotency_key: Optional[str] = None
     items: List[SaleItemCreate] = Field(..., min_length=1)
 
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_sale_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            raw_method = data.get('payment_method') or data.get('payment_mode') or 'CASH'
+            if isinstance(raw_method, str):
+                m_upper = raw_method.strip().upper()
+                if m_upper in [m.value for m in PaymentMethod]:
+                    data['payment_method'] = PaymentMethod(m_upper)
+                else:
+                    data['payment_method'] = PaymentMethod.CASH
+            elif isinstance(raw_method, PaymentMethod):
+                data['payment_method'] = raw_method
+            else:
+                data['payment_method'] = PaymentMethod.CASH
+        return data
+
 class SaleItemResponse(BaseModel):
     id: int
     product_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    batch_number: Optional[str] = None
     product_name: str
     company_name: Optional[str] = None
     net_content: Optional[str] = None

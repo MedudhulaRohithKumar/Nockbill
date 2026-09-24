@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv_win
+python311
+cloudflared.exe
+start_mobile_tunnel.bat
+*.sqlite3
+frontend/node_modules
+frontend/dist
+backend/__pycache__
+backend/.venv_win
+.DS_Store

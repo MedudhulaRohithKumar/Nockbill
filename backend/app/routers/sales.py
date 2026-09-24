@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
+from app.routers.products import serialize_product
 from app.database.base import get_db
 from app.models.models import (
-    Sale, SaleItem, Product, InventoryTransaction, InventoryTxType,
+    Sale, SaleItem, Product, ProductBatch, InventoryTransaction, InventoryTxType,
     GstTransaction, ShopSettings, AuditLog, AuditAction, User
 )
 from app.schemas.schemas import SaleCreate, SaleResponse, SaleListResponse
@@ -96,6 +97,8 @@ def create_sale(
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=item_data.product_id,
+                batch_id=item_data.batch_id,
+                batch_number=item_data.batch_number,
                 product_name=item_data.product_name,
                 company_name=item_data.company_name,
                 net_content=item_data.net_content,
@@ -122,8 +125,37 @@ def create_sale(
                     Product.id == item_data.product_id
                 ).with_for_update().first()
                 if product:
-                    prev_stock = product.current_stock
-                    product.current_stock -= Decimal(str(item_data.quantity))
+                    prev_stock = product.current_stock or Decimal("0")
+                    qty_to_deduct = Decimal(str(item_data.quantity))
+                    product.current_stock = max(Decimal("0"), prev_stock - qty_to_deduct)
+
+                    # Deduct from specific ProductBatch if identified
+                    batch = None
+                    if item_data.batch_id:
+                        batch = db.query(ProductBatch).filter(ProductBatch.id == item_data.batch_id).with_for_update().first()
+                    elif item_data.batch_number:
+                        batch = db.query(ProductBatch).filter(
+                            ProductBatch.product_id == product.id,
+                            ProductBatch.batch_number == item_data.batch_number
+                        ).with_for_update().first()
+
+                    if batch:
+                        batch.current_stock = max(Decimal("0"), (batch.current_stock or Decimal("0")) - qty_to_deduct)
+                    else:
+                        # FIFO deduction across active batches
+                        rem = qty_to_deduct
+                        active_b = db.query(ProductBatch).filter(
+                            ProductBatch.product_id == product.id,
+                            ProductBatch.is_active == True,
+                            ProductBatch.current_stock > 0
+                        ).order_by(ProductBatch.expiry_date.asc()).with_for_update().all()
+                        for b in active_b:
+                            if rem <= 0:
+                                break
+                            ded = min(b.current_stock, rem)
+                            b.current_stock -= ded
+                            rem -= ded
+
                     inv_tx = InventoryTransaction(
                         product_id=product.id,
                         transaction_type=InventoryTxType.SALE,
@@ -132,6 +164,7 @@ def create_sale(
                         new_stock=product.current_stock,
                         reference_id=sale.id,
                         reference_type="SALE",
+                        notes=f"Sold {item_data.quantity} units (Batch: {item_data.batch_number or 'DEFAULT'})",
                     )
                     db.add(inv_tx)
 
@@ -199,6 +232,9 @@ def serialize_sale(s: Sale) -> dict:
             {
                 "id": it.id,
                 "product_id": it.product_id,
+                "batch_id": it.batch_id,
+                "batch_number": it.batch_number,
+                "expiry_date": it.expiry_date,
                 "product_name": it.product_name,
                 "company_name": it.company_name,
                 "quantity": float(it.quantity or 0),
@@ -224,6 +260,55 @@ def list_sales(
 ):
     sales = db.query(Sale).order_by(Sale.sale_date.desc()).offset(skip).limit(limit).all()
     return [serialize_sale(s) for s in sales]
+
+
+@router.get("/frequently-sold")
+def get_frequently_sold(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return top most frequently billed products with their variants for 1-click billing."""
+    popular = (
+        db.query(
+            SaleItem.product_id,
+            func.count(SaleItem.id).label("bill_count"),
+            func.sum(SaleItem.quantity).label("total_qty")
+        )
+        .filter(SaleItem.product_id != None)
+        .group_by(SaleItem.product_id)
+        .order_by(desc("bill_count"))
+        .limit(limit)
+        .all()
+    )
+
+    prod_ids = [p.product_id for p in popular if p.product_id]
+    products = db.query(Product).filter(Product.id.in_(prod_ids), Product.is_active == True).all() if prod_ids else []
+    prod_map = {p.id: p for p in products}
+
+    results = []
+    for item in popular:
+        if item.product_id in prod_map:
+            p = prod_map[item.product_id]
+            data = serialize_product(p)
+            data["bill_count"] = int(item.bill_count)
+            data["total_qty_sold"] = float(item.total_qty or 0)
+            results.append(data)
+
+    if len(results) < 8:
+        existing_ids = {r["id"] for r in results}
+        extras = (
+            db.query(Product)
+            .filter(Product.is_active == True, Product.current_stock > 0, ~Product.id.in_(existing_ids))
+            .limit(8 - len(results))
+            .all()
+        )
+        for p in extras:
+            data = serialize_product(p)
+            data["bill_count"] = 0
+            results.append(data)
+
+    return results
 
 
 @router.get("/{sale_id}")
