@@ -43,34 +43,58 @@ class UserResponse(BaseModel):
 
 class ShopSettingsUpdate(BaseModel):
     shop_name: Optional[str] = None
+    proprietor_name: Optional[str] = None
     address: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     gstin: Optional[str] = None
+    fertilizer_license_no: Optional[str] = None
+    pesticide_license_no: Optional[str] = None
+    seed_license_no: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    bank_branch: Optional[str] = None
+    upi_id: Optional[str] = None
     invoice_prefix: Optional[str] = None
     default_gst_rate: Optional[Decimal] = None
     currency: Optional[str] = None
     thermal_print: Optional[bool] = None
+    terms_conditions: Optional[str] = None
 
 class ShopSettingsResponse(BaseModel):
     id: int
     shop_name: str
-    address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    pincode: Optional[str]
-    phone: Optional[str]
-    email: Optional[str]
-    gstin: Optional[str]
+    proprietor_name: Optional[str] = None
+    address: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    gstin: Optional[str] = None
+    fertilizer_license_no: Optional[str] = None
+    pesticide_license_no: Optional[str] = None
+    seed_license_no: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    bank_branch: Optional[str] = None
+    upi_id: Optional[str] = None
     invoice_prefix: str
     invoice_counter: int
     default_gst_rate: Decimal
     currency: str
     thermal_print: bool
-    logo_path: Optional[str]
+    logo_path: Optional[str] = None
+    terms_conditions: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -544,11 +568,17 @@ class GstReportSummary(BaseModel):
     period: str
     total_sales: Decimal
     taxable_amount: Decimal
+    total_taxable: Optional[Decimal] = None
+    total_cgst: Optional[Decimal] = None
+    total_sgst: Optional[Decimal] = None
+    total_igst: Optional[Decimal] = None
+    total_tax: Optional[Decimal] = None
     gst_5_sales: Decimal
     gst_5_amount: Decimal
     gst_18_sales: Decimal
     gst_18_amount: Decimal
     total_gst: Decimal
+    gst_breakdown: Optional[List[Dict[str, Any]]] = None
     rows: List[GstReportRow] = []
 
 class StockReportRow(BaseModel):

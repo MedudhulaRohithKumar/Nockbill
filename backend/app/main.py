@@ -5,12 +5,17 @@ import os
 
 from app.config.settings import settings
 from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices
+from app.database.base import Base, engine
+import app.models.models  # noqa – ensure all models are registered
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Fertilizer Shop Management & Billing System",
 )
+
+# ── Auto-create any missing tables on startup ─────────────────────────────────
+Base.metadata.create_all(bind=engine)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(

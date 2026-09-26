@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   Download, 
@@ -9,21 +10,30 @@ import {
   Receipt, 
   DollarSign,
   ArrowUpRight,
-  Printer
+  Printer,
+  PlusCircle,
+  RefreshCw
 } from 'lucide-react';
 import { reportsApi, salesApi, purchasesApi } from '../api';
 import { Sale, Purchase } from '../types';
 import { safeNumber, safeString, formatCurrency, formatINR } from '../utils/formatters';
 
+const toLocalDateStr = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export const ReportsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'sales' | 'purchases' | 'gst' | 'stock' | 'pnl'>('sales');
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setDate(1); // First day of current month
-    return d.toISOString().split('T')[0];
+    return toLocalDateStr(d);
   });
-  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [toDate, setToDate] = useState(() => toLocalDateStr(new Date()));
 
   // Data states
   const [salesList, setSalesList] = useState<Sale[]>([]);
@@ -197,13 +207,32 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={exportToCsv}
-          className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md transition-all active:scale-95"
-        >
-          <Download className="w-4 h-4 text-emerald-400" />
-          <span>Export CSV / Excel</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/billing')}
+            className="bg-brand-600 hover:bg-brand-500 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-1.5 text-xs shadow-md shadow-brand-600/25 transition-all active:scale-95"
+            title="Create New Bill in POS"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>New Bill (POS)</span>
+          </button>
+          <button
+            onClick={fetchReportData}
+            disabled={isLoading}
+            className="p-2 sm:p-2.5 text-slate-600 hover:text-brand-600 hover:bg-slate-100 bg-white rounded-xl transition-colors border border-slate-200"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={exportToCsv}
+            className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-3 sm:px-4 rounded-xl flex items-center gap-1.5 text-xs shadow-md transition-all active:scale-95"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs & Date Range Filter */}
@@ -285,8 +314,18 @@ export const ReportsPage: React.FC = () => {
           {/* MOBILE VIEW (< md): Touch-Friendly Sales Cards */}
           <div className="md:hidden p-3 space-y-3 bg-slate-50/50">
             {salesList.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No invoices found for the selected period.
+              <div className="p-8 text-center bg-white rounded-xl border border-dashed border-slate-300 space-y-3">
+                <Receipt className="w-10 h-10 text-slate-300 mx-auto" />
+                <p className="text-slate-600 text-xs font-semibold">
+                  No invoices found for the selected period.
+                </p>
+                <button
+                  onClick={() => navigate('/billing')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Create New Bill</span>
+                </button>
               </div>
             ) : (
               salesList.map((sale: any) => {
@@ -364,7 +403,22 @@ export const ReportsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {salesList.map((sale: any) => {
+                {salesList.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-slate-400">
+                      <Receipt className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-600 mb-3">No bills found for the selected period</p>
+                      <button
+                        onClick={() => navigate('/billing')}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>Create New Bill</span>
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  salesList.map((sale: any) => {
                   const invNo = sale.invoice_number || `INV-${sale.id}`;
                   const invDate = sale.invoice_date || sale.sale_date || '';
                   const custName = sale.customer_name || 'Cash Customer / Farmer';
@@ -404,7 +458,7 @@ export const ReportsPage: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

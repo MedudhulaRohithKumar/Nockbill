@@ -1,106 +1,73 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional, Any
+from pydantic import BaseModel, Field, model_validator
 from decimal import Decimal
 from datetime import datetime
 from app.database.base import get_db
 from app.models.models import (
-    Purchase, PurchaseItem, Product,
+    Purchase, PurchaseItem, Product, ProductBatch,
     InventoryTransaction, InventoryTxType,
-    AuditLog, AuditAction, User
+    AuditLog, AuditAction, User, ShopSettings
 )
-from app.schemas.schemas import PurchaseCreate, PurchaseResponse
 from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
 
 
-@router.post("", response_model=PurchaseResponse, status_code=201)
-def create_purchase(
-    payload: PurchaseCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        subtotal = Decimal("0")
-        total_gst = Decimal("0")
-
-        purchase = Purchase(
-            supplier_name=payload.supplier_name,
-            invoice_number=payload.invoice_number,
-            purchase_date=payload.purchase_date or datetime.utcnow(),
-            notes=payload.notes,
-            created_by=current_user.id,
-        )
-        db.add(purchase)
-        db.flush()
-
-        for item_data in payload.items:
-            qty = Decimal(str(item_data.quantity))
-            price = Decimal(str(item_data.purchase_price))
-            gst_rate = Decimal(str(item_data.gst_rate))
-            taxable = qty * price
-            gst_amount = (taxable * gst_rate / 100).quantize(Decimal("0.01"))
-            total = taxable + gst_amount
-            subtotal += taxable
-            total_gst += gst_amount
-
-            p_item = PurchaseItem(
-                purchase_id=purchase.id,
-                product_id=item_data.product_id,
-                quantity=qty,
-                purchase_price=price,
-                gst_rate=gst_rate,
-                total=total,
-            )
-            db.add(p_item)
-
-            # Update product stock + purchase price
-            product = db.query(Product).filter(
-                Product.id == item_data.product_id
-            ).with_for_update().first()
-            if not product:
-                raise HTTPException(404, f"Product {item_data.product_id} not found")
-
-            prev_stock = product.current_stock
-            product.current_stock += qty
-            product.purchase_price = price  # update latest purchase price
-
-            inv_tx = InventoryTransaction(
-                product_id=product.id,
-                transaction_type=InventoryTxType.PURCHASE,
-                quantity=qty,
-                previous_stock=prev_stock,
-                new_stock=product.current_stock,
-                reference_id=purchase.id,
-                reference_type="PURCHASE",
-            )
-            db.add(inv_tx)
-
-        purchase.subtotal = subtotal.quantize(Decimal("0.01"))
-        purchase.gst_amount = total_gst.quantize(Decimal("0.01"))
-        purchase.grand_total = (subtotal + total_gst).quantize(Decimal("0.01"))
-
-        db.add(AuditLog(
-            user_id=current_user.id,
-            action=AuditAction.PURCHASE_CREATE,
-            reference_id=purchase.id,
-            reference_type="Purchase",
-        ))
-
-        db.commit()
-        db.refresh(purchase)
-        return purchase
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(500, f"Failed to save purchase: {str(e)}")
+# ── Flexible Item Schema ────────────────────────────────────────────────────
+class FlexPurchaseItem(BaseModel):
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+    batch_number: Optional[str] = None
+    expiry_date: Optional[str] = None
+    quantity: Decimal = Decimal("1")
+    purchase_price: Decimal = Decimal("0")
+    selling_price: Optional[Decimal] = None
+    mrp: Optional[Decimal] = None
+    gst_rate: Decimal = Decimal("0")
+    total_amount: Optional[Decimal] = None
+    taxable_amount: Optional[Decimal] = None
+    cgst_amount: Optional[Decimal] = None
+    sgst_amount: Optional[Decimal] = None
+    igst_amount: Optional[Decimal] = None
 
 
-import io
-from fastapi.responses import StreamingResponse
-from app.models.models import ShopSettings
-from app.reports.invoice_pdf import generate_purchase_pdf
+class FlexPurchaseCreate(BaseModel):
+    supplier_name: Optional[str] = None
+    supplier_gstin: Optional[str] = None
+    invoice_number: Optional[str] = None
+    bill_number: Optional[str] = None   # alias from frontend
+    purchase_date: Optional[Any] = None
+    bill_date: Optional[str] = None     # alias from frontend
+    notes: Optional[str] = None
+    total_amount: Optional[Decimal] = None   # pre-computed from frontend
+    total_tax: Optional[Decimal] = None
+    items: List[FlexPurchaseItem] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Unify invoice_number / bill_number
+            if not data.get("invoice_number") and data.get("bill_number"):
+                data["invoice_number"] = data["bill_number"]
+            # Unify purchase_date / bill_date
+            if not data.get("purchase_date") and data.get("bill_date"):
+                data["purchase_date"] = data["bill_date"]
+        return data
+
+
+def _resolve_product(db: Session, item: FlexPurchaseItem) -> Optional[Product]:
+    """Find product by id or name."""
+    if item.product_id:
+        return db.query(Product).filter(Product.id == item.product_id).with_for_update().first()
+    if item.product_name:
+        return db.query(Product).filter(
+            Product.is_active == True,
+            Product.product_name.ilike(f"%{item.product_name.strip()}%")
+        ).first()
+    return None
 
 
 def serialize_purchase(p: Purchase) -> dict:
@@ -124,10 +91,12 @@ def serialize_purchase(p: Purchase) -> dict:
             {
                 "id": it.id,
                 "product_id": it.product_id,
-                "product_name": it.product_name or (it.product.product_name if getattr(it, "product", None) else f"Product #{it.product_id}"),
-                "unit": it.unit or (it.product.unit if getattr(it, "product", None) else ""),
-                "batch_number": it.batch_number or (it.product.batch_number if getattr(it, "product", None) else ""),
-                "expiry_date": it.expiry_date or (it.product.expiry_date if getattr(it, "product", None) else ""),
+                "product_name": it.product_name or (
+                    it.product.product_name if getattr(it, "product", None) else f"Product #{it.product_id}"
+                ),
+                "unit": it.unit or "",
+                "batch_number": it.batch_number or "",
+                "expiry_date": it.expiry_date or "",
                 "quantity": float(it.quantity or 0),
                 "purchase_price": float(it.purchase_price or 0),
                 "gst_rate": float(it.gst_rate or 0),
@@ -137,6 +106,138 @@ def serialize_purchase(p: Purchase) -> dict:
             for it in (p.items or [])
         ]
     }
+
+
+@router.post("", status_code=201)
+def create_purchase(
+    payload: FlexPurchaseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        subtotal = Decimal("0")
+        total_gst = Decimal("0")
+
+        # Parse purchase date
+        p_date = datetime.utcnow()
+        if payload.purchase_date:
+            raw = str(payload.purchase_date)
+            for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"]:
+                try:
+                    p_date = datetime.strptime(raw[:19], fmt[:len(raw[:19])])
+                    break
+                except Exception:
+                    continue
+
+        purchase = Purchase(
+            supplier_name=payload.supplier_name,
+            invoice_number=payload.invoice_number or payload.bill_number,
+            purchase_date=p_date,
+            notes=payload.notes,
+            created_by=current_user.id,
+        )
+        # Store supplier GSTIN in notes if no column exists
+        if payload.supplier_gstin and not hasattr(Purchase, "supplier_gstin"):
+            purchase.notes = f"GSTIN: {payload.supplier_gstin}" + (f"\n{payload.notes}" if payload.notes else "")
+
+        db.add(purchase)
+        db.flush()  # get purchase.id
+
+        for item_data in payload.items:
+            qty = Decimal(str(item_data.quantity or 1))
+            price = Decimal(str(item_data.purchase_price or 0))
+            gst_rate = Decimal(str(item_data.gst_rate or 0))
+            taxable = qty * price
+            gst_amount = (taxable * gst_rate / 100).quantize(Decimal("0.01"))
+            total = taxable + gst_amount
+            subtotal += taxable
+            total_gst += gst_amount
+
+            # Try to find matching product
+            product = _resolve_product(db, item_data)
+
+            p_item = PurchaseItem(
+                purchase_id=purchase.id,
+                product_id=product.id if product else (item_data.product_id or 1),
+                product_name=item_data.product_name or (product.product_name if product else "Unknown Product"),
+                unit=str(product.unit.value if hasattr(product.unit, "value") else product.unit) if product else "Bags",
+                batch_number=item_data.batch_number,
+                expiry_date=item_data.expiry_date,
+                quantity=qty,
+                purchase_price=price,
+                gst_rate=gst_rate,
+                total=total,
+            )
+            db.add(p_item)
+
+            # Update product stock if product found
+            if product:
+                prev_stock = product.current_stock or Decimal("0")
+                product.current_stock = prev_stock + qty
+                product.purchase_price = price
+
+                # Create/update ProductBatch for this inward
+                if item_data.batch_number:
+                    existing_batch = db.query(ProductBatch).filter(
+                        ProductBatch.product_id == product.id,
+                        ProductBatch.batch_number == item_data.batch_number
+                    ).first()
+                    if existing_batch:
+                        existing_batch.current_stock = (existing_batch.current_stock or Decimal("0")) + qty
+                        existing_batch.purchase_price = price
+                        if item_data.selling_price:
+                            existing_batch.selling_price = item_data.selling_price
+                        if item_data.mrp:
+                            existing_batch.mrp = item_data.mrp
+                    else:
+                        sell_price = item_data.selling_price or item_data.mrp or price
+                        if sell_price <= 0:
+                            sell_price = price
+                        new_batch = ProductBatch(
+                            product_id=product.id,
+                            batch_number=item_data.batch_number,
+                            expiry_date=item_data.expiry_date or product.expiry_date or "2028-06",
+                            purchase_price=price,
+                            selling_price=sell_price,
+                            mrp=item_data.mrp or sell_price,
+                            current_stock=qty,
+                            is_active=True,
+                        )
+                        db.add(new_batch)
+
+                inv_tx = InventoryTransaction(
+                    product_id=product.id,
+                    transaction_type=InventoryTxType.PURCHASE,
+                    quantity=qty,
+                    previous_stock=prev_stock,
+                    new_stock=product.current_stock,
+                    reference_id=purchase.id,
+                    reference_type="PURCHASE",
+                    notes=f"Inward purchase batch={item_data.batch_number or 'N/A'}",
+                )
+                db.add(inv_tx)
+
+        purchase.subtotal = subtotal.quantize(Decimal("0.01"))
+        purchase.gst_amount = total_gst.quantize(Decimal("0.01"))
+        purchase.grand_total = (subtotal + total_gst).quantize(Decimal("0.01"))
+
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action=AuditAction.PURCHASE_CREATE,
+            reference_id=purchase.id,
+            reference_type="Purchase",
+        ))
+
+        db.commit()
+        db.refresh(purchase)
+        return serialize_purchase(purchase)
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Failed to save purchase: {str(e)}")
 
 
 @router.get("")
@@ -162,8 +263,13 @@ def get_purchase(
     return serialize_purchase(purchase)
 
 
+import io
+from fastapi.responses import StreamingResponse
+from app.reports.invoice_pdf import generate_purchase_pdf
+
+
 @router.get("/{purchase_id}/pdf")
-def download_purchase_pdf_direct(
+def download_purchase_pdf(
     purchase_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -183,5 +289,3 @@ def download_purchase_pdf_direct(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-

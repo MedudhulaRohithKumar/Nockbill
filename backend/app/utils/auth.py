@@ -46,10 +46,24 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     payload = decode_token(credentials.credentials)
-    user_id: int = payload.get("sub")
-    if not user_id:
+    sub = payload.get("sub")
+    user_id = payload.get("user_id")
+    if not sub and not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    user = db.query(User).filter(User.id == int(user_id), User.is_active == True).first()
+
+    user = None
+    # Try by numeric ID
+    target_id = user_id or sub
+    try:
+        uid = int(target_id)
+        user = db.query(User).filter(User.id == uid, User.is_active == True).first()
+    except (ValueError, TypeError):
+        pass
+
+    # Fallback to query by username if not found by ID
+    if not user and sub:
+        user = db.query(User).filter(User.username == str(sub), User.is_active == True).first()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
