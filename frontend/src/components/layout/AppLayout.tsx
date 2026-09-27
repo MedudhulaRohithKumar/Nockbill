@@ -15,7 +15,8 @@ import {
   Sprout, 
   ScanLine,
   Bell,
-  ChevronRight
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
@@ -35,6 +36,7 @@ export const AppLayout: React.FC = () => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
+    { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
     { to: '/purchases', label: 'Inward / Purchases', icon: ShoppingBag },
     { to: '/expenses', label: 'Expenses', icon: Wallet },

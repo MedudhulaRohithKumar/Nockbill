@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ocrApi, productsApi } from '../../api';
 import { OCRCandidate, Product, SaleItem } from '../../types';
+import { CustomSelect } from '../common/CustomSelect';
 
 interface CameraScannerModalProps {
   isOpen: boolean;
@@ -647,17 +648,18 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                       <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         GST Rate %
                       </label>
-                      <select
-                        value={formGst}
-                        onChange={(e) => setFormGst(parseInt(e.target.value))}
-                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                      >
-                        <option value="0">0% (Exempt)</option>
-                        <option value="5">5% (Fertilizers)</option>
-                        <option value="12">12%</option>
-                        <option value="18">18% (Pesticides)</option>
-                        <option value="28">28%</option>
-                      </select>
+                      <CustomSelect
+                        value={String(formGst)}
+                        onChange={(val) => setFormGst(parseInt(val))}
+                        size="sm"
+                        options={[
+                          { value: "0", label: "0% (Exempt)" },
+                          { value: "5", label: "5% (Fertilizers)" },
+                          { value: "12", label: "12%" },
+                          { value: "18", label: "18% (Pesticides)" },
+                          { value: "28", label: "28%" },
+                        ]}
+                      />
                     </div>
 
                     {/* Unit */}
@@ -665,17 +667,18 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                       <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Unit
                       </label>
-                      <select
+                      <CustomSelect
                         value={formUnit}
-                        onChange={(e) => setFormUnit(e.target.value)}
-                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
-                      >
-                        <option value="Bags">Bags</option>
-                        <option value="Kg">Kg</option>
-                        <option value="Litres">Litres</option>
-                        <option value="Bottles">Bottles</option>
-                        <option value="Packets">Packets</option>
-                      </select>
+                        onChange={(val) => setFormUnit(val)}
+                        size="sm"
+                        options={[
+                          { value: "Bags", label: "Bags" },
+                          { value: "Kg", label: "Kg" },
+                          { value: "Litres", label: "Litres" },
+                          { value: "Bottles", label: "Bottles" },
+                          { value: "Packets", label: "Packets" },
+                        ]}
+                      />
                     </div>
                   </div>
                 </div>

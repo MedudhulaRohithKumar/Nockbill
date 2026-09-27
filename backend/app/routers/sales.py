@@ -60,12 +60,16 @@ def create_sale(
         db.add(shop)
         db.flush()
 
-    # ── Generate invoice number ────────────────────────────────
+    # ── Generate guaranteed unique invoice number ──────────────
     sale_date = datetime.utcnow()
-    invoice_number = generate_invoice_number(
-        shop.invoice_prefix, shop.invoice_counter, sale_date
-    )
-    shop.invoice_counter += 1
+    while True:
+        invoice_number = generate_invoice_number(
+            shop.invoice_prefix, shop.invoice_counter, sale_date
+        )
+        shop.invoice_counter += 1
+        existing_sale = db.query(Sale).filter(Sale.invoice_number == invoice_number).first()
+        if not existing_sale:
+            break
 
     # ── Create Sale (all-or-nothing transaction) ───────────────
     try:
@@ -73,13 +77,25 @@ def create_sale(
         total_gst = Decimal("0")
         grand_total = Decimal("0")
 
+        notes = payload.notes
+        if not notes and payload.payment_details:
+            try:
+                import json
+                splits = json.loads(payload.payment_details)
+                if isinstance(splits, list) and len(splits) > 1:
+                    notes = "Split Payment: " + " | ".join(f"{s.get('method')}: ₹{s.get('amount')}" for s in splits)
+                elif isinstance(splits, list) and len(splits) == 1:
+                    notes = f"Payment: {splits[0].get('method')}"
+            except Exception:
+                notes = payload.payment_details
+
         sale = Sale(
             invoice_number=invoice_number,
             idempotency_key=payload.idempotency_key,
             customer_name=payload.customer_name,
             customer_phone=payload.customer_phone,
             payment_method=payload.payment_method,
-            notes=payload.notes,
+            notes=notes,
             sale_date=sale_date,
             created_by=current_user.id,
         )

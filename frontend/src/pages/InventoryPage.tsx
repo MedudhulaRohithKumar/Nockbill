@@ -24,6 +24,7 @@ import {
 import { productsApi, inventoryApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, RefillRecommendation } from '../types';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 export const InventoryPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -893,19 +894,19 @@ export const InventoryPage: React.FC = () => {
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Unit of Measure</label>
-                  <select
+                  <CustomSelect
                     value={refillUnit}
-                    onChange={(e) => setRefillUnit(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="Bags">Bags</option>
-                    <option value="Kg">Kg (Kilograms)</option>
-                    <option value="Grams">Grams</option>
-                    <option value="Litres">Litres</option>
-                    <option value="ml">ml (Millilitres)</option>
-                    <option value="Bottles">Bottles</option>
-                    <option value="Packets">Packets</option>
-                  </select>
+                    onChange={(val) => setRefillUnit(val)}
+                    options={[
+                      { value: 'Bags', label: 'Bags' },
+                      { value: 'Kg', label: 'Kg (Kilograms)' },
+                      { value: 'Grams', label: 'Grams' },
+                      { value: 'Litres', label: 'Litres' },
+                      { value: 'ml', label: 'ml (Millilitres)' },
+                      { value: 'Bottles', label: 'Bottles' },
+                      { value: 'Packets', label: 'Packets' },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1107,35 +1108,35 @@ export const InventoryPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Category</label>
-                  <select
+                  <CustomSelect
                     value={editingProduct.category || 'Fertilizer'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="Fertilizer">Fertilizer</option>
-                    <option value="Pesticide">Pesticide</option>
-                    <option value="Seeds">Seeds</option>
-                    <option value="Micronutrients">Micronutrients</option>
-                    <option value="Bio-fertilizer">Bio-fertilizer</option>
-                    <option value="Organic">Organic</option>
-                  </select>
+                    onChange={(val) => setEditingProduct({ ...editingProduct, category: val })}
+                    options={[
+                      { value: 'Fertilizer', label: 'Fertilizer' },
+                      { value: 'Pesticide', label: 'Pesticide' },
+                      { value: 'Seeds', label: 'Seeds' },
+                      { value: 'Micronutrients', label: 'Micronutrients' },
+                      { value: 'Bio-fertilizer', label: 'Bio-fertilizer' },
+                      { value: 'Organic', label: 'Organic' },
+                    ]}
+                  />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Primary Unit</label>
-                  <select
+                  <CustomSelect
                     value={editingProduct.unit || 'Bags'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, unit: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="Bags">Bags</option>
-                    <option value="Kg">Kg</option>
-                    <option value="Grams">Grams</option>
-                    <option value="Litres">Litres</option>
-                    <option value="ml">ml</option>
-                    <option value="Bottles">Bottles</option>
-                    <option value="Packets">Packets</option>
-                  </select>
+                    onChange={(val) => setEditingProduct({ ...editingProduct, unit: val })}
+                    options={[
+                      { value: 'Bags', label: 'Bags' },
+                      { value: 'Kg', label: 'Kg' },
+                      { value: 'Grams', label: 'Grams' },
+                      { value: 'Litres', label: 'Litres' },
+                      { value: 'ml', label: 'ml' },
+                      { value: 'Bottles', label: 'Bottles' },
+                      { value: 'Packets', label: 'Packets' },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1198,17 +1199,17 @@ export const InventoryPage: React.FC = () => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">GST Rate %</label>
-                  <select
-                    value={editingProduct.gst_rate ?? 5}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, gst_rate: parseInt(e.target.value) })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="0">0% (Exempt)</option>
-                    <option value="5">5% (Fertilizers)</option>
-                    <option value="12">12%</option>
-                    <option value="18">18% (Pesticides)</option>
-                    <option value="28">28%</option>
-                  </select>
+                  <CustomSelect
+                    value={String(editingProduct.gst_rate ?? 5)}
+                    onChange={(val) => setEditingProduct({ ...editingProduct, gst_rate: parseInt(val) })}
+                    options={[
+                      { value: '0', label: '0% (Exempt)' },
+                      { value: '5', label: '5% (Fertilizers)' },
+                      { value: '12', label: '12%' },
+                      { value: '18', label: '18% (Pesticides)' },
+                      { value: '28', label: '28%' },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -1409,15 +1410,15 @@ export const InventoryPage: React.FC = () => {
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Adjustment Type</label>
-                <select
+                <CustomSelect
                   value={adjustType}
-                  onChange={(e) => setAdjustType(e.target.value as any)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                >
-                  <option value="AUDIT_CORRECTION">Audit Count Correction (+/-)</option>
-                  <option value="DAMAGE">Damaged / Leaked Bags (-)</option>
-                  <option value="RETURN">Customer Return (+)</option>
-                </select>
+                  onChange={(val) => setAdjustType(val as any)}
+                  options={[
+                    { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
+                    { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
+                    { value: 'RETURN', label: 'Customer Return (+)' },
+                  ]}
+                />
               </div>
 
               <div>

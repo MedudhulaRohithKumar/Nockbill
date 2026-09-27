@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from app.config.settings import settings
-from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices
+from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices, returns
 from app.database.base import Base, engine
 import app.models.models  # noqa – ensure all models are registered
 
@@ -16,6 +16,10 @@ app = FastAPI(
 
 # ── Auto-create any missing tables on startup ─────────────────────────────────
 Base.metadata.create_all(bind=engine)
+
+# ── Security & Caching Middleware ─────────────────────────────────────────────
+from app.middleware.security import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -30,6 +34,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(products.router)
 app.include_router(sales.router)
+app.include_router(returns.router)
 app.include_router(purchases.router)
 app.include_router(inventory.router)
 app.include_router(ocr.router)

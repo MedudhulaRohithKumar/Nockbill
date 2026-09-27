@@ -319,6 +319,7 @@ class SaleCreate(BaseModel):
     total_igst: Optional[Decimal] = None
     round_off: Optional[Decimal] = None
     grand_total: Optional[Decimal] = None
+    payment_details: Optional[str] = None
     notes: Optional[str] = None
     idempotency_key: Optional[str] = None
     items: List[SaleItemCreate] = Field(..., min_length=1)
@@ -377,6 +378,7 @@ class SaleResponse(BaseModel):
     grand_total: Decimal = Decimal("0")
     payment_method: PaymentMethod = PaymentMethod.CASH
     payment_mode: Optional[str] = None
+    payment_details: Optional[str] = None
     notes: Optional[str] = None
     sale_date: datetime
     invoice_date: Optional[str] = None
@@ -611,3 +613,103 @@ class PaginatedResponse(BaseModel):
     page: int
     page_size: int
     items: List[Any] = []
+
+
+# ─── Sales Return Schemas ───────────────────────────────────────────────────
+
+class SalesReturnItemCreate(BaseModel):
+    sale_item_id: int
+    returned_quantity: Decimal
+
+class SalesReturnCreate(BaseModel):
+    sale_id: int
+    invoice_number: str
+    refund_payment_method: Optional[Any] = "CASH"
+    reason: Optional[str] = "Customer return / unused stock"
+    notes: Optional[str] = None
+    items: List[SalesReturnItemCreate]
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_return_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            raw_method = data.get('refund_payment_method') or data.get('payment_mode') or 'CASH'
+            if isinstance(raw_method, str):
+                m_upper = raw_method.strip().upper()
+                if m_upper in [m.value for m in PaymentMethod]:
+                    data['refund_payment_method'] = PaymentMethod(m_upper)
+                else:
+                    data['refund_payment_method'] = PaymentMethod.CASH
+            elif isinstance(raw_method, PaymentMethod):
+                data['refund_payment_method'] = raw_method
+            else:
+                data['refund_payment_method'] = PaymentMethod.CASH
+        return data
+
+class SalesReturnItemResponse(BaseModel):
+    id: int
+    sales_return_id: int
+    sale_item_id: Optional[int] = None
+    product_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    batch_number: Optional[str] = None
+    product_name: str
+    company_name: Optional[str] = None
+    net_content: Optional[str] = None
+    returned_quantity: Decimal
+    unit_price: Decimal
+    gst_rate: Decimal
+    refund_taxable: Decimal
+    refund_gst: Decimal
+    refund_total: Decimal
+
+    class Config:
+        from_attributes = True
+
+class SalesReturnResponse(BaseModel):
+    id: int
+    return_number: str
+    sale_id: int
+    invoice_number: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    refund_subtotal: Decimal
+    refund_gst_amount: Decimal
+    refund_grand_total: Decimal
+    refund_payment_method: PaymentMethod = PaymentMethod.CASH
+    reason: Optional[str] = None
+    notes: Optional[str] = None
+    return_date: datetime
+    created_at: datetime
+    items: List[SalesReturnItemResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class ReturnEligibleItem(BaseModel):
+    sale_item_id: int
+    product_id: Optional[int] = None
+    batch_id: Optional[int] = None
+    batch_number: Optional[str] = None
+    product_name: str
+    company_name: Optional[str] = None
+    net_content: Optional[str] = None
+    unit: Optional[str] = None
+    sold_quantity: Decimal
+    previously_returned_quantity: Decimal
+    available_return_quantity: Decimal
+    unit_price: Decimal
+    gst_rate: Decimal
+    total_price: Decimal
+
+class InvoiceReturnLookupResponse(BaseModel):
+    sale_id: int
+    invoice_number: str
+    sale_date: datetime
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    original_grand_total: Decimal
+    original_payment_method: str
+    items: List[ReturnEligibleItem]
+    existing_returns_count: int
+

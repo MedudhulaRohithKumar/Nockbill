@@ -30,7 +30,16 @@ class Settings(BaseSettings):
     azure_vision_key: str = ""
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
+    # AWS & S3 Storage
     aws_region: str = "ap-south-1"
+    s3_enabled: bool = False
+    s3_invoices_bucket: str = "ks-sales-invoices"
+    s3_purchases_bucket: str = "ks-purchase-bills"
+    s3_gst_reports_bucket: str = "ks-gst-reports"
+    s3_stock_reports_bucket: str = "ks-stock-reports"
+    s3_presigned_url_expire_seconds: int = 900  # 15 minutes
+    step_functions_arn_report_generator: str = ""
+    frontend_function_url: str = ""
 
     # File Upload
     max_image_size_mb: int = 10

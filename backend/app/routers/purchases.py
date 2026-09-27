@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field, model_validator
@@ -10,7 +10,7 @@ from app.models.models import (
     InventoryTransaction, InventoryTxType,
     AuditLog, AuditAction, User, ShopSettings
 )
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
 
@@ -271,8 +271,9 @@ from app.reports.invoice_pdf import generate_purchase_pdf
 @router.get("/{purchase_id}/pdf")
 def download_purchase_pdf(
     purchase_id: int,
+    inline: bool = Query(True, description="Display inline in browser if true, or download if false"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
     if not purchase:
@@ -284,8 +285,9 @@ def download_purchase_pdf(
     pdf_bytes = generate_purchase_pdf(purchase, shop)
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"
+    disposition = "inline" if inline else "attachment"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )

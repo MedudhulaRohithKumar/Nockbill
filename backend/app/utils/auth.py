@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.config.settings import settings
@@ -10,7 +10,8 @@ from app.database.base import get_db
 from app.models.models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-bearer_scheme = HTTPBearer()
+# auto_error=False permits optional auth extraction (e.g. for browser GET PDF downloads)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -41,32 +42,72 @@ def decode_token(token: str) -> dict:
         )
 
 
+def _get_user_from_token_str(token: str, db: Session) -> Optional[User]:
+    """Helper to decode token and look up active user."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        sub = payload.get("sub")
+        user_id = payload.get("user_id")
+        if not sub and not user_id:
+            return None
+
+        target_id = user_id or sub
+        try:
+            uid = int(target_id)
+            user = db.query(User).filter(User.id == uid, User.is_active == True).first()
+            if user:
+                return user
+        except (ValueError, TypeError):
+            pass
+
+        if sub:
+            return db.query(User).filter(User.username == str(sub), User.is_active == True).first()
+    except Exception:
+        return None
+    return None
+
+
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    token: Optional[str] = Query(None, description="Auth token via query parameter"),
     db: Session = Depends(get_db),
 ) -> User:
-    payload = decode_token(credentials.credentials)
-    sub = payload.get("sub")
-    user_id = payload.get("user_id")
-    if not sub and not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+    """Strict authentication: checks Authorization Bearer header or ?token= query parameter."""
+    token_str = None
+    if credentials and credentials.credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
 
-    user = None
-    # Try by numeric ID
-    target_id = user_id or sub
-    try:
-        uid = int(target_id)
-        user = db.query(User).filter(User.id == uid, User.is_active == True).first()
-    except (ValueError, TypeError):
-        pass
+    if not token_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Fallback to query by username if not found by ID
-    if not user and sub:
-        user = db.query(User).filter(User.username == str(sub), User.is_active == True).first()
-
+    user = _get_user_from_token_str(token_str, db)
     if not user:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
+
+
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    token: Optional[str] = Query(None, description="Auth token via query parameter"),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Optional authentication: returns active User if authenticated, else None without 401 error."""
+    token_str = None
+    if credentials and credentials.credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
+
+    if not token_str:
+        return None
+
+    return _get_user_from_token_str(token_str, db)
 
 
 def require_owner(current_user: User = Depends(get_current_user)) -> User:

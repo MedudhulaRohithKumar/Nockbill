@@ -60,6 +60,7 @@ class AuditAction(str, enum.Enum):
     PRODUCT_UPDATE = "PRODUCT_UPDATE"
     PRODUCT_DELETE = "PRODUCT_DELETE"
     SALE_CREATE = "SALE_CREATE"
+    SALE_RETURN = "SALE_RETURN"
     PURCHASE_CREATE = "PURCHASE_CREATE"
     INVENTORY_ADJUST = "INVENTORY_ADJUST"
     EXPENSE_CREATE = "EXPENSE_CREATE"
@@ -207,6 +208,7 @@ class Sale(Base):
     created_by = Column(Integer, ForeignKey("users.id"))
 
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
+    returns = relationship("SalesReturn", back_populates="sale", cascade="all, delete-orphan")
     gst_transactions = relationship("GstTransaction", back_populates="sale")
 
 
@@ -328,3 +330,52 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class SalesReturn(Base):
+    __tablename__ = "sales_returns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    return_number = Column(String(50), unique=True, nullable=False, index=True)
+    sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False, index=True)
+    invoice_number = Column(String(50), nullable=False, index=True)
+    customer_name = Column(String(200))
+    customer_phone = Column(String(20))
+    refund_subtotal = Column(Numeric(14, 2), default=0)
+    refund_gst_amount = Column(Numeric(14, 2), default=0)
+    refund_grand_total = Column(Numeric(14, 2), default=0)
+    refund_payment_method = Column(SAEnum(PaymentMethod), default=PaymentMethod.CASH)
+    reason = Column(String(500))
+    notes = Column(Text)
+    return_date = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id"))
+
+    sale = relationship("Sale", back_populates="returns")
+    items = relationship("SalesReturnItem", back_populates="sales_return", cascade="all, delete-orphan")
+    creator = relationship("User")
+
+
+class SalesReturnItem(Base):
+    __tablename__ = "sales_return_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sales_return_id = Column(Integer, ForeignKey("sales_returns.id", ondelete="CASCADE"), nullable=False, index=True)
+    sale_item_id = Column(Integer, ForeignKey("sale_items.id"), nullable=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    batch_id = Column(Integer, ForeignKey("product_batches.id", ondelete="SET NULL"), nullable=True)
+    batch_number = Column(String(100), nullable=True)
+    product_name = Column(String(200), nullable=False)
+    company_name = Column(String(200))
+    net_content = Column(String(50))
+    returned_quantity = Column(Numeric(10, 3), nullable=False)
+    unit_price = Column(Numeric(12, 2), nullable=False)
+    gst_rate = Column(Numeric(5, 2), default=0)
+    refund_taxable = Column(Numeric(14, 2), default=0)
+    refund_gst = Column(Numeric(14, 2), default=0)
+    refund_total = Column(Numeric(14, 2), default=0)
+
+    sales_return = relationship("SalesReturn", back_populates="items")
+    product = relationship("Product")
+    batch = relationship("ProductBatch")
+    sale_item = relationship("SaleItem")

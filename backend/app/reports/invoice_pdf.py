@@ -54,40 +54,58 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "Fertilizer Shop", _header_style(18)))
+    elements.append(Paragraph(shop.shop_name or "Kisan Seva Kendra", _header_style(18)))
     if shop.address:
         elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
+    contact_parts = []
     if shop.phone:
-        elements.append(Paragraph(f"Phone: {shop.phone}", _header_style(9, bold=False, color=DARK_TEXT)))
+        contact_parts.append(f"Phone: {shop.phone}")
     if shop.gstin:
-        elements.append(Paragraph(f"GSTIN: {shop.gstin}", _header_style(9, bold=False, color=DARK_TEXT)))
+        contact_parts.append(f"GSTIN: {shop.gstin}")
+    if contact_parts:
+        elements.append(Paragraph(" | ".join(contact_parts), _header_style(9, bold=False, color=DARK_TEXT)))
 
-    elements.append(HRFlowable(width="100%", thickness=1, color=GREEN, spaceAfter=4))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=GREEN, spaceAfter=4))
+    elements.append(Paragraph("<b>TAX INVOICE / RETAIL BILL</b>", _header_style(12, bold=True, color=GREEN)))
+    elements.append(Spacer(1, 4))
 
-    # ── Invoice Details ──────────────────────────────────────
+    # ── Unique Billing Details ────────────────────────────────
+    inv_num = sale.invoice_number or f"KSK-{sale.sale_date.strftime('%Y%m') if sale.sale_date else '202609'}-{sale.id:05d}"
+    s_date_str = sale.sale_date.strftime('%d/%m/%Y %I:%M %p') if sale.sale_date else "-"
+    pm_str = sale.payment_method.value if hasattr(sale.payment_method, "value") else str(sale.payment_method)
+    if sale.notes and ("Split Payment:" in sale.notes or "Payment Split:" in sale.notes):
+        clean_split = sale.notes.replace("Payment Split:", "").replace("Split Payment:", "").strip()
+        pm_display = clean_split
+    else:
+        pm_display = pm_str
+
     invoice_data = [
         [
-            Paragraph(f"<b>Invoice No:</b> {sale.invoice_number}", styles["Normal"]),
-            Paragraph(f"<b>Date:</b> {sale.sale_date.strftime('%d/%m/%Y')}", _header_style(9, align=TA_RIGHT)),
+            Paragraph(f"<b>Bill / Invoice No:</b> <font color='#1B5E20'><b>{inv_num}</b></font>", styles["Normal"]),
+            Paragraph(f"<b>Date & Time:</b> {s_date_str}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+        ],
+        [
+            Paragraph(f"<b>Customer Name:</b> {sale.customer_name or 'Walk-in Farmer'}", styles["Normal"]),
+            Paragraph(f"<b>Phone:</b> {sale.customer_phone or '-'}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+        ],
+        [
+            Paragraph(f"<b>Payment Mode:</b> {pm_display} <font color='#2E7D32'>(PAID)</font>", styles["Normal"]),
+            Paragraph(f"<b>Bill Ref ID:</b> #{sale.id:05d}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
     ]
-    if sale.customer_name:
-        invoice_data.append([
-            Paragraph(f"<b>Customer:</b> {sale.customer_name}", styles["Normal"]),
-            Paragraph(f"<b>Phone:</b> {sale.customer_phone or '-'}", _header_style(9, align=TA_RIGHT)),
-        ])
 
-    elements.append(Table(invoice_data, colWidths=["50%", "50%"]))
+    elements.append(Table(invoice_data, colWidths=["55%", "45%"]))
     elements.append(Spacer(1, 6))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))
 
     # ── Line Items ───────────────────────────────────────────
-    headers = ["#", "Product", "Net Content", "Qty", "Price", "GST%", "GST ₹", "Total ₹"]
+    headers = ["#", "Product Description", "Net Content", "Qty", "Price ₹", "GST%", "GST ₹", "Total ₹"]
     rows = [headers]
     for i, item in enumerate(sale.items, 1):
+        comp = f"\n<font color='#616161'>{item.company_name}</font>" if item.company_name else ""
         rows.append([
             str(i),
-            f"{item.product_name}\n{item.company_name or ''}",
+            f"{item.product_name}{comp}",
             item.net_content or "-",
             str(item.quantity),
             f"₹{item.price:,.2f}",
@@ -115,31 +133,45 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     elements.append(item_table)
     elements.append(Spacer(1, 6))
 
-    # ── Totals ───────────────────────────────────────────────
+    # ── Totals & Tax Split ────────────────────────────────────
+    half_gst = (sale.gst_amount or Decimal("0")) / Decimal("2")
     totals = [
-        ["", "", "", "", "", "", "Subtotal:", f"₹{sale.subtotal:,.2f}"],
-        ["", "", "", "", "", "", "GST:", f"₹{sale.gst_amount:,.2f}"],
+        ["", "", "", "", "", "", "Taxable Amount:", f"₹{sale.subtotal:,.2f}"],
+        ["", "", "", "", "", "", "CGST (50%):", f"₹{half_gst:,.2f}"],
+        ["", "", "", "", "", "", "SGST (50%):", f"₹{half_gst:,.2f}"],
+        ["", "", "", "", "", "", "Total GST:", f"₹{sale.gst_amount:,.2f}"],
         ["", "", "", "", "", "", "GRAND TOTAL:", f"₹{sale.grand_total:,.2f}"],
-        ["", "", "", "", "", "", "Payment:", sale.payment_method.value],
     ]
     totals_table = Table(
         totals,
         colWidths=[8 * mm, 55 * mm, 25 * mm, 12 * mm, 22 * mm, 15 * mm, 35 * mm, 22 * mm],
     )
     totals_table.setStyle(TableStyle([
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("FONTNAME", (6, 2), (7, 2), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("FONTNAME", (6, 4), (7, 4), "Helvetica-Bold"),
+        ("FONTSIZE", (6, 4), (7, 4), 9.5),
         ("ALIGN", (6, 0), (7, -1), "RIGHT"),
-        ("LINEABOVE", (6, 2), (7, 2), 1, GREEN),
-        ("TEXTCOLOR", (6, 2), (7, 2), GREEN),
+        ("LINEABOVE", (6, 4), (7, 4), 1, GREEN),
+        ("TEXTCOLOR", (6, 4), (7, 4), GREEN),
     ]))
     elements.append(totals_table)
 
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 14))
+
+    # ── Terms & Authorized Signatory ──────────────────────────
+    footer_data = [
+        [
+            Paragraph("<b>Terms & Conditions:</b><br/>1. Certified Agro & Fertilizer products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+            Paragraph(f"For <b>{shop.shop_name or 'Kisan Seva Kendra'}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+        ]
+    ]
+    footer_table = Table(footer_data, colWidths=["60%", "40%"])
+    elements.append(footer_table)
+    elements.append(Spacer(1, 8))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     elements.append(Paragraph(
-        "Thank you for your business!",
-        _header_style(10, bold=False, color=colors.grey),
+        "Thank you for shopping with us! Wishing you a prosperous harvest.",
+        _header_style(8, bold=False, color=colors.grey),
     ))
 
     doc.build(elements)

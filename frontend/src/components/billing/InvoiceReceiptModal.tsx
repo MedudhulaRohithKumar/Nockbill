@@ -101,7 +101,14 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
               <p className="text-[10px] font-bold uppercase text-slate-400">Invoice Details:</p>
               <p className="font-mono font-bold text-sm text-brand-800">#{sale.invoice_number}</p>
               <p>Date: {sale.invoice_date || sale.sale_date ? new Date((sale.invoice_date || sale.sale_date) as string).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</p>
-              <p>Payment Mode: <strong className="uppercase bg-slate-100 px-1.5 py-0.5 rounded">{sale.payment_mode || sale.payment_method || 'CASH'}</strong></p>
+              <div className="flex sm:justify-end items-center gap-1.5 flex-wrap my-0.5">
+                <span className="text-slate-500">Payment:</span>
+                <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[11px]">
+                  {sale.notes && (sale.notes.includes('Split Payment:') || sale.notes.includes('Payment Split:'))
+                    ? sale.notes.replace(/Payment Split:|Split Payment:/g, '').trim()
+                    : (sale.payment_mode || sale.payment_method || 'CASH')}
+                </span>
+              </div>
               <p className="text-[11px] text-slate-500">Status: {sale.status || 'Completed'}</p>
             </div>
           </div>

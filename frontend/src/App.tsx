@@ -13,6 +13,7 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SalesReturnPage } from './pages/SalesReturnPage';
 
 // Protected route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -51,6 +52,7 @@ export const App: React.FC = () => {
               >
                 <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
                 <Route path="billing" element={<ErrorBoundary><BillingPage /></ErrorBoundary>} />
+                <Route path="returns" element={<ErrorBoundary><SalesReturnPage /></ErrorBoundary>} />
                 <Route path="inventory" element={<ErrorBoundary><InventoryPage /></ErrorBoundary>} />
                 <Route path="purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />
                 <Route path="expenses" element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />

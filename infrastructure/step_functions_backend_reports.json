@@ -1,0 +1,109 @@
+{
+  "Comment": "Kisan Seva Kendra - Asynchronous Monthly Financial & GST Report Generator",
+  "StartAt": "ExtractMonthlyTransactions",
+  "States": {
+    "ExtractMonthlyTransactions": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "FunctionName": "${BackendLambdaArn}",
+        "Payload": {
+          "action": "extract_monthly_summary",
+          "month.$": "$.month",
+          "year.$": "$.year"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ReportGenerationFailed"
+        }
+      ],
+      "Next": "GenerateGstAndStockDocuments"
+    },
+    "GenerateGstAndStockDocuments": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "GenerateGstPdfAndUploadS3",
+          "States": {
+            "GenerateGstPdfAndUploadS3": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "FunctionName": "${BackendLambdaArn}",
+                "Payload": {
+                  "action": "generate_gst_report_pdf",
+                  "category": "gst_report",
+                  "summaryData.$": "$.summary",
+                  "month.$": "$.month",
+                  "year.$": "$.year"
+                }
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "GenerateStockValuationExcelAndUploadS3",
+          "States": {
+            "GenerateStockValuationExcelAndUploadS3": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "FunctionName": "${BackendLambdaArn}",
+                "Payload": {
+                  "action": "generate_stock_valuation_excel",
+                  "category": "stock_report",
+                  "month.$": "$.month",
+                  "year.$": "$.year"
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "NotifyOwnerReportReady"
+    },
+    "NotifyOwnerReportReady": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${ReportNotificationsTopicArn}",
+        "Subject": "Monthly GST & Stock Report Ready - Kisan Seva Kendra",
+        "Message": {
+          "status": "COMPLETED",
+          "period.$": "$.[0].period",
+          "gstReportUrl.$": "$.[0].downloadUrl",
+          "stockReportUrl.$": "$.[1].downloadUrl"
+        }
+      },
+      "End": true
+    },
+    "ReportGenerationFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${ReportNotificationsTopicArn}",
+        "Subject": "ALERT: Monthly Report Generation Failed",
+        "Message": {
+          "status": "FAILED",
+          "error.$": "$.Error"
+        }
+      },
+      "End": true
+    }
+  }
+}

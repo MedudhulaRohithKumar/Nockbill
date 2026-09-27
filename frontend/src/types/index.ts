@@ -285,3 +285,81 @@ export interface DashboardSummary {
   low_stock_products: Product[];
   near_expiry_products: Product[];
 }
+
+export interface ReturnEligibleItem {
+  sale_item_id: number;
+  product_id?: number;
+  batch_id?: number;
+  batch_number?: string;
+  product_name: string;
+  company_name?: string;
+  net_content?: string;
+  unit?: string;
+  sold_quantity: number;
+  previously_returned_quantity: number;
+  available_return_quantity: number;
+  unit_price: number;
+  gst_rate: number;
+  total_price: number;
+}
+
+export interface InvoiceReturnLookup {
+  sale_id: number;
+  invoice_number: string;
+  sale_date: string;
+  customer_name?: string;
+  customer_phone?: string;
+  original_grand_total: number;
+  original_payment_method: string;
+  items: ReturnEligibleItem[];
+  existing_returns_count: number;
+}
+
+export interface SalesReturnItem {
+  id?: number;
+  sales_return_id?: number;
+  sale_item_id?: number;
+  product_id?: number;
+  batch_id?: number;
+  batch_number?: string;
+  product_name: string;
+  company_name?: string;
+  net_content?: string;
+  returned_quantity: number;
+  unit_price: number;
+  gst_rate: number;
+  refund_taxable: number;
+  refund_gst: number;
+  refund_total: number;
+}
+
+export interface SalesReturn {
+  id: number;
+  return_number: string;
+  sale_id: number;
+  invoice_number: string;
+  customer_name?: string;
+  customer_phone?: string;
+  refund_subtotal: number;
+  refund_gst_amount: number;
+  refund_grand_total: number;
+  refund_payment_method: string;
+  reason?: string;
+  notes?: string;
+  return_date: string;
+  created_at: string;
+  items: SalesReturnItem[];
+}
+
+export interface SalesReturnCreatePayload {
+  sale_id: number;
+  invoice_number: string;
+  refund_payment_method?: string;
+  reason?: string;
+  notes?: string;
+  items: {
+    sale_item_id: number;
+    returned_quantity: number;
+  }[];
+}
+

@@ -3,6 +3,7 @@ import { Plus, Wallet, Trash2, X, IndianRupee, TrendingDown } from 'lucide-react
 import { expensesApi } from '../api';
 import { Expense } from '../types';
 import { safeNumber, formatCurrency } from '../utils/formatters';
+import { CustomSelect } from '../components/common/CustomSelect';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Transport: 'bg-blue-100 text-blue-800',
@@ -226,19 +227,19 @@ export const ExpensesPage: React.FC = () => {
             <form onSubmit={handleAddExpense} className="p-5 space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Expense Category</label>
-                <select
+                <CustomSelect
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
-                >
-                  <option value="Transport">Transport / Freight</option>
-                  <option value="Labor">Labor / Handling</option>
-                  <option value="Rent">Shop / Godown Rent</option>
-                  <option value="Electricity">Electricity / Power</option>
-                  <option value="Packaging">Packaging Material</option>
-                  <option value="Office">Office &amp; Stationary</option>
-                  <option value="Misc">Miscellaneous</option>
-                </select>
+                  onChange={(val) => setCategory(val as any)}
+                  options={[
+                    { value: 'Transport', label: 'Transport / Freight' },
+                    { value: 'Labor', label: 'Labor / Handling' },
+                    { value: 'Rent', label: 'Shop / Godown Rent' },
+                    { value: 'Electricity', label: 'Electricity / Power' },
+                    { value: 'Packaging', label: 'Packaging Material' },
+                    { value: 'Office', label: 'Office & Stationary' },
+                    { value: 'Misc', label: 'Miscellaneous' },
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -250,7 +251,7 @@ export const ExpensesPage: React.FC = () => {
                     required
                     value={amount}
                     onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2.5 font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -260,7 +261,7 @@ export const ExpensesPage: React.FC = () => {
                     required
                     value={expenseDate}
                     onChange={(e) => setExpenseDate(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -273,22 +274,22 @@ export const ExpensesPage: React.FC = () => {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g. Unloading 100 bags from truck"
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 />
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Payment Mode</label>
-                <select
+                <CustomSelect
                   value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Card">Card</option>
-                </select>
+                  onChange={(val) => setPaymentMode(val)}
+                  options={[
+                    { value: 'Cash', label: 'Cash' },
+                    { value: 'UPI', label: 'UPI' },
+                    { value: 'Bank Transfer', label: 'Bank Transfer' },
+                    { value: 'Card', label: 'Card' },
+                  ]}
+                />
               </div>
 
               <div className="pt-2 border-t border-slate-200 flex gap-2">

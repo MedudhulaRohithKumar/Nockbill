@@ -1,5 +1,5 @@
 import api from './client';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload } from '../types';
 
 export const authApi = {
   login: async (credentials: { username: string; password: string } | FormData) => {
@@ -110,7 +110,35 @@ export const salesApi = {
     const res = await api.post<Sale>(`/sales/${id}/cancel`, { reason });
     return res.data;
   },
-  getPdfUrl: (saleId: number) => `/api/invoices/${saleId}/pdf`,
+  getPdfUrl: (saleId: number) => {
+    const token = localStorage.getItem('token');
+    return token ? `/api/invoices/${saleId}/pdf?token=${encodeURIComponent(token)}` : `/api/invoices/${saleId}/pdf`;
+  },
+};
+
+export const returnsApi = {
+  lookupInvoice: async (invoiceNumber: string): Promise<InvoiceReturnLookup> => {
+    const res = await api.get<InvoiceReturnLookup>('/returns/lookup', {
+      params: { invoice_number: invoiceNumber }
+    });
+    return res.data;
+  },
+  processReturn: async (payload: SalesReturnCreatePayload): Promise<SalesReturn> => {
+    const res = await api.post<SalesReturn>('/returns', payload);
+    return res.data;
+  },
+  getAll: async (params?: { search?: string; limit?: number }): Promise<SalesReturn[]> => {
+    const res = await api.get<SalesReturn[]>('/returns', { params });
+    return res.data;
+  },
+  getById: async (returnId: number): Promise<SalesReturn> => {
+    const res = await api.get<SalesReturn>(`/returns/${returnId}`);
+    return res.data;
+  },
+  getPdfUrl: (returnId: number): string => {
+    const token = localStorage.getItem('token');
+    return token ? `/api/returns/${returnId}/pdf?token=${encodeURIComponent(token)}` : `/api/returns/${returnId}/pdf`;
+  },
 };
 
 export const purchasesApi = {
@@ -122,7 +150,10 @@ export const purchasesApi = {
     const res = await api.post<Purchase>('/purchases', data);
     return res.data;
   },
-  getPdfUrl: (purchaseId: number) => `/api/purchases/${purchaseId}/pdf`,
+  getPdfUrl: (purchaseId: number) => {
+    const token = localStorage.getItem('token');
+    return token ? `/api/purchases/${purchaseId}/pdf?token=${encodeURIComponent(token)}` : `/api/purchases/${purchaseId}/pdf`;
+  },
 };
 
 export const inventoryApi = {

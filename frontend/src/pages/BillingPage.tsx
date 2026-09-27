@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Scan, 
   Search, 
@@ -28,16 +29,23 @@ import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
 
+type PaymentType = 'Cash' | 'UPI' | 'Card' | 'Credit';
+interface PaymentSplit {
+  method: PaymentType;
+  amount: number;
+}
+
 export const BillingPage: React.FC = () => {
+  const navigate = useNavigate();
   const { settings } = useShop();
 
   // Customer State
-  const [customerName, setCustomerName] = useState('Cash Customer / Farmer');
+  const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerAadhar, setCustomerAadhar] = useState('');
   const [customerGstin, setCustomerGstin] = useState('');
-  const [paymentMode, setPaymentMode] = useState<'Cash' | 'UPI' | 'Card' | 'Credit'>('Cash');
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>([{ method: 'Cash', amount: 0 }]);
   const [isInterstate, setIsInterstate] = useState(false);
 
   // Cart Items State
@@ -339,13 +347,54 @@ export const BillingPage: React.FC = () => {
 
   const clearBill = () => {
     setCart([]);
-    setCustomerName('Cash Customer / Farmer');
+    setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
     setCustomerAadhar('');
     setCustomerGstin('');
+    setPaymentSplits([{ method: 'Cash', amount: 0 }]);
     setErrorMsg(null);
   };
+
+  // --- Split Payment Helpers ---
+  const addPaymentSplit = () => {
+    const usedMethods = paymentSplits.map(s => s.method);
+    const available: PaymentType[] = (['Cash', 'UPI', 'Card', 'Credit'] as PaymentType[]).filter(m => !usedMethods.includes(m));
+    if (available.length === 0) return;
+    setPaymentSplits([...paymentSplits, { method: available[0], amount: 0 }]);
+  };
+
+  const removePaymentSplit = (idx: number) => {
+    if (paymentSplits.length <= 1) return;
+    setPaymentSplits(paymentSplits.filter((_, i) => i !== idx));
+  };
+
+  const updateSplitMethod = (idx: number, method: PaymentType) => {
+    const updated = [...paymentSplits];
+    updated[idx].method = method;
+    setPaymentSplits(updated);
+  };
+
+  const updateSplitAmount = (idx: number, amount: number) => {
+    const updated = [...paymentSplits];
+    updated[idx].amount = amount;
+    setPaymentSplits(updated);
+  };
+
+  const autoFillLastSplit = () => {
+    if (paymentSplits.length < 2) {
+      setPaymentSplits([{ ...paymentSplits[0], amount: roundedGrandTotal }]);
+      return;
+    }
+    const allButLast = paymentSplits.slice(0, -1).reduce((s, p) => s + p.amount, 0);
+    const remaining = Math.max(0, roundedGrandTotal - allButLast);
+    const updated = [...paymentSplits];
+    updated[updated.length - 1].amount = Math.round(remaining * 100) / 100;
+    setPaymentSplits(updated);
+  };
+
+  // Primary payment method for backward compat (the one with highest amount)
+  const primaryPaymentMethod = paymentSplits.reduce((best, curr) => curr.amount > best.amount ? curr : best, paymentSplits[0]).method;
 
   // Totals calculations
   const subtotal = cart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
@@ -367,14 +416,33 @@ export const BillingPage: React.FC = () => {
     setErrorMsg(null);
     setIsSaving(true);
 
+    // Build and validate payment details for split payment
+    let splitsToSave = [...paymentSplits];
+    if (splitsToSave.length === 1 && (splitsToSave[0].amount <= 0 || isNaN(splitsToSave[0].amount))) {
+      splitsToSave = [{ method: splitsToSave[0].method, amount: roundedGrandTotal }];
+    } else if (splitsToSave.length > 1) {
+      const splitSum = splitsToSave.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+      if (Math.abs(splitSum - roundedGrandTotal) >= 1) {
+        setErrorMsg(`Split payment total (₹${formatCurrency(splitSum)}) does not match bill grand total (₹${formatCurrency(roundedGrandTotal)}). Please adjust or click 'Auto-fill Remaining'.`);
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    const splitNotes = splitsToSave.length > 1
+      ? "Split Payment: " + splitsToSave.map(s => `${s.method}: ₹${formatCurrency(s.amount)}`).join(' | ')
+      : undefined;
+
     const salePayload = {
-      customer_name: customerName || 'Farmer Cash Sale',
+      customer_name: customerName || 'Cash Customer / Farmer',
       customer_phone: customerPhone,
       customer_address: customerAddress,
       customer_aadhar: customerAadhar,
       customer_gstin: customerGstin,
-      payment_method: paymentMode,
-      payment_mode: paymentMode,
+      payment_method: primaryPaymentMethod,
+      payment_mode: primaryPaymentMethod,
+      payment_details: JSON.stringify(splitsToSave),
+      notes: splitNotes,
       is_interstate: isInterstate,
       subtotal: Math.round(subtotal * 100) / 100,
       total_discount: Math.round(totalDiscount * 100) / 100,
@@ -435,6 +503,14 @@ export const BillingPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/returns')}
+            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-sm active:scale-95"
+            title="Return unused customer products & restock"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+            <span>Sales Return</span>
+          </button>
           <button
             onClick={() => setIsScannerOpen(true)}
             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md shadow-emerald-900/10 active:scale-95 transition-all"
@@ -839,7 +915,7 @@ export const BillingPage: React.FC = () => {
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                placeholder="Ramesh Patel"
+                placeholder="Cash Customer / Farmer"
               />
             </div>
 
@@ -898,32 +974,108 @@ export const BillingPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Payment Mode Selector */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <CreditCard className="w-3.5 h-3.5 text-emerald-800" />
-              Payment Method
-            </h3>
-
-            <div className="grid grid-cols-2 gap-2">
-              {(['Cash', 'UPI', 'Card', 'Credit'] as const).map((mode) => (
+          {/* Payment Mode Selector — Split Payment Support */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-emerald-800" />
+                Payment Method
+              </h3>
+              {paymentSplits.length < 4 && (
                 <button
-                  key={mode}
                   type="button"
-                  onClick={() => setPaymentMode(mode)}
-                  className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                    paymentMode === mode
-                      ? 'bg-emerald-800 text-white shadow-sm ring-2 ring-emerald-500/50'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                  onClick={addPaymentSplit}
+                  className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-0.5 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors"
                 >
-                  {mode === 'UPI' && <QrCode className="w-3.5 h-3.5" />}
-                  {mode === 'Cash' && <IndianRupee className="w-3.5 h-3.5" />}
-                  <span>{mode}</span>
+                  <Plus className="w-3 h-3" /> Split Payment
                 </button>
-              ))}
+              )}
             </div>
+
+            <div className="space-y-2">
+              {paymentSplits.map((split, idx) => {
+                const usedMethods = paymentSplits.map(s => s.method);
+                const availableMethods: PaymentType[] = (['Cash', 'UPI', 'Card', 'Credit'] as PaymentType[]).filter(
+                  m => m === split.method || !usedMethods.includes(m)
+                );
+                return (
+                  <div key={idx} className="flex items-center gap-2 bg-slate-50 rounded-xl p-2 border border-slate-100">
+                    {/* Method select buttons */}
+                    <div className="flex gap-1 flex-wrap shrink-0">
+                      {availableMethods.map(method => (
+                        <button
+                          key={method}
+                          type="button"
+                          onClick={() => updateSplitMethod(idx, method)}
+                          className={`py-1.5 px-2.5 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all ${
+                            split.method === method
+                              ? 'bg-emerald-800 text-white shadow-sm ring-1 ring-emerald-500/50'
+                              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          }`}
+                        >
+                          {method === 'UPI' && <QrCode className="w-3 h-3" />}
+                          {method === 'Cash' && <IndianRupee className="w-3 h-3" />}
+                          {method === 'Card' && <CreditCard className="w-3 h-3" />}
+                          <span>{method}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Amount input */}
+                    <div className="flex-1 min-w-0">
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={split.amount || ''}
+                          onChange={(e) => updateSplitAmount(idx, parseFloat(e.target.value) || 0)}
+                          placeholder={paymentSplits.length === 1 ? String(roundedGrandTotal) : '0'}
+                          className="w-full pl-7 pr-2.5 py-1.5 text-xs font-black text-emerald-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Remove button */}
+                    {paymentSplits.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePaymentSplit(idx)}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg transition-colors shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Auto-fill and summary */}
+            {cart.length > 0 && (
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={autoFillLastSplit}
+                  className="text-[10px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Zap className="w-3 h-3" />
+                  {paymentSplits.length === 1 ? 'Auto-fill Total' : 'Auto-fill Remaining'}
+                </button>
+                {paymentSplits.length > 1 && (
+                  <span className={`text-[10px] font-bold ${
+                    Math.abs(paymentSplits.reduce((s, p) => s + p.amount, 0) - roundedGrandTotal) < 1
+                      ? 'text-emerald-600'
+                      : 'text-red-500'
+                  }`}>
+                    Split: ₹{formatCurrency(paymentSplits.reduce((s, p) => s + p.amount, 0))} / ₹{formatCurrency(roundedGrandTotal)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
+
 
           {/* Financial Calculation & Checkout Card */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">

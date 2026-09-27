@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Kisan Seva Kendra - Phase 2 Custom Domain & CDN Architecture:
+  Amazon CloudFront Distribution with Custom Domain, Route53, ACM SSL,
+  Unified Path-Based Routing (/api/* to Backend, /* to Frontend),
+  Edge Caching, Security Headers, and WAF.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: kisansevakendra.in
+    Description: Your registered domain name (e.g., kisansevakendra.in)
+
+  Subdomain:
+    Type: String
+    Default: app
+    Description: Subdomain for the ERP application (e.g., app.kisansevakendra.in)
+
+  FrontendFunctionUrlDomain:
+    Type: String
+    Description: Domain name of the Frontend Lambda Function URL (without https://)
+
+  BackendFunctionUrlDomain:
+    Type: String
+    Description: Domain name of the Backend Lambda Function URL (without https://)
+
+  AcmCertificateArn:
+    Type: String
+    Description: ARN of validated ACM Certificate in us-east-1 for CloudFront
+
+Resources:
+  # ============================================================================
+  # 1. CLOUDFRONT SECURITY HEADERS POLICY
+  # ============================================================================
+  EdgeSecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: KisanSevaEdgeSecurityPolicy
+        Comment: Enforces Strict CSP, HSTS, and hides origin server fingerprints
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: true
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https:; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+            Override: true
+        RemoveHeadersConfig:
+          Items:
+            - Header: Server
+            - Header: X-Powered-By
+            - Header: x-amz-server-side-encryption
+
+  # ============================================================================
+  # 2. CACHE POLICIES
+  # ============================================================================
+  # Static Asset Cache Policy (1 Year Immutable)
+  StaticAssetCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: KisanSevaStaticAssetCachePolicy
+        Comment: Maximize CDN cache hit ratio for Vite hashed assets
+        DefaultTTL: 86400
+        MaxTTL: 31536000
+        MinTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  # Dynamic API Cache Policy (No CDN caching, passes headers & query parameters)
+  ApiNoCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: KisanSevaApiNoCachePolicy
+        Comment: Bypass CDN cache for transactional REST API
+        DefaultTTL: 0
+        MaxTTL: 0
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: all
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Authorization
+              - Content-Type
+              - Accept
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  # Origin Request Policy for API (Forward Authorization and Query parameters)
+  ApiOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: KisanSevaApiOriginRequestPolicy
+        CookiesConfig:
+          CookieBehavior: all
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+            - Authorization
+            - Content-Type
+            - Accept
+        QueryStringsConfig:
+          QueryStringBehavior: all
+
+  # ============================================================================
+  # 3. CLOUDFRONT DISTRIBUTION (Unified Origin)
+  # ============================================================================
+  UnifiedDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Unified CDN routing for Kisan Seva Kendra
+        Aliases:
+          - !Sub ${Subdomain}.${DomainName}
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        HttpVersion: http2and3
+        PriceClass: PriceClass_All
+
+        Origins:
+          # Origin 1: Frontend SPA Lambda Function URL
+          - Id: FrontendSpaOrigin
+            DomainName: !Ref FrontendFunctionUrlDomain
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+
+          # Origin 2: Backend FastAPI Lambda Function URL
+          - Id: BackendApiOrigin
+            DomainName: !Ref BackendFunctionUrlDomain
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+
+        # Default Behavior: Frontend SPA (/*)
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendSpaOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: !Ref StaticAssetCachePolicy
+          ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
+
+        # Cache Behavior 1: Backend API (/api/*)
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: BackendApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref ApiNoCachePolicy
+            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
+
+          # Cache Behavior 2: Static Hashed Assets (/assets/*)
+          - PathPattern: /assets/*
+            TargetOriginId: FrontendSpaOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref StaticAssetCachePolicy
+            ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
+
+Outputs:
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID
+    Value: !Ref UnifiedDistribution
+
+  CloudFrontDomainName:
+    Description: CloudFront Assigned Domain Name (e.g. d123456.cloudfront.net)
+    Value: !GetAtt UnifiedDistribution.DomainName
+
+  CustomApplicationUrl:
+    Description: Final Custom HTTPS URL after Route53 CNAME record creation
+    Value: !Sub https://${Subdomain}.${DomainName}
