@@ -127,7 +127,10 @@ def list_expenses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    expenses = db.query(Expense).order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    expenses = db.query(Expense).filter(
+        Expense.shop_id == shop_id
+    ).order_by(Expense.expense_date.desc()).offset(skip).limit(limit).all()
     return [_serialize_expense(e) for e in expenses]
 
 
@@ -137,8 +140,10 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     try:
         expense = Expense(
+            shop_id=shop_id,
             expense_name=payload.expense_name or payload.description or "Expense",
             category=payload.resolved_category(),
             amount=payload.amount,
@@ -166,7 +171,11 @@ def update_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    expense = db.query(Expense).filter(
+        Expense.id == expense_id,
+        Expense.shop_id == shop_id
+    ).first()
     if not expense:
         raise HTTPException(404, "Expense not found")
     expense.expense_name = payload.expense_name or payload.description or expense.expense_name
@@ -186,7 +195,11 @@ def delete_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    expense = db.query(Expense).filter(Expense.id == expense_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    expense = db.query(Expense).filter(
+        Expense.id == expense_id,
+        Expense.shop_id == shop_id
+    ).first()
     if not expense:
         raise HTTPException(404, "Expense not found")
     db.delete(expense)

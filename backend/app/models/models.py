@@ -79,11 +79,16 @@ class User(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(256), nullable=False)
     role = Column(SAEnum(UserRole), default=UserRole.STAFF, nullable=False)
+    email = Column(String(150), nullable=True, index=True)
+    phone = Column(String(20), nullable=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
+    subscription_status = Column(String(20), default="ACTIVE")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     audit_logs = relationship("AuditLog", back_populates="user")
+    shop = relationship("ShopSettings")
 
 
 class ShopSettings(Base):
@@ -116,6 +121,7 @@ class ShopSettings(Base):
     currency = Column(String(5), default="INR")
     thermal_print = Column(Boolean, default=False)
     terms_conditions = Column(Text)
+    subscription_status = Column(String(20), default="ACTIVE")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -123,7 +129,8 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    product_code = Column(String(50), unique=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    product_code = Column(String(50), index=True)
     product_name = Column(String(200), nullable=False, index=True)
     company_name = Column(String(200), index=True)
     net_content = Column(Numeric(10, 3))
@@ -194,7 +201,8 @@ class Sale(Base):
     __tablename__ = "sales"
 
     id = Column(Integer, primary_key=True, index=True)
-    invoice_number = Column(String(50), unique=True, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    invoice_number = Column(String(50), nullable=False, index=True)
     idempotency_key = Column(String(100), unique=True)  # duplicate prevention
     customer_name = Column(String(200))
     customer_phone = Column(String(20))
@@ -241,6 +249,7 @@ class Purchase(Base):
     __tablename__ = "purchases"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
     supplier_name = Column(String(200))
     invoice_number = Column(String(100))
     purchase_date = Column(DateTime, default=datetime.utcnow, index=True)
@@ -277,6 +286,7 @@ class InventoryTransaction(Base):
     __tablename__ = "inventory_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     transaction_type = Column(SAEnum(InventoryTxType), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
@@ -294,6 +304,7 @@ class GstTransaction(Base):
     __tablename__ = "gst_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
     invoice_number = Column(String(50), nullable=False)
     taxable_amount = Column(Numeric(14, 2), default=0)
@@ -308,6 +319,7 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
     expense_name = Column(String(200), nullable=False)
     category = Column(SAEnum(ExpenseCategory), default=ExpenseCategory.OTHER)
     amount = Column(Numeric(12, 2), nullable=False)
@@ -336,6 +348,7 @@ class SalesReturn(Base):
     __tablename__ = "sales_returns"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
     return_number = Column(String(50), unique=True, nullable=False, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False, index=True)
     invoice_number = Column(String(50), nullable=False, index=True)

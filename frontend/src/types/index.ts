@@ -5,6 +5,9 @@ export interface User {
   username: string;
   full_name: string;
   role: UserRole;
+  email?: string;
+  phone?: string;
+  subscription_status?: string;
   is_active: boolean;
 }
 

@@ -20,10 +20,10 @@ from app.reports.return_pdf import generate_sales_return_pdf
 router = APIRouter(prefix="/api/returns", tags=["Sales Returns"])
 
 
-def _generate_return_number(db: Session, return_date: datetime) -> str:
+def _generate_return_number(db: Session, return_date: datetime, shop_id: int = 1) -> str:
     """Generate a unique return number: RET-YYYYMM-XXXXX."""
     prefix = f"RET-{return_date.strftime('%Y%m')}"
-    # Count returns in this month
+    # Count returns in this month for this shop
     start_of_month = datetime(return_date.year, return_date.month, 1)
     if return_date.month == 12:
         end_of_month = datetime(return_date.year + 1, 1, 1)
@@ -31,6 +31,7 @@ def _generate_return_number(db: Session, return_date: datetime) -> str:
         end_of_month = datetime(return_date.year, return_date.month + 1, 1)
 
     count = db.query(func.count(SalesReturn.id)).filter(
+        SalesReturn.shop_id == shop_id,
         SalesReturn.return_date >= start_of_month,
         SalesReturn.return_date < end_of_month
     ).scalar() or 0
@@ -38,7 +39,10 @@ def _generate_return_number(db: Session, return_date: datetime) -> str:
     counter = count + 1
     while True:
         ret_num = f"{prefix}-{counter:05d}"
-        exists = db.query(SalesReturn).filter(SalesReturn.return_number == ret_num).first()
+        exists = db.query(SalesReturn).filter(
+            SalesReturn.shop_id == shop_id,
+            SalesReturn.return_number == ret_num
+        ).first()
         if not exists:
             return ret_num
         counter += 1
@@ -58,15 +62,21 @@ def lookup_invoice_for_return(
     if not clean_inv:
         raise HTTPException(status_code=400, detail="Please enter an invoice number")
 
-    # Search for sale (exact or case-insensitive)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+
+    # Search for sale (exact or case-insensitive) within this shop
     sale = db.query(Sale).filter(
+        Sale.shop_id == shop_id,
         func.lower(Sale.invoice_number) == clean_inv.lower()
     ).first()
 
     if not sale:
         # Also try searching by invoice ID if numeric
         if clean_inv.isdigit():
-            sale = db.query(Sale).filter(Sale.id == int(clean_inv)).first()
+            sale = db.query(Sale).filter(
+                Sale.id == int(clean_inv),
+                Sale.shop_id == shop_id
+            ).first()
 
     if not sale:
         raise HTTPException(
@@ -75,7 +85,10 @@ def lookup_invoice_for_return(
         )
 
     # Get all previous returns for this sale
-    existing_returns = db.query(SalesReturn).filter(SalesReturn.sale_id == sale.id).all()
+    existing_returns = db.query(SalesReturn).filter(
+        SalesReturn.sale_id == sale.id,
+        SalesReturn.shop_id == shop_id
+    ).all()
     
     # Calculate previously returned quantities per sale_item_id
     returned_totals: dict[int, Decimal] = {}
@@ -142,7 +155,11 @@ def process_sales_return(
     if not payload.items:
         raise HTTPException(status_code=400, detail="No items selected for return")
 
-    sale = db.query(Sale).filter(Sale.id == payload.sale_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    sale = db.query(Sale).filter(
+        Sale.id == payload.sale_id,
+        Sale.shop_id == shop_id
+    ).first()
     if not sale:
         raise HTTPException(status_code=404, detail="Original sale invoice not found")
 
@@ -150,7 +167,10 @@ def process_sales_return(
     sale_item_map = {item.id: item for item in sale.items}
 
     # Calculate existing returns per sale_item_id
-    existing_returns = db.query(SalesReturn).filter(SalesReturn.sale_id == sale.id).all()
+    existing_returns = db.query(SalesReturn).filter(
+        SalesReturn.sale_id == sale.id,
+        SalesReturn.shop_id == shop_id
+    ).all()
     returned_totals: dict[int, Decimal] = {}
     for ret in existing_returns:
         for ret_item in ret.items:
@@ -160,7 +180,7 @@ def process_sales_return(
                 )
 
     return_date = datetime.utcnow()
-    return_number = _generate_return_number(db, return_date)
+    return_number = _generate_return_number(db, return_date, shop_id)
 
     refund_subtotal = Decimal("0")
     refund_gst_amount = Decimal("0")
@@ -214,6 +234,7 @@ def process_sales_return(
 
                     # Log inventory transaction
                     inv_tx = InventoryTransaction(
+                        shop_id=shop_id,
                         product_id=product.id,
                         transaction_type=InventoryTxType.RETURN,
                         quantity=ret_qty,
@@ -252,6 +273,7 @@ def process_sales_return(
             raise HTTPException(status_code=400, detail="No valid return quantities entered")
 
         sales_return = SalesReturn(
+            shop_id=shop_id,
             return_number=return_number,
             sale_id=sale.id,
             invoice_number=sale.invoice_number,
@@ -306,7 +328,10 @@ def get_all_returns(
     current_user: User = Depends(get_current_user),
 ):
     """List recent sales returns."""
-    query = db.query(SalesReturn).order_by(desc(SalesReturn.return_date))
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(SalesReturn).filter(
+        SalesReturn.shop_id == shop_id
+    ).order_by(desc(SalesReturn.return_date))
     if search:
         s = f"%{search.strip()}%"
         query = query.filter(
@@ -324,7 +349,11 @@ def get_sales_return_by_id(
     current_user: User = Depends(get_current_user),
 ):
     """Get details of a specific sales return."""
-    sales_return = db.query(SalesReturn).filter(SalesReturn.id == return_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    sales_return = db.query(SalesReturn).filter(
+        SalesReturn.id == return_id,
+        SalesReturn.shop_id == shop_id
+    ).first()
     if not sales_return:
         raise HTTPException(status_code=404, detail="Sales return record not found")
     return sales_return
@@ -337,11 +366,15 @@ def download_sales_return_pdf(
     current_user: User = Depends(get_current_user),
 ):
     """Download Credit Note / Sales Return PDF."""
-    sales_return = db.query(SalesReturn).filter(SalesReturn.id == return_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    sales_return = db.query(SalesReturn).filter(
+        SalesReturn.id == return_id,
+        SalesReturn.shop_id == shop_id
+    ).first()
     if not sales_return:
         raise HTTPException(status_code=404, detail="Sales return record not found")
 
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
     if not shop:
         shop = ShopSettings(shop_name="Kisan Seva Kendra")
 

@@ -12,7 +12,47 @@ export const authApi = {
     } else {
       payload = credentials;
     }
-    const res = await api.post<{ access_token: string; token_type: string; role: string; username: string; name?: string; user_id?: number }>('/auth/login', payload);
+    const res = await api.post<{ access_token: string; token_type: string; role: string; username: string; name?: string; user_id?: number; subscription_status?: string }>('/auth/login', payload);
+    return res.data;
+  },
+  register: async (payload: any) => {
+    const res = await api.post<{
+      access_token: string;
+      token_type: string;
+      user_id: number;
+      username: string;
+      name: string;
+      email?: string;
+      phone?: string;
+      role: string;
+      shop_name: string;
+      subscription_status?: string;
+      credentials: any;
+    }>('/auth/register', payload);
+    return res.data;
+  },
+  requestPasswordReset: async (identifier: string) => {
+    const res = await api.post<{ success: boolean; message: string; demo_otp?: string; masked_target?: string }>('/auth/forgot-password/request', { identifier });
+    return res.data;
+  },
+  resetPassword: async (payload: { identifier: string; reset_token: string; new_password: string }) => {
+    const res = await api.post<{ success: boolean; message: string }>('/auth/forgot-password/reset', payload);
+    return res.data;
+  },
+  activateSubscription: async (payload: {
+    plan_id: string;
+    plan_name: string;
+    amount: number;
+    payment_method: string;
+    payment_ref: string;
+  }) => {
+    const res = await api.post<{
+      success: boolean;
+      message: string;
+      subscription_status: string;
+      payment_ref: string;
+      activated_at: string;
+    }>('/auth/activate-subscription', payload);
     return res.data;
   },
   me: async () => {
@@ -77,7 +117,18 @@ export const productsApi = {
   delete: async (id: number) => {
     const res = await api.delete(`/products/${id}`);
     return res.data;
-  }
+  },
+  getBarcodePdfUrl: (productId: number, params?: { label_size?: string; copies?: number; include_batch?: boolean; batch_id?: number }) => {
+    const token = localStorage.getItem('token');
+    const query = new URLSearchParams();
+    if (token) query.set('token', token);
+    if (params?.label_size) query.set('label_size', params.label_size);
+    if (params?.copies) query.set('copies', String(params.copies));
+    if (params?.include_batch !== undefined) query.set('include_batch', String(params.include_batch));
+    if (params?.batch_id) query.set('batch_id', String(params.batch_id));
+    const qs = query.toString();
+    return `/api/products/${productId}/barcode-label.pdf${qs ? `?${qs}` : ''}`;
+  },
 };
 
 export const salesApi = {

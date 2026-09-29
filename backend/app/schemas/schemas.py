@@ -20,23 +20,92 @@ class TokenResponse(BaseModel):
     username: str
     name: str
     role: UserRole
+    subscription_status: Optional[str] = "ACTIVE"
 
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
+    email: Optional[str] = None
+    phone: Optional[str] = None
     role: UserRole = UserRole.STAFF
 
 class UserResponse(BaseModel):
     id: int
     name: str
     username: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
     role: UserRole
+    subscription_status: Optional[str] = "ACTIVE"
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ShopRegistrationRequest(BaseModel):
+    # Owner credentials
+    owner_name: str = Field(..., min_length=1, max_length=100)
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6)
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+    # Shop Info
+    shop_name: str = Field(..., min_length=2, max_length=200)
+    proprietor_name: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    gstin: Optional[str] = None
+    fertilizer_license_no: Optional[str] = None
+    pesticide_license_no: Optional[str] = None
+    seed_license_no: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_account_no: Optional[str] = None
+    bank_ifsc: Optional[str] = None
+    bank_branch: Optional[str] = None
+    upi_id: Optional[str] = None
+    default_gst_rate: Optional[Decimal] = Decimal("18.00")
+    invoice_prefix: Optional[str] = "INV"
+
+
+class RegistrationResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: int
+    username: str
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    role: UserRole
+    shop_name: str
+    subscription_status: str
+    credentials: dict
+
+
+class SubscriptionPaymentRequest(BaseModel):
+    plan_id: str
+    plan_name: str
+    amount: float
+    payment_method: str = "UPI"
+    payment_ref: str
+
+
+
+class ForgotPasswordRequest(BaseModel):
+    identifier: str
+
+
+class ResetPasswordRequest(BaseModel):
+    identifier: str
+    reset_token: str
+    new_password: str = Field(..., min_length=6)
+
 
 
 # ─── Shop Settings ───────────────────────────────────────────────────────────

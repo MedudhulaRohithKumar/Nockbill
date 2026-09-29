@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, desc
 from typing import List, Optional, Dict, Any
@@ -10,7 +10,7 @@ from app.database.base import get_db
 from app.models.models import (
     Product, ProductVariant, ProductBatch, UnitType, User, AuditLog, AuditAction,
     InventoryTransaction, InventoryTxType, Purchase, PurchaseItem,
-    Sale, SaleItem
+    Sale, SaleItem, ShopSettings
 )
 from app.schemas.schemas import ProductCreate, ProductUpdate, ProductResponse, ProductSearchResult, ProductRefillRequest
 from app.utils.auth import get_current_user
@@ -18,8 +18,11 @@ from app.utils.auth import get_current_user
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
 
-def _generate_code(db: Session) -> str:
-    all_codes = db.query(Product.product_code).filter(Product.product_code.isnot(None)).all()
+def _generate_code(db: Session, shop_id: int = 1) -> str:
+    all_codes = db.query(Product.product_code).filter(
+        Product.shop_id == shop_id,
+        Product.product_code.isnot(None)
+    ).all()
     nums = []
     for (c,) in all_codes:
         if c and c.startswith("PRD"):
@@ -29,15 +32,18 @@ def _generate_code(db: Session) -> str:
                 pass
     next_num = max(nums, default=0) + 1
     candidate = f"PRD{str(next_num).zfill(5)}"
-    while db.query(Product).filter(Product.product_code == candidate).first():
+    while db.query(Product).filter(Product.shop_id == shop_id, Product.product_code == candidate).first():
         next_num += 1
         candidate = f"PRD{str(next_num).zfill(5)}"
     return candidate
 
 
-def _generate_barcode(db: Session) -> str:
+def _generate_barcode(db: Session, shop_id: int = 1) -> str:
     """Generate a clean 5-digit barcode number (e.g. 10001, 10002, 10003...) for fast desktop typing."""
-    all_codes = db.query(Product.barcode).filter(Product.barcode.isnot(None)).all()
+    all_codes = db.query(Product.barcode).filter(
+        Product.shop_id == shop_id,
+        Product.barcode.isnot(None)
+    ).all()
     numeric_codes = []
     for (b,) in all_codes:
         if b and b.isdigit() and len(b) == 5:
@@ -47,7 +53,7 @@ def _generate_barcode(db: Session) -> str:
     if next_num < 10001:
         next_num = 10001
     candidate = str(next_num)
-    while db.query(Product).filter(Product.barcode == candidate).first():
+    while db.query(Product).filter(Product.shop_id == shop_id, Product.barcode == candidate).first():
         next_num += 1
         candidate = str(next_num)
     return candidate
@@ -176,8 +182,10 @@ def check_duplicate(
     current_user: User = Depends(get_current_user),
 ):
     """Check if a product already exists before adding."""
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     clean_name = name.strip()
     query = db.query(Product).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         func.lower(Product.product_name) == clean_name.lower()
     )
@@ -200,10 +208,12 @@ def get_by_barcode(
     current_user: User = Depends(get_current_user),
 ):
     """Search product and specific packaging variant by barcode."""
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     barcode_clean = barcode.strip()
     
     # 1. Match exact product barcode or code
     p = db.query(Product).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         or_(
             Product.barcode == barcode_clean,
@@ -261,6 +271,67 @@ def get_by_barcode(
     raise HTTPException(status_code=404, detail="No product found matching this barcode")
 
 
+@router.get("/{product_id}/barcode-label.pdf")
+def get_barcode_label_pdf(
+    product_id: int,
+    label_size: str = Query("50x25", description="Label size: 50x25, 50x30, 38x25, 2x1inch, a4_sheet"),
+    copies: int = Query(1, ge=1, le=100),
+    include_shop: bool = Query(True),
+    include_price: bool = Query(True),
+    include_batch: bool = Query(False),
+    batch_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate exact label-sized barcode PDF or A4 multi-label sheet."""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    shop = db.query(ShopSettings).first()
+    shop_name = shop.shop_name if shop else "Kisan Seva Kendra"
+
+    batch_number = None
+    expiry_date = None
+    if batch_id:
+        batch = db.query(ProductBatch).filter(ProductBatch.id == batch_id).first()
+        if batch:
+            batch_number = batch.batch_number
+            expiry_date = batch.expiry_date
+    elif product.batches:
+        batch_number = product.batches[0].batch_number
+        expiry_date = product.batches[0].expiry_date
+
+    barcode_val = product.barcode or str(10000 + product.id)
+    price = product.selling_price or Decimal("0")
+
+    from app.reports.barcode_pdf import generate_barcode_label_pdf
+    pdf_bytes = generate_barcode_label_pdf(
+        product_name=product.product_name,
+        barcode=barcode_val,
+        price=price,
+        gst_rate=product.gst_rate,
+        shop_name=shop_name,
+        company_name=product.company_name,
+        net_content=str(product.unit.value) if hasattr(product.unit, 'value') else str(product.unit or ''),
+        batch_number=batch_number,
+        expiry_date=expiry_date,
+        label_size=label_size,
+        copies=copies,
+        include_shop=include_shop,
+        include_price=include_price,
+        include_batch=include_batch,
+    )
+
+    clean_name = product.product_name.replace(" ", "_")[:20]
+    filename = f"Barcode_{clean_name}_{barcode_val}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'}
+    )
+
+
 @router.get("/recommend-refill")
 def get_refill_recommendations(
     db: Session = Depends(get_db),
@@ -272,6 +343,7 @@ def get_refill_recommendations(
     2. High sales frequency / run rate in the last 30 days
     3. Days of stock remaining < 7 days
     """
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     
     # Calculate sales velocity per product in last 30 days
@@ -280,6 +352,7 @@ def get_refill_recommendations(
         func.sum(SaleItem.quantity).label("units_sold"),
         func.count(SaleItem.id).label("times_sold")
     ).join(Sale, Sale.id == SaleItem.sale_id).filter(
+        Sale.shop_id == shop_id,
         Sale.sale_date >= thirty_days_ago
     ).group_by(SaleItem.product_id).all()
 
@@ -292,7 +365,10 @@ def get_refill_recommendations(
         for s in sales_stats if s.product_id
     }
 
-    products = db.query(Product).filter(Product.is_active == True).all()
+    products = db.query(Product).filter(
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    ).all()
     recommendations = []
 
     for p in products:
@@ -366,7 +442,11 @@ def refill_stock(
     - Updates batch and expiry if supplied
     - Creates InventoryTransaction and Purchase record
     """
-    product = db.query(Product).filter(Product.id == payload.product_id).with_for_update().first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    product = db.query(Product).filter(
+        Product.id == payload.product_id,
+        Product.shop_id == shop_id
+    ).with_for_update().first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -425,6 +505,7 @@ def refill_stock(
 
     # Create Inventory Transaction
     inv_tx = InventoryTransaction(
+        shop_id=shop_id,
         product_id=product.id,
         transaction_type=InventoryTxType.PURCHASE,
         quantity=qty,
@@ -444,6 +525,7 @@ def refill_stock(
     total_val = taxable + gst_amount
 
     purchase = Purchase(
+        shop_id=shop_id,
         supplier_name=payload.supplier_name or product.company_name or "Stock Refill Supplier",
         invoice_number=payload.invoice_number or f"REF-{datetime.utcnow().strftime('%Y%m%d%H%M')}-{product.id}",
         purchase_date=datetime.utcnow(),
@@ -500,7 +582,11 @@ def search_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Product).filter(Product.is_active == True)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(Product).filter(
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    )
     search = f"%{q}%"
     query = query.filter(
         or_(
@@ -523,7 +609,8 @@ def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Product)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(Product).filter(Product.shop_id == shop_id)
     if active_only:
         query = query.filter(Product.is_active == True)
     if search:
@@ -546,7 +633,11 @@ def get_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.shop_id == shop_id
+    ).first()
     if not product:
         raise HTTPException(404, "Product not found")
     return serialize_product(product)
@@ -558,11 +649,13 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     clean_name = payload.product_name.strip()
     clean_company = (payload.company_name or "").strip()
 
-    # 1. Duplicate check: prevent duplicate product creation
+    # 1. Duplicate check: prevent duplicate product creation in same shop
     dup_query = db.query(Product).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         func.lower(Product.product_name) == clean_name.lower()
     )
@@ -572,6 +665,7 @@ def create_product(
 
     if not existing and payload.barcode and payload.barcode.strip():
         existing = db.query(Product).filter(
+            Product.shop_id == shop_id,
             Product.is_active == True,
             Product.barcode == payload.barcode.strip()
         ).first()
@@ -587,12 +681,12 @@ def create_product(
             }
         )
 
-    # 2. Product code and Barcode generation
-    code = payload.product_code or _generate_code(db)
-    while db.query(Product).filter(Product.product_code == code).first():
-        code = _generate_code(db)
+    # 2. Product code and Barcode generation scoped to shop
+    code = payload.product_code or _generate_code(db, shop_id)
+    while db.query(Product).filter(Product.shop_id == shop_id, Product.product_code == code).first():
+        code = _generate_code(db, shop_id)
 
-    barcode = payload.barcode.strip() if payload.barcode and payload.barcode.strip() else _generate_barcode(db)
+    barcode = payload.barcode.strip() if payload.barcode and payload.barcode.strip() else _generate_barcode(db, shop_id)
 
     # 3. Model creation
     valid_cols = {c.name for c in Product.__table__.columns}
@@ -601,6 +695,7 @@ def create_product(
         k: v for k, v in raw_dict.items()
         if k in valid_cols and k not in {"id", "created_at", "updated_at"}
     }
+    p_dict["shop_id"] = shop_id
     p_dict["product_code"] = code
     p_dict["barcode"] = barcode
     if payload.hsn_code:
@@ -656,6 +751,7 @@ def create_product(
     # 5. Inventory transaction if starting stock > 0
     if product.current_stock and product.current_stock > 0:
         db.add(InventoryTransaction(
+            shop_id=shop_id,
             product_id=product.id,
             transaction_type=InventoryTxType.PURCHASE,
             quantity=product.current_stock,
@@ -686,7 +782,7 @@ def create_product(
     db.add(AuditLog(
         user_id=current_user.id, action=AuditAction.PRODUCT_CREATE,
         reference_id=product.id, reference_type="Product",
-        description=f"Created product: {product.product_name} with barcode {barcode}",
+        description=f"Created product: {product.product_name} with barcode {barcode} for shop {shop_id}",
     ))
     db.commit()
     db.refresh(product)
@@ -700,14 +796,18 @@ def update_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.shop_id == shop_id
+    ).first()
     if not product:
         raise HTTPException(404, "Product not found")
 
     valid_cols = {c.name for c in Product.__table__.columns}
     update_data = {
         k: v for k, v in payload.model_dump(exclude_unset=True).items()
-        if k in valid_cols and k not in {"id", "created_at", "updated_at"}
+        if k in valid_cols and k not in {"id", "created_at", "updated_at", "shop_id"}
     }
     if "unit" in update_data and update_data["unit"] is not None:
         unit_raw = str(update_data["unit"]).strip()
@@ -720,9 +820,13 @@ def update_product(
 
     for field, value in update_data.items():
         if field == "barcode" and value:
-            other = db.query(Product).filter(Product.barcode == value, Product.id != product.id).first()
+            other = db.query(Product).filter(
+                Product.shop_id == shop_id,
+                Product.barcode == value,
+                Product.id != product.id
+            ).first()
             if other:
-                raise HTTPException(400, "This barcode is already assigned to another product")
+                raise HTTPException(400, "This barcode is already assigned to another product in your shop")
         setattr(product, field, value)
 
     if payload.variants is not None:
@@ -763,7 +867,11 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.shop_id == shop_id
+    ).first()
     if not product:
         raise HTTPException(404, "Product not found")
     product.is_active = False

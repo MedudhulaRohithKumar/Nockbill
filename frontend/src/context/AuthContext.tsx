@@ -8,6 +8,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  register: (payload: any) => Promise<any>;
+  activateSubscription: (payload: any) => Promise<any>;
   logout: () => void;
 }
 
@@ -32,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             username: res.username,
             full_name: res.name || (res.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
             role: (res.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
+            subscription_status: res.subscription_status || (res.username === 'admin' ? 'ACTIVE' : 'PENDING'),
             is_active: res.is_active ?? true,
           };
           setUser(userData);
@@ -47,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     try {
+      localStorage.removeItem('shop_settings');
       const data = await authApi.login({ username, password });
       localStorage.setItem('token', data.access_token);
       setToken(data.access_token);
@@ -56,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         username: data.username,
         full_name: data.name || (data.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
         role: (data.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
+        subscription_status: data.subscription_status || (data.username === 'admin' ? 'ACTIVE' : 'PENDING'),
         is_active: true
       };
       setUser(userInfo);
@@ -68,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           username,
           full_name: 'Demo Fertilizer Store',
           role: 'owner',
+          subscription_status: 'ACTIVE',
           is_active: true
         };
         setUser(demoUser);
@@ -80,15 +86,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const register = async (payload: any) => {
+    localStorage.removeItem('shop_settings');
+    const data = await authApi.register(payload);
+    localStorage.setItem('token', data.access_token);
+    setToken(data.access_token);
+
+    const userInfo: User = {
+      id: data.user_id,
+      username: data.username,
+      full_name: data.name,
+      role: 'owner',
+      subscription_status: data.subscription_status || 'PENDING',
+      is_active: true
+    };
+    setUser(userInfo);
+    localStorage.setItem('user', JSON.stringify(userInfo));
+    return data;
+  };
+
+  const activateSubscription = async (payload: any) => {
+    const res = await authApi.activateSubscription(payload);
+    if (user) {
+      const updatedUser: User = {
+        ...user,
+        subscription_status: 'ACTIVE'
+      };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+    return res;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('shop_settings');
     setUser(null);
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, isLoading, login, register, activateSubscription, logout }}>
       {children}
     </AuthContext.Provider>
   );

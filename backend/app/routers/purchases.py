@@ -58,12 +58,16 @@ class FlexPurchaseCreate(BaseModel):
         return data
 
 
-def _resolve_product(db: Session, item: FlexPurchaseItem) -> Optional[Product]:
-    """Find product by id or name."""
+def _resolve_product(db: Session, item: FlexPurchaseItem, shop_id: int = 1) -> Optional[Product]:
+    """Find product by id or name within current shop."""
     if item.product_id:
-        return db.query(Product).filter(Product.id == item.product_id).with_for_update().first()
+        return db.query(Product).filter(
+            Product.id == item.product_id,
+            Product.shop_id == shop_id
+        ).with_for_update().first()
     if item.product_name:
         return db.query(Product).filter(
+            Product.shop_id == shop_id,
             Product.is_active == True,
             Product.product_name.ilike(f"%{item.product_name.strip()}%")
         ).first()
@@ -129,7 +133,9 @@ def create_purchase(
                 except Exception:
                     continue
 
+        shop_id = getattr(current_user, "shop_id", 1) or 1
         purchase = Purchase(
+            shop_id=shop_id,
             supplier_name=payload.supplier_name,
             invoice_number=payload.invoice_number or payload.bill_number,
             purchase_date=p_date,
@@ -153,8 +159,8 @@ def create_purchase(
             subtotal += taxable
             total_gst += gst_amount
 
-            # Try to find matching product
-            product = _resolve_product(db, item_data)
+            # Try to find matching product in this shop
+            product = _resolve_product(db, item_data, shop_id)
 
             p_item = PurchaseItem(
                 purchase_id=purchase.id,
@@ -206,6 +212,7 @@ def create_purchase(
                         db.add(new_batch)
 
                 inv_tx = InventoryTransaction(
+                    shop_id=shop_id,
                     product_id=product.id,
                     transaction_type=InventoryTxType.PURCHASE,
                     quantity=qty,
@@ -247,7 +254,10 @@ def list_purchases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    purchases = db.query(Purchase).order_by(Purchase.purchase_date.desc()).offset(skip).limit(limit).all()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    purchases = db.query(Purchase).filter(
+        Purchase.shop_id == shop_id
+    ).order_by(Purchase.purchase_date.desc()).offset(skip).limit(limit).all()
     return [serialize_purchase(p) for p in purchases]
 
 
@@ -257,7 +267,11 @@ def get_purchase(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    purchase = db.query(Purchase).filter(
+        Purchase.id == purchase_id,
+        Purchase.shop_id == shop_id
+    ).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
     return serialize_purchase(purchase)
@@ -275,10 +289,14 @@ def download_purchase_pdf(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) if current_user else 1
+    purchase = db.query(Purchase).filter(
+        Purchase.id == purchase_id,
+        Purchase.shop_id == shop_id
+    ).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
     if not shop:
         shop = ShopSettings(shop_name="My Fertilizer Shop")
 

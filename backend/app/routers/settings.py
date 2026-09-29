@@ -8,13 +8,16 @@ from app.utils.auth import get_current_user
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
 
-def _get_or_create_settings(db: Session) -> ShopSettings:
-    shop = db.query(ShopSettings).first()
+def _get_or_create_settings(db: Session, current_user: User) -> ShopSettings:
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
     if not shop:
-        shop = ShopSettings()
+        shop = ShopSettings(shop_name=f"{current_user.name}'s Shop")
         db.add(shop)
         db.commit()
         db.refresh(shop)
+        current_user.shop_id = shop.id
+        db.commit()
     return shop
 
 
@@ -59,7 +62,7 @@ def get_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shop = _get_or_create_settings(db)
+    shop = _get_or_create_settings(db, current_user)
     return _serialize_settings(shop)
 
 
@@ -69,7 +72,7 @@ def update_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shop = _get_or_create_settings(db)
+    shop = _get_or_create_settings(db, current_user)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if hasattr(shop, field):
             setattr(shop, field, value)

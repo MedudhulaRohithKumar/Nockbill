@@ -4,7 +4,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ShopProvider } from './context/ShopContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { BillingPage } from './pages/BillingPage';
 import { InventoryPage } from './pages/InventoryPage';
@@ -14,10 +16,11 @@ import { ReportsPage } from './pages/ReportsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SalesReturnPage } from './pages/SalesReturnPage';
+import { SubscriptionPaymentPage } from './pages/SubscriptionPaymentPage';
 
 // Protected route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -31,6 +34,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
+  // Enforce payment gateway for new accounts before accessing dashboard
+  if (user?.username !== 'admin' && user?.subscription_status === 'PENDING') {
+    return <Navigate to="/subscription" replace />;
+  }
+
   return <>{children}</>;
 };
 
@@ -41,24 +49,29 @@ export const App: React.FC = () => {
         <AuthProvider>
           <ShopProvider>
             <Routes>
+              {/* Public Marketing & Landing Page */}
+              <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/subscription" element={<SubscriptionPaymentPage />} />
+
+              {/* Protected Shop ERP Routes */}
               <Route
-                path="/"
                 element={
                   <ProtectedRoute>
                     <AppLayout />
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
-                <Route path="billing" element={<ErrorBoundary><BillingPage /></ErrorBoundary>} />
-                <Route path="returns" element={<ErrorBoundary><SalesReturnPage /></ErrorBoundary>} />
-                <Route path="inventory" element={<ErrorBoundary><InventoryPage /></ErrorBoundary>} />
-                <Route path="purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />
-                <Route path="expenses" element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />
-                <Route path="reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
-                <Route path="analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
-                <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+                <Route path="/dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+                <Route path="/billing" element={<ErrorBoundary><BillingPage /></ErrorBoundary>} />
+                <Route path="/returns" element={<ErrorBoundary><SalesReturnPage /></ErrorBoundary>} />
+                <Route path="/inventory" element={<ErrorBoundary><InventoryPage /></ErrorBoundary>} />
+                <Route path="/purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />
+                <Route path="/expenses" element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />
+                <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
+                <Route path="/analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
+                <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

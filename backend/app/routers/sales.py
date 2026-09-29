@@ -34,9 +34,12 @@ def create_sale(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+
     # ── Idempotency check ──────────────────────────────────────
     if payload.idempotency_key:
         existing = db.query(Sale).filter(
+            Sale.shop_id == shop_id,
             Sale.idempotency_key == payload.idempotency_key
         ).first()
         if existing:
@@ -45,7 +48,10 @@ def create_sale(
     # ── Validate stock before transaction ──────────────────────
     for item in payload.items:
         if item.product_id:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
+            product = db.query(Product).filter(
+                Product.id == item.product_id,
+                Product.shop_id == shop_id
+            ).first()
             if product and product.current_stock < Decimal(str(item.quantity)):
                 raise HTTPException(
                     400,
@@ -54,20 +60,24 @@ def create_sale(
                 )
 
     # ── Get / create shop settings ─────────────────────────────
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name=f"{current_user.name}'s Shop", invoice_counter=1)
         db.add(shop)
         db.flush()
+        current_user.shop_id = shop.id
 
-    # ── Generate guaranteed unique invoice number ──────────────
+    # ── Generate guaranteed unique invoice number for this shop ─
     sale_date = datetime.utcnow()
     while True:
         invoice_number = generate_invoice_number(
             shop.invoice_prefix, shop.invoice_counter, sale_date
         )
         shop.invoice_counter += 1
-        existing_sale = db.query(Sale).filter(Sale.invoice_number == invoice_number).first()
+        existing_sale = db.query(Sale).filter(
+            Sale.shop_id == shop_id,
+            Sale.invoice_number == invoice_number
+        ).first()
         if not existing_sale:
             break
 
@@ -90,6 +100,7 @@ def create_sale(
                 notes = payload.payment_details
 
         sale = Sale(
+            shop_id=shop_id,
             invoice_number=invoice_number,
             idempotency_key=payload.idempotency_key,
             customer_name=payload.customer_name,
@@ -173,6 +184,7 @@ def create_sale(
                             rem -= ded
 
                     inv_tx = InventoryTransaction(
+                        shop_id=shop_id,
                         product_id=product.id,
                         transaction_type=InventoryTxType.SALE,
                         quantity=item_data.quantity,
@@ -192,6 +204,7 @@ def create_sale(
         # ── Create GST transactions ────────────────────────────
         for rate, bucket in gst_buckets.items():
             gst_tx = GstTransaction(
+                shop_id=shop_id,
                 sale_id=sale.id,
                 invoice_number=invoice_number,
                 taxable_amount=bucket["taxable"].quantize(Decimal("0.01")),
@@ -276,7 +289,8 @@ def list_sales(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(Sale)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(Sale).filter(Sale.shop_id == shop_id)
     if start_date:
         try:
             from datetime import date as date_type
@@ -303,13 +317,15 @@ def get_frequently_sold(
     current_user: User = Depends(get_current_user),
 ):
     """Return top most frequently billed products with their variants for 1-click billing."""
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     popular = (
         db.query(
             SaleItem.product_id,
             func.count(SaleItem.id).label("bill_count"),
             func.sum(SaleItem.quantity).label("total_qty")
         )
-        .filter(SaleItem.product_id != None)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.shop_id == shop_id, SaleItem.product_id != None)
         .group_by(SaleItem.product_id)
         .order_by(desc("bill_count"))
         .limit(limit)
@@ -317,7 +333,11 @@ def get_frequently_sold(
     )
 
     prod_ids = [p.product_id for p in popular if p.product_id]
-    products = db.query(Product).filter(Product.id.in_(prod_ids), Product.is_active == True).all() if prod_ids else []
+    products = db.query(Product).filter(
+        Product.id.in_(prod_ids),
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    ).all() if prod_ids else []
     prod_map = {p.id: p for p in products}
 
     results = []
@@ -333,7 +353,12 @@ def get_frequently_sold(
         existing_ids = {r["id"] for r in results}
         extras = (
             db.query(Product)
-            .filter(Product.is_active == True, Product.current_stock > 0, ~Product.id.in_(existing_ids))
+            .filter(
+                Product.shop_id == shop_id,
+                Product.is_active == True,
+                Product.current_stock > 0,
+                ~Product.id.in_(existing_ids)
+            )
             .limit(8 - len(results))
             .all()
         )
@@ -351,7 +376,8 @@ def get_sale(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == shop_id).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
     return serialize_sale(sale)

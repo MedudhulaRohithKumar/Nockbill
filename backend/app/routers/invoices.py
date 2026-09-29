@@ -36,7 +36,7 @@ def download_invoice_pdf(
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(sale, "shop_id", 1)).first()
     if not shop:
         shop = ShopSettings(shop_name="My Fertilizer Shop")
 
@@ -89,7 +89,7 @@ def get_invoice_s3_url(
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(sale, "shop_id", 1)).first()
     if not shop:
         shop = ShopSettings(shop_name="My Fertilizer Shop")
 
@@ -135,7 +135,7 @@ def download_purchase_pdf(
     purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(purchase, "shop_id", 1)).first()
     if not shop:
         shop = ShopSettings(shop_name="My Fertilizer Shop")
 
@@ -186,7 +186,7 @@ def get_purchase_s3_url(
     purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(purchase, "shop_id", 1)).first()
     if not shop:
         shop = ShopSettings(shop_name="My Fertilizer Shop")
 

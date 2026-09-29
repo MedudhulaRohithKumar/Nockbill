@@ -34,7 +34,7 @@ export const AppLayout: React.FC = () => {
   };
 
   const navItems = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
     { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
@@ -45,9 +45,8 @@ export const AppLayout: React.FC = () => {
     { to: '/settings', label: 'Shop Settings', icon: Settings },
   ];
 
-
   const bottomNavItems = [
-    { to: '/', label: 'Home', icon: LayoutDashboard },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'Billing', icon: Receipt },
     { to: '/inventory', label: 'Stock', icon: Package },
     { to: '/reports', label: 'Reports', icon: BarChart3 },

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ShopSettings } from '../types';
 import { settingsApi } from '../api';
+import { useAuth } from './AuthContext';
 
 const defaultSettings: ShopSettings = {
   id: 1,
@@ -36,6 +37,7 @@ interface ShopContextType {
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<ShopSettings>(() => {
     const saved = localStorage.getItem('shop_settings');
     return saved ? JSON.parse(saved) : defaultSettings;
@@ -58,7 +60,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [user?.id, user?.username]);
 
   const updateSettings = async (newSettings: Partial<ShopSettings>) => {
     try {

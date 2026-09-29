@@ -21,8 +21,10 @@ def adjust_inventory(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     product = db.query(Product).filter(
-        Product.id == payload.product_id
+        Product.id == payload.product_id,
+        Product.shop_id == shop_id
     ).with_for_update().first()
     if not product:
         raise HTTPException(404, "Product not found")
@@ -57,6 +59,7 @@ def adjust_inventory(
         product.current_stock = max(Decimal("0"), product.current_stock + qty)
 
     inv_tx = InventoryTransaction(
+        shop_id=shop_id,
         product_id=product.id,
         transaction_type=tx_enum,
         quantity=qty,
@@ -97,7 +100,8 @@ def list_transactions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(InventoryTransaction)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(InventoryTransaction).filter(InventoryTransaction.shop_id == shop_id)
     if product_id:
         query = query.filter(InventoryTransaction.product_id == product_id)
     txs = query.order_by(InventoryTransaction.transaction_date.desc()).offset(skip).limit(limit).all()
@@ -121,9 +125,11 @@ def low_stock(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     products = (
         db.query(Product)
         .filter(
+            Product.shop_id == shop_id,
             Product.is_active == True,
             Product.current_stock <= Product.minimum_stock,
         )

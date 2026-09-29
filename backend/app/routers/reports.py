@@ -26,7 +26,8 @@ def gst_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(GstTransaction)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    query = db.query(GstTransaction).filter(GstTransaction.shop_id == shop_id)
     if month and year:
         query = query.filter(
             extract("month", GstTransaction.transaction_date) == month,
@@ -127,7 +128,11 @@ def stock_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    products = db.query(Product).filter(Product.is_active == True).all()
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    products = db.query(Product).filter(
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    ).all()
 
     tot_cost = sum(float((p.current_stock or 0) * (p.purchase_price or 0)) for p in products)
     tot_retail = sum(float((p.current_stock or 0) * (p.selling_price or 0)) for p in products)
@@ -175,8 +180,9 @@ def profit_loss(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sale_query = db.query(Sale)
-    exp_query = db.query(Expense)
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    sale_query = db.query(Sale).filter(Sale.shop_id == shop_id)
+    exp_query = db.query(Expense).filter(Expense.shop_id == shop_id)
 
     if month and year:
         sale_query = sale_query.filter(
@@ -256,55 +262,74 @@ def dashboard_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     today = date.today()
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
     month_start = datetime(today.year, today.month, 1)
 
     today_sales = db.query(func.sum(Sale.grand_total)).filter(
+        Sale.shop_id == shop_id,
         Sale.sale_date >= today_start,
         Sale.sale_date <= today_end,
     ).scalar() or Decimal("0")
 
     today_gst = db.query(func.sum(GstTransaction.gst_amount)).filter(
+        GstTransaction.shop_id == shop_id,
         GstTransaction.transaction_date >= today_start,
         GstTransaction.transaction_date <= today_end,
     ).scalar() or Decimal("0")
 
     today_bills = db.query(func.count(Sale.id)).filter(
+        Sale.shop_id == shop_id,
         Sale.sale_date >= today_start,
         Sale.sale_date <= today_end,
     ).scalar() or 0
 
     monthly_sales = db.query(func.sum(Sale.grand_total)).filter(
+        Sale.shop_id == shop_id,
         Sale.sale_date >= month_start,
     ).scalar() or Decimal("0")
 
     monthly_expenses = db.query(func.sum(Expense.amount)).filter(
+        Expense.shop_id == shop_id,
         Expense.expense_date >= date(today.year, today.month, 1),
     ).scalar() or Decimal("0")
 
     # COGS for this month
-    month_sales_records = db.query(Sale).filter(Sale.sale_date >= month_start).all()
+    month_sales_records = db.query(Sale).filter(
+        Sale.shop_id == shop_id,
+        Sale.sale_date >= month_start
+    ).all()
     month_sale_ids = [s.id for s in month_sales_records]
     month_items = db.query(SaleItem).filter(SaleItem.sale_id.in_(month_sale_ids)).all() if month_sale_ids else []
     month_cogs = Decimal("0")
     for item in month_items:
         if item.product_id:
-            prod = db.query(Product).filter(Product.id == item.product_id).first()
+            prod = db.query(Product).filter(
+                Product.id == item.product_id,
+                Product.shop_id == shop_id
+            ).first()
             if prod:
                 month_cogs += Decimal(str(item.quantity)) * prod.purchase_price
 
     month_net_profit = monthly_sales - month_cogs - monthly_expenses
 
-    total_products = db.query(func.count(Product.id)).filter(Product.is_active == True).scalar() or 0
+    total_products = db.query(func.count(Product.id)).filter(
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    ).scalar() or 0
 
     stock_value = db.query(
         func.sum(Product.current_stock * Product.selling_price)
-    ).filter(Product.is_active == True).scalar() or Decimal("0")
+    ).filter(
+        Product.shop_id == shop_id,
+        Product.is_active == True
+    ).scalar() or Decimal("0")
 
     # Low stock query
     low_stock_query = db.query(Product).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         Product.current_stock <= Product.minimum_stock,
     )
@@ -319,6 +344,7 @@ def dashboard_summary(
     limit_ym = f"{next_y:04d}-{next_m:02d}"
 
     near_expiry_query = db.query(Product).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         Product.expiry_date.isnot(None),
         Product.expiry_date != "",
@@ -328,7 +354,9 @@ def dashboard_summary(
     near_expiry_prods = near_expiry_query.limit(10).all()
 
     # Recent sales (top 5)
-    recent_sales_list = db.query(Sale).order_by(Sale.sale_date.desc()).limit(5).all()
+    recent_sales_list = db.query(Sale).filter(
+        Sale.shop_id == shop_id
+    ).order_by(Sale.sale_date.desc()).limit(5).all()
 
     def serialize_product(p: Product):
         return {
@@ -379,6 +407,7 @@ def dashboard_summary(
         }
 
     out_of_stock = db.query(func.count(Product.id)).filter(
+        Product.shop_id == shop_id,
         Product.is_active == True,
         Product.current_stock == 0,
     ).scalar() or 0
@@ -471,14 +500,15 @@ def get_analytics(
     if not dt_end:
         dt_end = now
 
-    # Fetch sales within window
+    # Fetch sales within window for this shop
     sales = db.query(Sale).filter(
+        Sale.shop_id == shop_id,
         Sale.sale_date >= dt_start,
         Sale.sale_date <= dt_end,
     ).order_by(Sale.sale_date.asc()).all()
 
     # Pre-fetch products lookup for accurate COGS
-    products = db.query(Product).all()
+    products = db.query(Product).filter(Product.shop_id == shop_id).all()
     prod_cost_map = {p.id: float(p.purchase_price or 0) for p in products}
 
     total_revenue = 0.0
