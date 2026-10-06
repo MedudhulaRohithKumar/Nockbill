@@ -141,6 +141,15 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
                 "filename": filename,
                 "s3Key": s3_key,
                 "downloadUrl": download_url,
+        elif action in ("migrate_and_seed", "init_db"):
+            from app.database.base import Base, engine
+            from seed import seed
+            Base.metadata.create_all(bind=engine)
+            seed()
+            return {
+                "status": "COMPLETED",
+                "action": action,
+                "message": "Database tables created/verified and initial seed data populated successfully in RDS.",
             }
 
         else:

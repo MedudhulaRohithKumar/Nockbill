@@ -58,5 +58,9 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure upload directory exists
-os.makedirs(settings.upload_dir, exist_ok=True)
+# Ensure upload directory exists safely (in Lambda root /var/task is read-only)
+try:
+    os.makedirs(settings.upload_dir, exist_ok=True)
+except OSError:
+    pass
+

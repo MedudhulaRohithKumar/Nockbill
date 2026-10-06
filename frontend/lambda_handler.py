@@ -90,6 +90,57 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Prevent directory traversal attacks
     clean_path = os.path.normpath(clean_path).lstrip("/\\.")
 
+    # API Reverse Proxy (enables direct Frontend Function URL testing before CloudFront)
+    backend_url = os.environ.get("BACKEND_API_URL")
+    if backend_url and (clean_path.startswith("api/") or clean_path == "api"):
+        import urllib.request
+        import urllib.error
+        target_url = f"{backend_url.rstrip('/')}/{clean_path}"
+        raw_qs = event.get("rawQueryString", "")
+        if raw_qs:
+            target_url += f"?{raw_qs}"
+
+        method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+        body_data = event.get("body")
+        if body_data and event.get("isBase64Encoded"):
+            body_data = base64.b64decode(body_data)
+        elif body_data and isinstance(body_data, str):
+            body_data = body_data.encode("utf-8")
+        else:
+            body_data = None
+
+        req_headers = {
+            k: v for k, v in event.get("headers", {}).items()
+            if k.lower() not in ("host", "content-length", "x-forwarded-for", "x-forwarded-proto")
+        }
+
+        try:
+            req = urllib.request.Request(target_url, data=body_data, headers=req_headers, method=method)
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                resp_bytes = resp.read()
+                resp_headers = {k: v for k, v in resp.getheaders() if k.lower() not in ("transfer-encoding", "content-encoding")}
+                return {
+                    "statusCode": resp.status,
+                    "headers": resp_headers,
+                    "body": base64.b64encode(resp_bytes).decode("ascii"),
+                    "isBase64Encoded": True,
+                }
+        except urllib.error.HTTPError as err:
+            err_bytes = err.read()
+            return {
+                "statusCode": err.code,
+                "headers": dict(err.headers),
+                "body": base64.b64encode(err_bytes).decode("ascii"),
+                "isBase64Encoded": True,
+            }
+        except Exception as err:
+            return {
+                "statusCode": 502,
+                "headers": {"Content-Type": "application/json"},
+                "body": f'{{"error": "Backend Function URL proxy failed: {str(err)}"}}',
+                "isBase64Encoded": False,
+            }
+
     # Check if target is a concrete static asset in dist/
     target_file = os.path.join(DIST_DIR, clean_path)
     is_static_file = os.path.isfile(target_file) and not os.path.isdir(target_file)
