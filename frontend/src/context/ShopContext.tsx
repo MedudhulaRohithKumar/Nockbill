@@ -59,7 +59,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    fetchSettings();
+    if (user?.id) {
+      fetchSettings();
+    } else {
+      setIsLoading(false);
+    }
   }, [user?.id, user?.username]);
 
   const updateSettings = async (newSettings: Partial<ShopSettings>) => {

@@ -109,6 +109,15 @@ Resources:
         - Key: Name
           Value: !Sub ks-database-sg-${Environment}
 
+  DatabaseSecurityGroupSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DatabaseSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref DatabaseSecurityGroup
+
   # ============================================================================
   # 2. DATABASE: Amazon RDS PostgreSQL + Amazon RDS Proxy
   # ============================================================================
@@ -132,7 +141,7 @@ Resources:
     Properties:
       DBInstanceIdentifier: !Sub ks-postgres-${Environment}
       Engine: postgres
-      EngineVersion: "16.1"
+      EngineVersion: "16.10"
       DBInstanceClass: db.t4g.micro
       AllocatedStorage: !Ref DbAllocatedStorage
       StorageType: gp3
@@ -360,21 +369,6 @@ Resources:
           AWS_REGION_NAME: !Ref AWS::Region
       FunctionUrlConfig:
         AuthType: NONE
-        Cors:
-          AllowOrigins:
-            - '*'
-          AllowMethods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
-          AllowHeaders:
-            - '*'
-          ExposeHeaders:
-            - Content-Disposition
-            - Content-Type
-          MaxAge: 86400
     Metadata:
       DockerTag: latest
       DockerContext: ../backend

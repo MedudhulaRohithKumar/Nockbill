@@ -69,109 +69,39 @@ export const ReportsPage: React.FC = () => {
     } catch {
       // Offline / demo fallback data
       if (activeTab === 'sales') {
-        setSalesList([
-          {
-            id: 101,
-
-            invoice_number: 'KSK/24-25/0142',
-            invoice_date: new Date().toISOString(),
-            customer_name: 'Bhavesh Patel (Farmer)',
-            customer_phone: '9825012345',
-            payment_mode: 'UPI',
-            is_interstate: false,
-            subtotal: 3950,
-            total_discount: 50,
-            total_taxable: 3714.28,
-            total_cgst: 92.86,
-            total_sgst: 92.86,
-            total_igst: 0,
-            round_off: 0,
-            grand_total: 3900,
-            status: 'Completed',
-            items: []
-          },
-          {
-            id: 100,
-            invoice_number: 'KSK/24-25/0141',
-            invoice_date: new Date().toISOString(),
-            customer_name: 'Jayeshbhai Solanki',
-            customer_phone: '9428054321',
-            payment_mode: 'Cash',
-            is_interstate: false,
-            subtotal: 1350,
-            total_discount: 0,
-            total_taxable: 1285.71,
-            total_cgst: 32.14,
-            total_sgst: 32.14,
-            total_igst: 0,
-            round_off: 0,
-            grand_total: 1350,
-            status: 'Completed',
-            items: []
-          },
-          {
-            id: 99,
-            invoice_number: 'KSK/24-25/0140',
-            invoice_date: new Date(Date.now() - 86400000).toISOString(),
-            customer_name: 'Maheshbhai Vaghela',
-            customer_phone: '9712098765',
-            payment_mode: 'Cash',
-            is_interstate: false,
-            subtotal: 2665,
-            total_discount: 0,
-            total_taxable: 2538.1,
-            total_cgst: 63.45,
-            total_sgst: 63.45,
-            total_igst: 0,
-            round_off: 0,
-            grand_total: 2665,
-            status: 'Completed',
-            items: []
-          }
-        ]);
+        setSalesList([]);
+      } else if (activeTab === 'purchases') {
+        setPurchasesList([]);
       } else if (activeTab === 'gst') {
         setGstData({
           from_date: fromDate,
           to_date: toDate,
-          total_taxable: 142857.14,
-          total_cgst: 3571.43,
-          total_sgst: 3571.43,
+          total_taxable: 0,
+          total_cgst: 0,
+          total_sgst: 0,
           total_igst: 0,
-          total_tax: 7142.86,
-          gst_breakdown: [
-            { gst_rate: 5, taxable_value: 132000.0, cgst: 3300.0, sgst: 3300.0, igst: 0, total_tax: 6600.0 },
-            { gst_rate: 18, taxable_value: 10857.14, cgst: 271.43, sgst: 271.43, igst: 0, total_tax: 542.86 }
-          ]
+          total_tax: 0,
+          gst_breakdown: []
         });
       } else if (activeTab === 'stock') {
         setStockData({
-          total_items_count: 5,
-          total_units: 243,
-          total_cost_value: 462500.0,
-          total_retail_value: 494500.0,
-          estimated_margin: 32000.0,
-          items: [
-            { id: 1, name: 'IFFCO Neem Coated Urea 45kg', batch: 'NCU-2024-88', stock: 140, unit: 'Bags', cost_price: 250, sell_price: 266.5, cost_value: 35000, retail_value: 37310 },
-            { id: 2, name: 'IFFCO DAP 18-46-0 50kg', batch: 'DAP-901-B', stock: 85, unit: 'Bags', cost_price: 1280, sell_price: 1350, cost_value: 108800, retail_value: 114750 },
-            { id: 3, name: 'MOP - Muriate of Potash 50kg', batch: 'MOP-5521', stock: 45, unit: 'Bags', cost_price: 1600, sell_price: 1700, cost_value: 72000, retail_value: 76500 }
-          ]
+          total_items_count: 0,
+          total_units: 0,
+          total_cost_value: 0,
+          total_retail_value: 0,
+          estimated_margin: 0,
+          items: []
         });
       } else if (activeTab === 'pnl') {
         setPnlData({
-          sales_revenue: 342600.0,
-          cogs: 279500.0,
-          gross_profit: 63100.0,
-          gross_margin_percent: 18.42,
-          operating_expenses: 18500.0,
-          net_profit: 44600.0,
-          net_profit_percent: 13.02,
-          expenses_by_category: {
-            Transport: 4500,
-            Labor: 2400,
-            Electricity: 3200,
-            Rent: 8000,
-            Misc: 400
-          }
+          sales_revenue: 0,
+          cogs: 0,
+          gross_profit: 0,
+          gross_margin_percent: 0,
+          operating_expenses: 0,
+          net_profit: 0,
+          net_profit_percent: 0,
+          expenses_by_category: {}
         });
       }
     } finally {

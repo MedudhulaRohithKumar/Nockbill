@@ -25,6 +25,7 @@ import {
 import { productsApi, salesApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, ProductBatch, SaleItem, Sale } from '../types';
 import { useShop } from '../context/ShopContext';
+import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
@@ -37,6 +38,7 @@ interface PaymentSplit {
 
 export const BillingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { settings } = useShop();
 
   // Customer State
@@ -72,18 +74,21 @@ export const BillingPage: React.FC = () => {
   const loadData = async () => {
     try {
       const [list, freq] = await Promise.all([
-        productsApi.getAll(),
+        productsApi.getAll().catch(() => []),
         salesApi.getFrequentlySold(8).catch(() => [])
       ]);
-      setInventory(list);
-      setFrequentlySold(freq || []);
+      setInventory(Array.isArray(list) ? list : []);
+      setFrequentlySold(Array.isArray(freq) ? freq : []);
     } catch {
-      // Local fallback
+      setInventory([]);
+      setFrequentlySold([]);
     }
   };
 
   useEffect(() => {
-    loadData();
+    if (user?.id) {
+      loadData();
+    }
 
     // Check if there is an OCR-scanned item passed from Dashboard
     const pendingItemStr = sessionStorage.getItem('pending_bill_item');
@@ -94,7 +99,7 @@ export const BillingPage: React.FC = () => {
         sessionStorage.removeItem('pending_bill_item');
       } catch {}
     }
-  }, []);
+  }, [user?.id]);
 
   // Search filter
   useEffect(() => {
@@ -103,7 +108,8 @@ export const BillingPage: React.FC = () => {
       return;
     }
     const q = searchQuery.toLowerCase();
-    const filtered = inventory.filter(p => {
+    const invList = Array.isArray(inventory) ? inventory : [];
+    const filtered = invList.filter(p => {
       const pName = safeString(p.name || p.product_name).toLowerCase();
       const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
       const pHsn = safeString(p.hsn_code).toLowerCase();
@@ -545,8 +551,8 @@ export const BillingPage: React.FC = () => {
             </span>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-            {frequentlySold.map((fItem) => {
-              const matchedProduct = inventory.find(p => p.id === fItem.id);
+            {Array.isArray(frequentlySold) && frequentlySold.map((fItem) => {
+              const matchedProduct = Array.isArray(inventory) ? inventory.find(p => p.id === fItem.id) : undefined;
               return (
                 <button
                   key={fItem.id}

@@ -1,0 +1,590 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Kisan Seva Kendra - Serverless Architecture: FastAPI Backend (Lambda
+  Container) + React Frontend (Lambda) + RDS PostgreSQL with RDS Proxy + 4 Dedicated
+  S3 Buckets (Date-wise Folders) + Step Functions + Lambda Function URLs
+
+  '
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+    - dev
+    - staging
+    - prod
+    Description: Deployment environment name
+  DbUsername:
+    Type: String
+    Default: kisan_admin
+    Description: Master username for RDS PostgreSQL
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Default: KisanSecurePass2026!
+    Description: Master password for RDS PostgreSQL (Min 8 chars)
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+    Description: Allocated storage in GB for RDS PostgreSQL
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for VPC
+  ReportNotificationEmail:
+    Type: String
+    Default: admin@kisansevakendra.local
+    Description: Notification email for generated reports and deployment alerts
+Resources:
+  ServerlessVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-vpc-${Environment}
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: ServerlessVpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone:
+        Fn::Select:
+        - 0
+        - Fn::GetAZs: ''
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-private-subnet-1-${Environment}
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: ServerlessVpc
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone:
+        Fn::Select:
+        - 1
+        - Fn::GetAZs: ''
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-private-subnet-2-${Environment}
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Kisan RDS and Proxy
+      SubnetIds:
+      - Ref: PrivateSubnet1
+      - Ref: PrivateSubnet2
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-db-subnet-group-${Environment}
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Backend Lambda to access RDS Proxy
+      VpcId:
+        Ref: ServerlessVpc
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        CidrIp: '0.0.0.0/0'
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-lambda-sg-${Environment}
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS PostgreSQL and RDS Proxy
+      VpcId:
+        Ref: ServerlessVpc
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 5432
+        ToPort: 5432
+        SourceSecurityGroupId:
+          Ref: LambdaSecurityGroup
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-database-sg-${Environment}
+  PostgreSqlSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name:
+        Fn::Sub: ks-db-credentials-${Environment}
+      Description: Database credentials for Kisan Seva Kendra RDS
+      SecretString:
+        Fn::Sub: "{\n  \"username\": \"${DbUsername}\",\n  \"password\": \"${DbPassword}\"\
+          ,\n  \"engine\": \"postgres\",\n  \"host\": \"\",\n  \"port\": 5432,\n \
+          \ \"dbname\": \"kisan_seva_db\"\n}\n"
+  PostgreSqlInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier:
+        Fn::Sub: ks-postgres-${Environment}
+      Engine: postgres
+      EngineVersion: '16.1'
+      DBInstanceClass: db.t4g.micro
+      AllocatedStorage:
+        Ref: DbAllocatedStorage
+      StorageType: gp3
+      DBName: kisan_seva_db
+      MasterUsername:
+        Ref: DbUsername
+      MasterUserPassword:
+        Ref: DbPassword
+      DBSubnetGroupName:
+        Ref: DbSubnetGroup
+      VPCSecurityGroups:
+      - Ref: DatabaseSecurityGroup
+      PubliclyAccessible: false
+      MultiAZ: false
+      DeletionProtection: false
+      BackupRetentionPeriod: 7
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-postgres-${Environment}
+  RdsProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ks-rds-proxy-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: rds.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: ReadDbSecretPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource:
+              Ref: PostgreSqlSecret
+  RdsProxy:
+    Type: AWS::RDS::DBProxy
+    DependsOn:
+    - PostgreSqlInstance
+    Properties:
+      DBProxyName:
+        Fn::Sub: ks-rds-proxy-${Environment}
+      EngineFamily: POSTGRESQL
+      Auth:
+      - AuthScheme: SECRETS
+        SecretArn:
+          Ref: PostgreSqlSecret
+        IAMAuth: DISABLED
+      RoleArn:
+        Fn::GetAtt:
+        - RdsProxyRole
+        - Arn
+      VpcSubnetIds:
+      - Ref: PrivateSubnet1
+      - Ref: PrivateSubnet2
+      VpcSecurityGroupIds:
+      - Ref: DatabaseSecurityGroup
+      IdleClientTimeout: 1800
+      RequireTLS: false
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: ks-rds-proxy-${Environment}
+  RdsProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    Properties:
+      DBProxyName:
+        Ref: RdsProxy
+      TargetGroupName: default
+      DBInstanceIdentifiers:
+      - Ref: PostgreSqlInstance
+      ConnectionPoolConfigurationInfo:
+        MaxConnectionsPercent: 90
+        MaxIdleConnectionsPercent: 50
+        ConnectionBorrowTimeout: 120
+  SalesInvoicesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ks-sales-invoices-${AWS::AccountId}-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Id: TransitionOldInvoices
+          Status: Enabled
+          Transitions:
+          - TransitionInDays: 90
+            StorageClass: STANDARD_IA
+          - TransitionInDays: 365
+            StorageClass: GLACIER
+  PurchaseBillsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ks-purchase-bills-${AWS::AccountId}-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Id: TransitionOldPurchases
+          Status: Enabled
+          Transitions:
+          - TransitionInDays: 90
+            StorageClass: STANDARD_IA
+  GstReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ks-gst-reports-${AWS::AccountId}-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Id: TransitionOldGstReports
+          Status: Enabled
+          Transitions:
+          - TransitionInDays: 180
+            StorageClass: STANDARD_IA
+  StockReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ks-stock-reports-${AWS::AccountId}-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  ReportAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        Fn::Sub: ks-report-alerts-${Environment}
+      Subscription:
+      - Protocol: email
+        Endpoint:
+          Ref: ReportNotificationEmail
+  BackendLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ks-backend-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+      - PolicyName: S3ReportAccessPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:HeadObject
+            - s3:DeleteObject
+            Resource:
+            - Fn::Sub: ${SalesInvoicesBucket.Arn}/*
+            - Fn::Sub: ${PurchaseBillsBucket.Arn}/*
+            - Fn::Sub: ${GstReportsBucket.Arn}/*
+            - Fn::Sub: ${StockReportsBucket.Arn}/*
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource:
+              Ref: PostgreSqlSecret
+  BackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ks-backend-api-${Environment}
+      PackageType: Image
+      MemorySize: 1024
+      Timeout: 30
+      Role:
+        Fn::GetAtt:
+        - BackendLambdaRole
+        - Arn
+      VpcConfig:
+        SecurityGroupIds:
+        - Ref: LambdaSecurityGroup
+        SubnetIds:
+        - Ref: PrivateSubnet1
+        - Ref: PrivateSubnet2
+      Environment:
+        Variables:
+          ENVIRONMENT:
+            Ref: Environment
+          DATABASE_URL:
+            Fn::Sub: postgresql://${DbUsername}:${DbPassword}@${RdsProxy.Endpoint}:5432/kisan_seva_db
+          S3_ENABLED: 'True'
+          S3_INVOICES_BUCKET:
+            Ref: SalesInvoicesBucket
+          S3_PURCHASES_BUCKET:
+            Ref: PurchaseBillsBucket
+          S3_GST_REPORTS_BUCKET:
+            Ref: GstReportsBucket
+          S3_STOCK_REPORTS_BUCKET:
+            Ref: StockReportsBucket
+          AWS_REGION_NAME:
+            Ref: AWS::Region
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+          - '*'
+          AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+          AllowHeaders:
+          - '*'
+          ExposeHeaders:
+          - Content-Disposition
+          - Content-Type
+          MaxAge: 86400
+      ImageUri: backendfunction:latest
+    Metadata:
+      DockerContext: /Users/pro/Desktop/ks/backend
+      DockerTag: latest
+      Dockerfile: Dockerfile.lambda
+      SamResourceId: BackendFunction
+  FrontendLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ks-frontend-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  FrontendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ks-frontend-spa-${Environment}
+      Runtime: python3.11
+      Handler: lambda_handler.handler
+      CodeUri: FrontendFunction
+      MemorySize: 512
+      Timeout: 15
+      Role:
+        Fn::GetAtt:
+        - FrontendLambdaRole
+        - Arn
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+          - '*'
+          AllowMethods:
+          - GET
+          - HEAD
+          MaxAge: 86400
+    Metadata:
+      SamResourceId: FrontendFunction
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ks-stepfunctions-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: states.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: StepFunctionExecutePolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource:
+            - Fn::GetAtt:
+              - BackendFunction
+              - Arn
+            - Fn::GetAtt:
+              - FrontendFunction
+              - Arn
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            Resource:
+              Ref: ReportAlertTopic
+  BackendReportsStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName:
+        Fn::Sub: ks-backend-reports-pipeline-${Environment}
+      RoleArn:
+        Fn::GetAtt:
+        - StepFunctionsRole
+        - Arn
+      DefinitionString:
+        Fn::Sub: "{\n  \"Comment\": \"Kisan Seva Kendra - Asynchronous Monthly Financial\
+          \ & GST Report Generator\",\n  \"StartAt\": \"ExtractMonthlyTransactions\"\
+          ,\n  \"States\": {\n    \"ExtractMonthlyTransactions\": {\n      \"Type\"\
+          : \"Task\",\n      \"Resource\": \"arn:aws:states:::lambda:invoke\",\n \
+          \     \"OutputPath\": \"$.Payload\",\n      \"Parameters\": {\n        \"\
+          FunctionName\": \"${BackendFunction.Arn}\",\n        \"Payload\": {\n  \
+          \        \"action\": \"extract_monthly_summary\",\n          \"month.$\"\
+          : \"$.month\",\n          \"year.$\": \"$.year\"\n        }\n      },\n\
+          \      \"Next\": \"GenerateGstAndStockDocuments\"\n    },\n    \"GenerateGstAndStockDocuments\"\
+          : {\n      \"Type\": \"Parallel\",\n      \"Branches\": [\n        {\n \
+          \         \"StartAt\": \"GenerateGstPdfAndUploadS3\",\n          \"States\"\
+          : {\n            \"GenerateGstPdfAndUploadS3\": {\n              \"Type\"\
+          : \"Task\",\n              \"Resource\": \"arn:aws:states:::lambda:invoke\"\
+          ,\n              \"OutputPath\": \"$.Payload\",\n              \"Parameters\"\
+          : {\n                \"FunctionName\": \"${BackendFunction.Arn}\",\n   \
+          \             \"Payload\": {\n                  \"action\": \"generate_gst_report_pdf\"\
+          ,\n                  \"category\": \"gst_report\",\n                  \"\
+          month.$\": \"$.month\",\n                  \"year.$\": \"$.year\"\n    \
+          \            }\n              },\n              \"End\": true\n        \
+          \    }\n          }\n        },\n        {\n          \"StartAt\": \"GenerateStockValuationExcelAndUploadS3\"\
+          ,\n          \"States\": {\n            \"GenerateStockValuationExcelAndUploadS3\"\
+          : {\n              \"Type\": \"Task\",\n              \"Resource\": \"arn:aws:states:::lambda:invoke\"\
+          ,\n              \"OutputPath\": \"$.Payload\",\n              \"Parameters\"\
+          : {\n                \"FunctionName\": \"${BackendFunction.Arn}\",\n   \
+          \             \"Payload\": {\n                  \"action\": \"generate_stock_valuation_excel\"\
+          ,\n                  \"category\": \"stock_report\",\n                 \
+          \ \"month.$\": \"$.month\",\n                  \"year.$\": \"$.year\"\n\
+          \                }\n              },\n              \"End\": true\n    \
+          \        }\n          }\n        }\n      ],\n      \"Next\": \"NotifyOwnerReportReady\"\
+          \n    },\n    \"NotifyOwnerReportReady\": {\n      \"Type\": \"Task\",\n\
+          \      \"Resource\": \"arn:aws:states:::sns:publish\",\n      \"Parameters\"\
+          : {\n        \"TopicArn\": \"${ReportAlertTopic}\",\n        \"Subject\"\
+          : \"Monthly GST & Stock Report Ready - Kisan Seva Kendra\",\n        \"\
+          Message\": {\n          \"status\": \"COMPLETED\",\n          \"period.$\"\
+          : \"$.[0].period\",\n          \"gstReportUrl.$\": \"$.[0].downloadUrl\"\
+          ,\n          \"stockReportUrl.$\": \"$.[1].downloadUrl\"\n        }\n  \
+          \    },\n      \"End\": true\n    }\n  }\n}\n"
+  FrontendDeployStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName:
+        Fn::Sub: ks-frontend-deploy-pipeline-${Environment}
+      RoleArn:
+        Fn::GetAtt:
+        - StepFunctionsRole
+        - Arn
+      DefinitionString:
+        Fn::Sub: "{\n  \"Comment\": \"Kisan Seva Kendra - Frontend SPA Asset Warmup\
+          \ & Deployment Pipeline\",\n  \"StartAt\": \"ValidateFrontendBundle\",\n\
+          \  \"States\": {\n    \"ValidateFrontendBundle\": {\n      \"Type\": \"\
+          Task\",\n      \"Resource\": \"arn:aws:states:::lambda:invoke\",\n     \
+          \ \"OutputPath\": \"$.Payload\",\n      \"Parameters\": {\n        \"FunctionName\"\
+          : \"${FrontendFunction.Arn}\",\n        \"Payload\": {\n          \"action\"\
+          : \"validate_bundle\"\n        }\n      },\n      \"Next\": \"PrewarmFrontendContainers\"\
+          \n    },\n    \"PrewarmFrontendContainers\": {\n      \"Type\": \"Task\"\
+          ,\n      \"Resource\": \"arn:aws:states:::lambda:invoke\",\n      \"OutputPath\"\
+          : \"$.Payload\",\n      \"Parameters\": {\n        \"FunctionName\": \"\
+          ${FrontendFunction.Arn}\",\n        \"Payload\": {\n          \"action\"\
+          : \"warmup\"\n        }\n      },\n      \"Next\": \"NotifyFrontendReady\"\
+          \n    },\n    \"NotifyFrontendReady\": {\n      \"Type\": \"Task\",\n  \
+          \    \"Resource\": \"arn:aws:states:::sns:publish\",\n      \"Parameters\"\
+          : {\n        \"TopicArn\": \"${ReportAlertTopic}\",\n        \"Subject\"\
+          : \"SUCCESS: Frontend Deployed & Prewarmed\",\n        \"Message\": {\n\
+          \          \"status\": \"ACTIVE\",\n          \"environment\": \"${Environment}\"\
+          \n        }\n      },\n      \"End\": true\n    }\n  }\n}\n"
+Outputs:
+  FrontendFunctionUrl:
+    Description: Immediate public HTTPS Function URL to access Frontend SPA
+    Value:
+      Fn::GetAtt:
+      - FrontendFunctionUrl
+      - FunctionUrl
+  BackendFunctionUrl:
+    Description: Immediate public HTTPS Function URL to access Backend FastAPI
+    Value:
+      Fn::GetAtt:
+      - BackendFunctionUrl
+      - FunctionUrl
+  RdsProxyEndpoint:
+    Description: Amazon RDS Proxy Endpoint for PostgreSQL connection pooling
+    Value:
+      Fn::GetAtt:
+      - RdsProxy
+      - Endpoint
+  SalesInvoicesBucketName:
+    Description: S3 Bucket storing Sales Invoices
+    Value:
+      Ref: SalesInvoicesBucket
+  PurchaseBillsBucketName:
+    Description: S3 Bucket storing Purchase Bills
+    Value:
+      Ref: PurchaseBillsBucket
+  GstReportsBucketName:
+    Description: S3 Bucket storing GST Reports
+    Value:
+      Ref: GstReportsBucket
+  StockReportsBucketName:
+    Description: S3 Bucket storing Stock Valuation Reports
+    Value:
+      Ref: StockReportsBucket
+  BackendReportsStateMachineArn:
+    Description: ARN for Backend Reports Step Functions State Machine
+    Value:
+      Fn::GetAtt:
+      - BackendReportsStateMachine
+      - Arn
+  FrontendDeployStateMachineArn:
+    Description: ARN for Frontend Deployment Step Functions State Machine
+    Value:
+      Fn::GetAtt:
+      - FrontendDeployStateMachine
+      - Arn

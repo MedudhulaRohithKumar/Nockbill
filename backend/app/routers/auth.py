@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from app.database.base import get_db
 from app.models.models import User, UserRole, AuditAction, AuditLog, ShopSettings
 from app.schemas.schemas import (
@@ -21,11 +21,14 @@ RESET_TOKENS: dict = {}
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    clean_identifier = (payload.username or "").strip()
+    identifier_lower = clean_identifier.lower()
+
     user = db.query(User).filter(
         or_(
-            User.username == payload.username,
-            User.email == payload.username,
-            User.phone == payload.username
+            func.lower(User.username) == identifier_lower,
+            func.lower(User.email) == identifier_lower,
+            User.phone == clean_identifier
         ),
         User.is_active == True
     ).first()

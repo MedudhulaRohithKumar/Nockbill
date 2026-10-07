@@ -15,12 +15,14 @@ import {
 } from 'lucide-react';
 import { reportsApi } from '../api';
 import { DashboardSummary } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { formatCurrency } from '../utils/formatters';
 
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -32,105 +34,18 @@ export const DashboardPage: React.FC = () => {
       setSummary(data);
     } catch {
       setSummary({
-        today_sales: 14850.0,
-        today_bills: 8,
-        month_sales: 342600.0,
-        month_purchases: 280000.0,
-        total_inventory_value: 524000.0,
-        low_stock_count: 3,
-        near_expiry_count: 2,
-        month_expenses: 18500.0,
-        month_net_profit: 44100.0,
-        recent_sales: [
-          {
-            id: 101,
-            invoice_number: 'KSK/24-25/0142',
-            invoice_date: new Date().toISOString(),
-            customer_name: 'Bhavesh Patel (Farmer)',
-            customer_phone: '9825012345',
-            payment_mode: 'UPI',
-            is_interstate: false,
-            subtotal: 3950,
-            total_discount: 50,
-            total_taxable: 3714,
-            total_cgst: 93,
-            total_sgst: 93,
-            total_igst: 0,
-            round_off: 0,
-            grand_total: 3900,
-            status: 'Completed',
-            items: []
-          },
-          {
-            id: 100,
-            invoice_number: 'KSK/24-25/0141',
-            invoice_date: new Date().toISOString(),
-            customer_name: 'Jayeshbhai Solanki',
-            customer_phone: '9428054321',
-            payment_mode: 'Cash',
-            is_interstate: false,
-            subtotal: 1350,
-            total_discount: 0,
-            total_taxable: 1285,
-            total_cgst: 32.5,
-            total_sgst: 32.5,
-            total_igst: 0,
-            round_off: 0,
-            grand_total: 1350,
-            status: 'Completed',
-            items: []
-          }
-        ],
-        low_stock_products: [
-          {
-            id: 1,
-            name: 'IFFCO Neem Coated Urea 45kg',
-            category: 'Fertilizer',
-            hsn_code: '31021000',
-            unit: 'Bags',
-            current_stock: 14,
-            cost_price: 250,
-            selling_price: 266.5,
-            mrp: 266.5,
-            gst_rate: 5,
-            batch_number: 'NCU-2024-88',
-            min_stock_level: 25,
-            is_active: true
-          },
-          {
-            id: 4,
-            name: 'UPL Saaf Fungicide (Carbendazim+Mancozeb)',
-            category: 'Pesticide',
-            hsn_code: '38089290',
-            unit: 'Packets',
-            current_stock: 6,
-            cost_price: 450,
-            selling_price: 520,
-            mrp: 550,
-            gst_rate: 18,
-            batch_number: 'SAF-24-09',
-            min_stock_level: 15,
-            is_active: true
-          }
-        ],
-        near_expiry_products: [
-          {
-            id: 5,
-            name: 'Bayer Confidor Insecticide 100ml',
-            category: 'Pesticide',
-            hsn_code: '38089199',
-            unit: 'Bottles',
-            current_stock: 22,
-            cost_price: 320,
-            selling_price: 380,
-            mrp: 410,
-            gst_rate: 18,
-            batch_number: 'BC-2023-41',
-            expiry_date: '2024-10-15',
-            min_stock_level: 10,
-            is_active: true
-          }
-        ]
+        today_sales: 0,
+        today_bills: 0,
+        month_sales: 0,
+        month_purchases: 0,
+        total_inventory_value: 0,
+        low_stock_count: 0,
+        near_expiry_count: 0,
+        month_expenses: 0,
+        month_net_profit: 0,
+        recent_sales: [],
+        low_stock_products: [],
+        near_expiry_products: []
       });
     } finally {
       setIsLoading(false);
@@ -138,8 +53,10 @@ export const DashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (user?.id) {
+      fetchDashboard();
+    }
+  }, [user?.id]);
 
   const handleOcrAddProduct = (item: any) => {
     sessionStorage.setItem('pending_bill_item', JSON.stringify(item));

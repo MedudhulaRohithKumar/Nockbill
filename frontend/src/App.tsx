@@ -68,7 +68,7 @@ export const App: React.FC = () => {
                 <Route path="/returns" element={<ErrorBoundary><SalesReturnPage /></ErrorBoundary>} />
                 <Route path="/inventory" element={<ErrorBoundary><InventoryPage /></ErrorBoundary>} />
                 <Route path="/purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />
-                <Route path="/expenses" element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />
+                <Route path="/expenses" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/reports" element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
                 <Route path="/analytics" element={<ErrorBoundary><AnalyticsPage /></ErrorBoundary>} />
                 <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />

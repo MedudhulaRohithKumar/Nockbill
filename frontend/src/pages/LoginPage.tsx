@@ -40,10 +40,14 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setIsLoading(true);
     try {
-      await login(username, password);
+      await login(username.trim(), password);
       navigate('/billing');
     } catch (err: any) {
-      setError(getErrorMessage(err, 'Invalid username, mobile, or password.'));
+      if (err.response?.status === 401) {
+        setError(err.response?.data?.detail || 'Incorrect username, mobile, or password.');
+      } else {
+        setError(getErrorMessage(err, 'Invalid username, mobile, or password.'));
+      }
     } finally {
       setIsLoading(false);
     }

@@ -26,18 +26,6 @@ def seed():
     db = SessionLocal()
 
     try:
-        # ── Owner user ──────────────────────────────────────────
-        if not db.query(User).filter(User.username == "admin").first():
-            owner = User(
-                name="Shop Owner",
-                username="admin",
-                password_hash=hash_password("admin123"),
-                role=UserRole.OWNER,
-            )
-            db.add(owner)
-            db.flush()
-            print("Created admin user (username: admin, password: admin123)")
-
         # ── Shop settings ────────────────────────────────────────
         if not db.query(ShopSettings).first():
             shop = ShopSettings(
@@ -53,7 +41,20 @@ def seed():
                 default_gst_rate=Decimal("18"),
             )
             db.add(shop)
+            db.flush()
             print("Created shop settings")
+
+        # ── Owner user ──────────────────────────────────────────
+        if not db.query(User).filter(User.username == "admin").first():
+            owner = User(
+                name="Shop Owner",
+                username="admin",
+                password_hash=hash_password("admin123"),
+                role=UserRole.OWNER,
+            )
+            db.add(owner)
+            db.flush()
+            print("Created admin user (username: admin, password: admin123)")
 
         db.commit()
 

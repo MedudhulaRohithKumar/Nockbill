@@ -1,26 +1,23 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM python:3.11-slim
 
-# Install system dependencies & Tesseract OCR on Amazon Linux 2023
-RUN dnf update -y && \
-    dnf install -y \
-        tesseract \
-        tesseract-langpack-eng \
-        mesa-libGL \
-        glib2 \
-        gcc \
-        gcc-c++ \
-        findutils && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf
+# Install system dependencies including Tesseract OCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libgl1 \
+    libglib2.0-0 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR ${LAMBDA_TASK_ROOT}
+WORKDIR /var/task
 
-# Install Python dependencies
+# Install Python dependencies + AWS Lambda Runtime Interface Client
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir awslambdaric && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
-COPY . ${LAMBDA_TASK_ROOT}/
+COPY . /var/task/
 
-# Expose AWS Lambda Mangum Handler
+ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
 CMD ["app.lambda_handler.handler"]

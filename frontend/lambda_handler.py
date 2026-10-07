@@ -109,6 +109,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         else:
             body_data = None
 
+        # Fast preflight response
+        if method == "OPTIONS":
+            return {
+                "statusCode": 204,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "Access-Control-Allow-Headers": "*",
+                },
+                "body": "",
+                "isBase64Encoded": False,
+            }
+
+        HOP_BY_HOP = {
+            "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+            "te", "trailers", "transfer-encoding", "upgrade", "content-length",
+            "x-amzn-remapped-content-length", "x-amzn-requestid", "x-amz-cf-id"
+        }
+
         req_headers = {
             k: v for k, v in event.get("headers", {}).items()
             if k.lower() not in ("host", "content-length", "x-forwarded-for", "x-forwarded-proto")
@@ -118,7 +137,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             req = urllib.request.Request(target_url, data=body_data, headers=req_headers, method=method)
             with urllib.request.urlopen(req, timeout=25) as resp:
                 resp_bytes = resp.read()
-                resp_headers = {k: v for k, v in resp.getheaders() if k.lower() not in ("transfer-encoding", "content-encoding")}
+                resp_headers = {k: v for k, v in resp.getheaders() if k.lower() not in HOP_BY_HOP}
+                resp_headers["access-control-allow-origin"] = "*"
                 return {
                     "statusCode": resp.status,
                     "headers": resp_headers,
@@ -127,16 +147,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
         except urllib.error.HTTPError as err:
             err_bytes = err.read()
+            err_headers = {k: v for k, v in err.headers.items() if k.lower() not in HOP_BY_HOP}
+            err_headers["access-control-allow-origin"] = "*"
             return {
                 "statusCode": err.code,
-                "headers": dict(err.headers),
+                "headers": err_headers,
                 "body": base64.b64encode(err_bytes).decode("ascii"),
                 "isBase64Encoded": True,
             }
         except Exception as err:
             return {
                 "statusCode": 502,
-                "headers": {"Content-Type": "application/json"},
+                "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
                 "body": f'{{"error": "Backend Function URL proxy failed: {str(err)}"}}',
                 "isBase64Encoded": False,
             }

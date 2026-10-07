@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "ks-serverless-prod"
+resolve_s3 = true
+s3_prefix = "ks-serverless-prod"
+region = "ap-south-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "Environment=\"prod\" DbUsername=\"kisan_admin\" DbAllocatedStorage=\"20\" VpcCidr=\"10.0.0.0/16\" ReportNotificationEmail=\"rkkumar3589@gmail.com\""
+image_repositories = ["BackendFunction=998413739222.dkr.ecr.ap-south-1.amazonaws.com/ksserverlessprodcef9602f/backendfunction474b807brepo"]
+
+[default.global.parameters]
+region = "ap-south-1"

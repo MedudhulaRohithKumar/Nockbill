@@ -141,6 +141,7 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
                 "filename": filename,
                 "s3Key": s3_key,
                 "downloadUrl": download_url,
+            }
         elif action in ("migrate_and_seed", "init_db"):
             from app.database.base import Base, engine
             from seed import seed
