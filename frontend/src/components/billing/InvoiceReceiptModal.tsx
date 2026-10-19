@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Printer, Download, X, CheckCircle, Share2 } from 'lucide-react';
 import { Sale, ShopSettings } from '../../types';
 import { salesApi } from '../../api';
@@ -17,6 +17,15 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
   sale,
   settings,
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !sale) return null;
 
   const handlePrint = () => {
@@ -28,13 +37,18 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="invoice-modal-title"
+      className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+    >
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[95vh]">
         {/* Top Control Bar (Hidden on print) */}
         <div className="no-print px-3 sm:px-5 py-3 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
-            <span className="font-bold text-xs sm:text-sm truncate">Invoice #{sale.invoice_number}</span>
+            <span id="invoice-modal-title" className="font-bold text-xs sm:text-sm truncate">Invoice #{sale.invoice_number}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button

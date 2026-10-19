@@ -51,6 +51,15 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   const [formUnit, setFormUnit] = useState('Bags');
 
   useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen && activeTab === 'camera') {
       startCamera();
     } else {
@@ -278,7 +287,12 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scanner-modal-title"
+      className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+    >
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-brand-800 to-brand-700 text-white flex items-center justify-between">
@@ -287,7 +301,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
               <Scan className="w-5 h-5 text-emerald-300" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-tight">AI Fertilizer Camera Scanner</h3>
+              <h3 id="scanner-modal-title" className="font-bold text-base leading-tight">AI Fertilizer Camera Scanner</h3>
               <p className="text-xs text-brand-200">Point phone camera at fertilizer bag / bottle to extract details</p>
             </div>
           </div>

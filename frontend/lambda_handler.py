@@ -125,8 +125,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         HOP_BY_HOP = {
             "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
             "te", "trailers", "transfer-encoding", "upgrade", "content-length",
-            "x-amzn-remapped-content-length", "x-amzn-requestid", "x-amz-cf-id"
+            "content-encoding", "host"
         }
+
+        def clean_headers(header_items):
+            out = {}
+            for k, v in header_items:
+                kl = k.lower()
+                # Lambda Function URLs reserve x-amzn-* and reject responses returning them
+                if kl in HOP_BY_HOP or kl.startswith("x-amzn-") or kl.startswith("x-amz-"):
+                    continue
+                out[k] = v
+            out["access-control-allow-origin"] = "*"
+            out["access-control-allow-credentials"] = "true"
+            return out
 
         req_headers = {
             k: v for k, v in event.get("headers", {}).items()
@@ -137,8 +149,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             req = urllib.request.Request(target_url, data=body_data, headers=req_headers, method=method)
             with urllib.request.urlopen(req, timeout=25) as resp:
                 resp_bytes = resp.read()
-                resp_headers = {k: v for k, v in resp.getheaders() if k.lower() not in HOP_BY_HOP}
-                resp_headers["access-control-allow-origin"] = "*"
+                resp_headers = clean_headers(resp.getheaders())
                 return {
                     "statusCode": resp.status,
                     "headers": resp_headers,
@@ -147,8 +158,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
         except urllib.error.HTTPError as err:
             err_bytes = err.read()
-            err_headers = {k: v for k, v in err.headers.items() if k.lower() not in HOP_BY_HOP}
-            err_headers["access-control-allow-origin"] = "*"
+            err_headers = clean_headers(err.headers.items())
             return {
                 "statusCode": err.code,
                 "headers": err_headers,

@@ -20,6 +20,7 @@ import {
   Barcode,
   Zap,
   Package,
+  Eraser,
   X
 } from 'lucide-react';
 import { productsApi, salesApi, getErrorMessage } from '../api';
@@ -35,6 +36,22 @@ interface PaymentSplit {
   method: PaymentType;
   amount: number;
 }
+
+/**
+ * Batches that can actually be sold, ordered earliest-expiry first (FEFO),
+ * so the first entry is always the one that should be handed over first.
+ * A product with a single batch keeps it even at zero stock (legacy data).
+ */
+const getSellableBatches = (product: Product): ProductBatch[] => {
+  const batches = product.batches ?? [];
+  if (batches.length === 0) return [];
+  const sellable = batches.length === 1 ? batches : batches.filter(b => b.current_stock > 0);
+  const expiryTime = (b: ProductBatch) => {
+    const t = b.expiry_date ? new Date(b.expiry_date).getTime() : NaN;
+    return isNaN(t) ? Number.POSITIVE_INFINITY : t;
+  };
+  return [...sellable].sort((a, b) => expiryTime(a) - expiryTime(b));
+};
 
 export const BillingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -58,10 +75,23 @@ export const BillingPage: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [barcodeStatus, setBarcodeStatus] = useState<string | null>(null);
+  const [barcodeError, setBarcodeError] = useState(false);
 
   // Packaging Variant Selector & Batch Selector States
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const [batchPickerProduct, setBatchPickerProduct] = useState<{ product: Product; variant?: ProductVariant } | null>(null);
+
+  // Close modals on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (batchPickerProduct) setBatchPickerProduct(null);
+        else if (variantPickerProduct) setVariantPickerProduct(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [batchPickerProduct, variantPickerProduct]);
 
   // Modals & UI States
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -126,10 +156,12 @@ export const BillingPage: React.FC = () => {
     if (!code) return;
 
     setBarcodeStatus('Searching...');
+    setBarcodeError(false);
     try {
       const product = await productsApi.getByBarcode(code);
       if (product) {
         setBarcodeStatus(`Found ${product.product_name || product.name}`);
+        setTimeout(() => setBarcodeStatus(null), 2500);
         setBarcodeInput('');
         
         // If product has multiple packaging variants, prompt variant selector
@@ -137,9 +169,7 @@ export const BillingPage: React.FC = () => {
           setVariantPickerProduct(product);
         } else {
           // Check if multiple active batches exist
-          const activeBatches = product.batches && product.batches.length > 0
-            ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
-            : [];
+          const activeBatches = getSellableBatches(product);
           if (activeBatches.length > 1) {
             setBatchPickerProduct({ product });
           } else {
@@ -148,10 +178,22 @@ export const BillingPage: React.FC = () => {
         }
       }
     } catch {
+      setBarcodeError(true);
       setBarcodeStatus('Barcode not found in inventory');
       setTimeout(() => setBarcodeStatus(null), 3000);
     }
   };
+
+  // Auto-lookup for manually typed 5-digit shop barcodes, debounced so that
+  // hardware scanners entering longer codes (e.g. EAN-13 + Enter) aren't
+  // looked up prematurely after the first 5 characters.
+  useEffect(() => {
+    const code = barcodeInput.trim();
+    if (!/^\d{5}$/.test(code)) return;
+    const timer = setTimeout(() => handleBarcodeLookup(code), 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barcodeInput]);
 
   // Fast Product Selector from Search (handles variants & batches)
   const handleSelectProductFromSearch = (product: Product) => {
@@ -159,9 +201,7 @@ export const BillingPage: React.FC = () => {
       setVariantPickerProduct(product);
       return;
     }
-    const activeBatches = product.batches && product.batches.length > 0
-      ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
-      : [];
+    const activeBatches = getSellableBatches(product);
     if (activeBatches.length > 1) {
       setBatchPickerProduct({ product });
       return;
@@ -204,11 +244,22 @@ export const BillingPage: React.FC = () => {
     };
   };
 
+  // When the supply type changes (intra-state CGST+SGST <-> inter-state IGST),
+  // re-split the tax on every line already in the cart so totals and the saved
+  // invoice stay consistent with the `is_interstate` flag.
+  useEffect(() => {
+    setCart(prev =>
+      prev.map(item => ({
+        ...item,
+        ...calculateItemTaxes(item.unit_price, item.quantity, item.discount_percent, item.gst_rate, isInterstate),
+      }))
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInterstate]);
+
   // Add Product object to Cart (with optional packaging variant and optional batch)
   const addProductToCart = (product: Product, variant?: ProductVariant, batch?: ProductBatch) => {
-    const activeBatches = product.batches && product.batches.length > 0
-      ? product.batches.filter(b => b.current_stock > 0 || product.batches!.length === 1)
-      : [];
+    const activeBatches = getSellableBatches(product);
 
     if (!batch && activeBatches.length > 1) {
       setBatchPickerProduct({ product, variant });
@@ -362,6 +413,16 @@ export const BillingPage: React.FC = () => {
     setErrorMsg(null);
   };
 
+  // Manual reset from the header — confirm first so a bill in progress
+  // isn't wiped by an accidental tap.
+  const handleResetClick = () => {
+    const hasWork = cart.length > 0 || customerName || customerPhone || customerAadhar;
+    if (hasWork && !window.confirm('Clear this bill? All items and customer details will be removed.')) {
+      return;
+    }
+    clearBill();
+  };
+
   // --- Split Payment Helpers ---
   const addPaymentSplit = () => {
     const usedMethods = paymentSplits.map(s => s.method);
@@ -495,7 +556,7 @@ export const BillingPage: React.FC = () => {
   };
 
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div className={`p-3 sm:p-6 max-w-7xl mx-auto space-y-4 ${cart.length > 0 ? 'pb-32 sm:pb-6' : ''}`}>
       {/* Top Banner with Quick Actions */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -525,11 +586,12 @@ export const BillingPage: React.FC = () => {
             <span>Scan with Camera</span>
           </button>
           <button
-            onClick={clearBill}
+            onClick={handleResetClick}
             className="p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            title="Reset Bill"
+            title="Clear Bill"
+            aria-label="Clear bill"
           >
-            <RotateCcw className="w-4 h-4" />
+            <Eraser className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -592,21 +654,18 @@ export const BillingPage: React.FC = () => {
               <div className="relative">
                 <Barcode className="w-4 h-4 text-emerald-700 absolute left-3.5 top-3.5" />
                 <input
+                  id="barcode-input"
+                  aria-label="Product barcode"
                   type="text"
                   value={barcodeInput}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setBarcodeInput(val);
-                    if (val.trim().length === 5) {
-                      handleBarcodeLookup(val);
-                    }
-                  }}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       handleBarcodeLookup();
                     }
                   }}
+                  inputMode="numeric"
                   placeholder="Scan / Type 5-Digit Barcode (e.g. 10001)"
                   className="w-full pl-10 pr-16 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
                 />
@@ -619,7 +678,14 @@ export const BillingPage: React.FC = () => {
                 </button>
               </div>
               {barcodeStatus && (
-                <div className="absolute z-20 left-0 mt-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                <div
+                  role="status"
+                  className={`absolute z-20 left-0 mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                    barcodeError
+                      ? 'text-red-700 bg-red-50 border-red-200'
+                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  }`}
+                >
                   {barcodeStatus}
                 </div>
               )}
@@ -630,6 +696,8 @@ export const BillingPage: React.FC = () => {
               <div className="relative">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
+                  id="product-search-input"
+                  aria-label="Search products by name, brand, or HSN"
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -913,13 +981,15 @@ export const BillingPage: React.FC = () => {
             </h3>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label htmlFor="customer-name" className="block text-[11px] font-semibold text-slate-700 mb-1">
                 Farmer / Customer Name *
               </label>
               <input
+                id="customer-name"
                 type="text"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                autoComplete="name"
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 placeholder="Cash Customer / Farmer"
               />
@@ -927,11 +997,14 @@ export const BillingPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                <label htmlFor="customer-phone" className="block text-[11px] font-semibold text-slate-700 mb-1">
                   Mobile Number
                 </label>
                 <input
+                  id="customer-phone"
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -940,26 +1013,30 @@ export const BillingPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1" title="Mandatory for subsidized fertilizer DBT scheme">
+                <label htmlFor="customer-aadhar" className="block text-[11px] font-semibold text-slate-700 mb-1" title="Optional for subsidized fertilizer DBT scheme">
                   Aadhaar (DBT)
                 </label>
                 <input
+                  id="customer-aadhar"
                   type="text"
-                  maxLength={12}
+                  inputMode="numeric"
+                  maxLength={14}
                   value={customerAadhar}
                   onChange={(e) => setCustomerAadhar(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  placeholder="XXXX-XXXX-XXXX"
+                  placeholder="12-digit UID"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              <label htmlFor="customer-address" className="block text-[11px] font-semibold text-slate-700 mb-1">
                 Village / Address
               </label>
               <input
+                id="customer-address"
                 type="text"
+                autoComplete="street-address"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -968,8 +1045,9 @@ export const BillingPage: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <label className="text-xs text-slate-600 font-medium cursor-pointer flex items-center gap-2">
+              <label htmlFor="interstate-supply" className="text-xs text-slate-600 font-medium cursor-pointer flex items-center gap-2">
                 <input
+                  id="interstate-supply"
                   type="checkbox"
                   checked={isInterstate}
                   onChange={(e) => setIsInterstate(e.target.checked)}
@@ -1168,11 +1246,16 @@ export const BillingPage: React.FC = () => {
 
       {/* Packaging Variant Picker Modal */}
       {variantPickerProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="variant-modal-title"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+        >
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-sm text-slate-900">
+                <h3 id="variant-modal-title" className="font-bold text-sm text-slate-900">
                   Select Packaging Size & Price
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -1194,9 +1277,7 @@ export const BillingPage: React.FC = () => {
                   onClick={() => {
                     const prod = variantPickerProduct;
                     setVariantPickerProduct(null);
-                    const activeBatches = prod.batches && prod.batches.length > 0
-                      ? prod.batches.filter(b => b.current_stock > 0 || prod.batches!.length === 1)
-                      : [];
+                    const activeBatches = getSellableBatches(prod);
                     if (activeBatches.length > 1) {
                       setBatchPickerProduct({ product: prod, variant: v });
                     } else {
@@ -1236,11 +1317,16 @@ export const BillingPage: React.FC = () => {
 
       {/* Batch & Expiry Selection Modal (Multi-Batch / Price Variance) */}
       {batchPickerProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="batch-modal-title"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+        >
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 max-h-[90vh] flex flex-col">
             <div className="px-5 py-4 bg-emerald-800 text-white flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-sm flex items-center gap-2">
+                <h3 id="batch-modal-title" className="font-bold text-sm flex items-center gap-2">
                   <Package className="w-4 h-4 text-emerald-300" />
                   Select Batch & Expiry Date
                 </h3>
@@ -1261,12 +1347,12 @@ export const BillingPage: React.FC = () => {
               <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center gap-2">
                 <Zap className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
-                  Multiple batches found in godown. <strong>FIFO Recommendation:</strong> Hand over older batch to farmer first.
+                  Multiple batches found in godown. <strong>Sell earliest expiry first:</strong> batches are sorted by expiry date; empty batches are hidden.
                 </span>
               </div>
 
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {batchPickerProduct.product.batches?.map((b, idx) => {
+                {getSellableBatches(batchPickerProduct.product).map((b, idx) => {
                   const isOldest = idx === 0;
                   return (
                     <button
@@ -1288,7 +1374,7 @@ export const BillingPage: React.FC = () => {
                           </span>
                           {isOldest && (
                             <span className="text-[10px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
-                              FIFO Sell First
+                              Sell First
                             </span>
                           )}
                         </div>
@@ -1304,7 +1390,7 @@ export const BillingPage: React.FC = () => {
                           ₹{formatCurrency(b.selling_price)}
                         </div>
                         <span className="text-[10px] font-bold text-slate-400 group-hover:text-emerald-700">
-                          Select [{idx + 1}]
+                          Select
                         </span>
                       </div>
                     </button>

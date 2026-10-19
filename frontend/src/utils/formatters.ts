@@ -23,3 +23,18 @@ export function formatINR(val: any): string {
   const num = safeNumber(val, 0);
   return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+/**
+ * Compact Indian-format currency (without the ₹ symbol) for KPI cards.
+ * Amounts below ₹1 lakh are shown in full with Indian digit grouping
+ * (e.g. 45,230) so small values are never rounded away. Larger amounts are
+ * abbreviated using the Indian system: 2.45 L (lakh), 1.20 Cr (crore).
+ */
+export function formatCompactINR(val: any): string {
+  const num = safeNumber(val, 0);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)} Cr`;
+  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(2)} L`;
+  return num.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}

@@ -13,11 +13,11 @@ import {
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
-import { reportsApi } from '../api';
+import { reportsApi, getErrorMessage } from '../api';
 import { DashboardSummary } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatCompactINR } from '../utils/formatters';
 
 
 export const DashboardPage: React.FC = () => {
@@ -25,6 +25,7 @@ export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const fetchDashboard = async () => {
@@ -32,25 +33,25 @@ export const DashboardPage: React.FC = () => {
     try {
       const data = await reportsApi.getDashboard();
       setSummary(data);
-    } catch {
-      setSummary({
-        today_sales: 0,
-        today_bills: 0,
-        month_sales: 0,
-        month_purchases: 0,
-        total_inventory_value: 0,
-        low_stock_count: 0,
-        near_expiry_count: 0,
-        month_expenses: 0,
-        month_net_profit: 0,
-        recent_sales: [],
-        low_stock_products: [],
-        near_expiry_products: []
-      });
+      setLoadError(null);
+    } catch (err) {
+      // Keep the last good data (if any) instead of faking ₹0 values,
+      // and surface the failure so the owner doesn't misread the numbers.
+      setLoadError(getErrorMessage(err, 'Could not load dashboard data'));
     } finally {
       setIsLoading(false);
     }
   };
+
+  const showSkeleton = isLoading && !summary;
+  const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-6 sm:h-8 w-20' }) => (
+    <span className={`inline-block align-middle bg-slate-200 rounded-lg animate-pulse ${className}`} />
+  );
+  const money = (value: unknown) =>
+    showSkeleton ? <Skeleton /> : summary ? `₹${formatCompactINR(value)}` : '—';
+  const count = (value: unknown) =>
+    showSkeleton ? <Skeleton className="h-6 sm:h-8 w-8" /> : summary ? String(value ?? 0) : '—';
+  const monthProfit = summary?.month_net_profit ?? 0;
 
   useEffect(() => {
     if (user?.id) {
@@ -102,6 +103,29 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {loadError && (
+        <div
+          role="alert"
+          className="p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-xs sm:text-sm flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+            <span className="truncate">
+              {summary
+                ? `Showing last loaded figures — refresh failed: ${loadError}`
+                : `Dashboard data unavailable: ${loadError}`}
+            </span>
+          </div>
+          <button
+            onClick={fetchDashboard}
+            disabled={isLoading}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+          >
+            {isLoading ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Grid — 2 cols on mobile, 4 on lg */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Today's Sales */}
@@ -113,11 +137,11 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            ₹{(summary?.today_sales ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            {money(summary?.today_sales)}
           </div>
           <p className="text-[10px] text-slate-500 mt-1 font-medium flex items-center gap-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-            <span>{summary?.today_bills ?? 0} bills today</span>
+            <span>{summary ? `${summary.today_bills ?? 0} bills today` : '—'}</span>
           </p>
         </div>
 
@@ -130,10 +154,10 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            ₹{((summary?.month_sales ?? (summary as any)?.monthly_sales ?? 0) / 1000).toFixed(0)}K
+            {money(summary?.month_sales ?? (summary as any)?.monthly_sales)}
           </div>
-          <p className="text-[10px] text-emerald-600 mt-1 font-medium">
-            Profit: ₹{((summary?.month_net_profit ?? 0) / 1000).toFixed(0)}K
+          <p className={`text-[10px] mt-1 font-medium ${monthProfit < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+            {summary ? `${monthProfit < 0 ? 'Loss' : 'Profit'}: ₹${formatCompactINR(Math.abs(monthProfit))}` : 'Profit: —'}
           </p>
         </div>
 
@@ -146,7 +170,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            ₹{((summary?.total_inventory_value ?? (summary as any)?.stock_value ?? 0) / 1000).toFixed(0)}K
+            {money(summary?.total_inventory_value ?? (summary as any)?.stock_value)}
           </div>
           <p className="text-[10px] text-slate-500 mt-1 font-medium">
             Current in-warehouse
@@ -163,12 +187,12 @@ export const DashboardPage: React.FC = () => {
           </div>
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-base sm:text-2xl font-black text-amber-600">
-              {summary?.low_stock_count ?? 0}
+              {count(summary?.low_stock_count)}
             </span>
             <span className="text-[10px] text-slate-500 font-medium">Low</span>
             <span className="text-slate-300">|</span>
             <span className="text-base sm:text-2xl font-black text-red-500">
-              {summary?.near_expiry_count ?? 0}
+              {count(summary?.near_expiry_count)}
             </span>
             <span className="text-[10px] text-slate-500 font-medium">Expiring</span>
           </div>
@@ -258,9 +282,19 @@ export const DashboardPage: React.FC = () => {
                 </table>
               </div>
             </>
+          ) : showSkeleton ? (
+            <div className="p-4 space-y-3">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : !summary ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              Recent bills unavailable.
+            </div>
           ) : (
             <div className="p-8 text-center text-slate-400 text-xs">
-              No bills today. Tap "New Bill" to create one.
+              No bills yet. Tap "New Bill" to create one.
             </div>
           )}
         </div>
@@ -299,11 +333,12 @@ export const DashboardPage: React.FC = () => {
                   </span>
                 </div>
               ))}
-              {(!summary?.low_stock_products || summary.low_stock_products.length === 0) && (
+              {summary && (!summary.low_stock_products || summary.low_stock_products.length === 0) && (
                 <p className="text-[11px] text-emerald-600 font-medium text-center py-2">
                   ✓ All stock levels are adequate
                 </p>
               )}
+              {showSkeleton && <Skeleton className="h-10 w-full" />}
             </div>
           </div>
 
@@ -339,11 +374,12 @@ export const DashboardPage: React.FC = () => {
                   </span>
                 </div>
               ))}
-              {(!summary?.near_expiry_products || summary.near_expiry_products.length === 0) && (
+              {summary && (!summary.near_expiry_products || summary.near_expiry_products.length === 0) && (
                 <p className="text-[11px] text-emerald-600 font-medium text-center py-2">
                   ✓ No products near expiry
                 </p>
               )}
+              {showSkeleton && <Skeleton className="h-10 w-full" />}
             </div>
           </div>
         </div>
