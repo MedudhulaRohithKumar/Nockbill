@@ -369,6 +369,14 @@ Resources:
           AWS_REGION_NAME: !Ref AWS::Region
       FunctionUrlConfig:
         AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - '*'
+          AllowHeaders:
+            - '*'
+          MaxAge: 86400
     Metadata:
       DockerTag: latest
       DockerContext: ../backend
@@ -398,6 +406,10 @@ Resources:
       MemorySize: 512
       Timeout: 15
       Role: !GetAtt FrontendLambdaRole.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          BACKEND_API_URL: !GetAtt BackendFunctionUrl.FunctionUrl
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
@@ -406,6 +418,12 @@ Resources:
           AllowMethods:
             - GET
             - HEAD
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          AllowHeaders:
+            - '*'
           MaxAge: 86400
 
   # ============================================================================

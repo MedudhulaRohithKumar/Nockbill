@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field, model_validator
 from decimal import Decimal
@@ -11,6 +11,7 @@ from app.models.models import (
     AuditLog, AuditAction, User, ShopSettings
 )
 from app.utils.auth import get_current_user, get_current_user_optional
+from app.utils.helpers import sanitize_text, sanitize_code, validate_gstin, resolve_trade_name
 
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
 
@@ -19,13 +20,15 @@ router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
 class FlexPurchaseItem(BaseModel):
     product_id: Optional[int] = None
     product_name: Optional[str] = None
+    company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     batch_number: Optional[str] = None
     expiry_date: Optional[str] = None
-    quantity: Decimal = Decimal("1")
-    purchase_price: Decimal = Decimal("0")
+    quantity: Decimal = Field(default=Decimal("1"), gt=0)
+    purchase_price: Decimal = Field(default=Decimal("0"), ge=0)
     selling_price: Optional[Decimal] = None
     mrp: Optional[Decimal] = None
-    gst_rate: Decimal = Decimal("0")
+    gst_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     total_amount: Optional[Decimal] = None
     taxable_amount: Optional[Decimal] = None
     cgst_amount: Optional[Decimal] = None
@@ -57,10 +60,20 @@ class FlexPurchaseCreate(BaseModel):
                 data["purchase_date"] = data["bill_date"]
         return data
 
+    @model_validator(mode="after")
+    def sanitize_purchase(self) -> "FlexPurchaseCreate":
+        self.supplier_name = sanitize_text(self.supplier_name, 200) if self.supplier_name else None
+        self.supplier_gstin = validate_gstin(self.supplier_gstin) if self.supplier_gstin else None
+        self.invoice_number = sanitize_code(self.invoice_number, 100) if self.invoice_number else None
+        self.notes = sanitize_text(self.notes, 500) if self.notes else None
+        return self
 
-def _resolve_product(db: Session, item: FlexPurchaseItem, shop_id: int = 1) -> Optional[Product]:
+
+def _resolve_product(db: Session, item: FlexPurchaseItem, shop_id: int = 1, prelocked_map: Optional[dict] = None) -> Optional[Product]:
     """Find product by id or name within current shop."""
     if item.product_id:
+        if prelocked_map and item.product_id in prelocked_map:
+            return prelocked_map[item.product_id]
         return db.query(Product).filter(
             Product.id == item.product_id,
             Product.shop_id == shop_id
@@ -70,7 +83,7 @@ def _resolve_product(db: Session, item: FlexPurchaseItem, shop_id: int = 1) -> O
             Product.shop_id == shop_id,
             Product.is_active == True,
             Product.product_name.ilike(f"%{item.product_name.strip()}%")
-        ).first()
+        ).with_for_update().first()
     return None
 
 
@@ -98,6 +111,8 @@ def serialize_purchase(p: Purchase) -> dict:
                 "product_name": it.product_name or (
                     it.product.product_name if getattr(it, "product", None) else f"Product #{it.product_id}"
                 ),
+                "company_name": getattr(it, "company_name", None) or "",
+                "trade_name": getattr(it, "trade_name", None) or "",
                 "unit": it.unit or "",
                 "batch_number": it.batch_number or "",
                 "expiry_date": it.expiry_date or "",
@@ -134,6 +149,18 @@ def create_purchase(
                     continue
 
         shop_id = getattr(current_user, "shop_id", 1) or 1
+
+        # Pre-lock all involved Product rows in ascending ID order to prevent AB-BA deadlocks
+        product_ids = sorted({item.product_id for item in payload.items if item.product_id})
+        locked_products = (
+            db.query(Product)
+            .filter(Product.shop_id == shop_id, Product.id.in_(product_ids))
+            .order_by(Product.id.asc())
+            .with_for_update()
+            .all()
+        ) if product_ids else []
+        prelocked_map = {p.id: p for p in locked_products}
+
         purchase = Purchase(
             shop_id=shop_id,
             supplier_name=payload.supplier_name,
@@ -160,12 +187,21 @@ def create_purchase(
             total_gst += gst_amount
 
             # Try to find matching product in this shop
-            product = _resolve_product(db, item_data, shop_id)
+            product = _resolve_product(db, item_data, shop_id, prelocked_map)
+            p_name = item_data.product_name or (product.product_name if product else "Unknown Product")
+            c_name = item_data.company_name or (product.company_name if product else payload.supplier_name)
+            t_name = resolve_trade_name(
+                p_name,
+                c_name,
+                item_data.trade_name or (product.trade_name if product else None),
+            )
 
             p_item = PurchaseItem(
                 purchase_id=purchase.id,
                 product_id=product.id if product else (item_data.product_id or 1),
-                product_name=item_data.product_name or (product.product_name if product else "Unknown Product"),
+                product_name=p_name,
+                company_name=c_name,
+                trade_name=t_name,
                 unit=str(product.unit.value if hasattr(product.unit, "value") else product.unit) if product else "Bags",
                 batch_number=item_data.batch_number,
                 expiry_date=item_data.expiry_date,
@@ -181,27 +217,35 @@ def create_purchase(
                 prev_stock = product.current_stock or Decimal("0")
                 product.current_stock = prev_stock + qty
                 product.purchase_price = price
+                if t_name:
+                    product.trade_name = t_name
+                if item_data.company_name and item_data.company_name.strip():
+                    product.company_name = item_data.company_name.strip()
 
                 # Create/update ProductBatch for this inward
                 if item_data.batch_number:
                     existing_batch = db.query(ProductBatch).filter(
                         ProductBatch.product_id == product.id,
                         ProductBatch.batch_number == item_data.batch_number
-                    ).first()
+                    ).with_for_update().first()
                     if existing_batch:
                         existing_batch.current_stock = (existing_batch.current_stock or Decimal("0")) + qty
                         existing_batch.purchase_price = price
+                        existing_batch.company_name = c_name
+                        existing_batch.trade_name = t_name
                         if item_data.selling_price:
                             existing_batch.selling_price = item_data.selling_price
                         if item_data.mrp:
                             existing_batch.mrp = item_data.mrp
                     else:
-                        sell_price = item_data.selling_price or item_data.mrp or price
+                        sell_price = item_data.selling_price or item_data.mrp or product.selling_price or price
                         if sell_price <= 0:
-                            sell_price = price
+                            sell_price = price if price > 0 else Decimal("1")
                         new_batch = ProductBatch(
                             product_id=product.id,
                             batch_number=item_data.batch_number,
+                            trade_name=t_name,
+                            company_name=c_name,
                             expiry_date=item_data.expiry_date or product.expiry_date or "2028-06",
                             purchase_price=price,
                             selling_price=sell_price,
@@ -255,7 +299,9 @@ def list_purchases(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    purchases = db.query(Purchase).filter(
+    purchases = db.query(Purchase).options(
+        selectinload(Purchase.items)
+    ).filter(
         Purchase.shop_id == shop_id
     ).order_by(Purchase.purchase_date.desc()).offset(skip).limit(limit).all()
     return [serialize_purchase(p) for p in purchases]
@@ -268,7 +314,9 @@ def get_purchase(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    purchase = db.query(Purchase).filter(
+    purchase = db.query(Purchase).options(
+        selectinload(Purchase.items)
+    ).filter(
         Purchase.id == purchase_id,
         Purchase.shop_id == shop_id
     ).first()

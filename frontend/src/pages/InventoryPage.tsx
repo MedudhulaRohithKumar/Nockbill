@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
   Search, 
@@ -19,11 +19,20 @@ import {
   Printer,
   ChevronRight,
   TrendingUp,
-  Info
+  Info,
+  Tag
 } from 'lucide-react';
 import { productsApi, inventoryApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, RefillRecommendation } from '../types';
-import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
+import {
+  safeNumber,
+  safeString,
+  formatCurrency,
+  sanitizeTextInput,
+  sanitizeCodeInput,
+  clampNonNegative,
+  resolveTradeName,
+} from '../utils/formatters';
 import { CustomSelect } from '../components/common/CustomSelect';
 import { useShop } from '../context/ShopContext';
 import { BarcodePrintModal } from '../components/inventory/BarcodePrintModal';
@@ -31,7 +40,6 @@ import { BarcodePrintModal } from '../components/inventory/BarcodePrintModal';
 export const InventoryPage: React.FC = () => {
   const { settings } = useShop();
   const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [recommendations, setRecommendations] = useState<RefillRecommendation[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -42,6 +50,7 @@ export const InventoryPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+  const [tradeNameManuallyEdited, setTradeNameManuallyEdited] = useState(false);
 
   // Duplicate Check State
   const [duplicateAlert, setDuplicateAlert] = useState<{
@@ -61,6 +70,9 @@ export const InventoryPage: React.FC = () => {
   // Refill Stock Modal state
   const [isRefillModalOpen, setIsRefillModalOpen] = useState(false);
   const [refillProductId, setRefillProductId] = useState<number | null>(null);
+  const [refillCompanyName, setRefillCompanyName] = useState<string>('');
+  const [refillTradeName, setRefillTradeName] = useState<string>('');
+  const [refillTradeManuallyEdited, setRefillTradeManuallyEdited] = useState(false);
   const [refillQty, setRefillQty] = useState<number>(10);
   const [refillUnit, setRefillUnit] = useState<string>('Bags');
   const [refillBatch, setRefillBatch] = useState<string>('');
@@ -98,19 +110,27 @@ export const InventoryPage: React.FC = () => {
     loadProducts();
   }, []);
 
-  // Filter effect
-  useEffect(() => {
+  // Fast memoized filter including Trade Name search
+  const filteredProducts = useMemo(() => {
     let list = [...products];
 
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => {
         const pName = safeString(p.name || p.product_name).toLowerCase();
+        const pTrade = safeString(p.trade_name).toLowerCase();
         const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
         const pHsn = safeString(p.hsn_code).toLowerCase();
         const pBarcode = safeString(p.barcode).toLowerCase();
         const pCompany = safeString(p.company_name).toLowerCase();
-        return pName.includes(q) || pBatch.includes(q) || pHsn.includes(q) || pBarcode.includes(q) || pCompany.includes(q);
+        return (
+          pName.includes(q) ||
+          pTrade.includes(q) ||
+          pBatch.includes(q) ||
+          pHsn.includes(q) ||
+          pBarcode.includes(q) ||
+          pCompany.includes(q)
+        );
       });
     }
 
@@ -130,8 +150,26 @@ export const InventoryPage: React.FC = () => {
       });
     }
 
-    setFilteredProducts(list);
+    return list;
   }, [products, search, selectedCategory, filterType]);
+
+  // Resolve Trade Name suggestions for Add/Edit Product Modal
+  const editTradeResolution = useMemo(() => {
+    const pName = editingProduct?.name || editingProduct?.product_name || '';
+    const cName = editingProduct?.company_name || '';
+    return resolveTradeName(pName, cName, products);
+  }, [editingProduct?.name, editingProduct?.product_name, editingProduct?.company_name, products]);
+
+  // Resolve Trade Name suggestions for Refill Stock Modal
+  const selectedRefillProduct = useMemo(
+    () => products.find(p => p.id === refillProductId) || null,
+    [products, refillProductId]
+  );
+
+  const refillTradeResolution = useMemo(() => {
+    const pName = selectedRefillProduct?.name || selectedRefillProduct?.product_name || '';
+    return resolveTradeName(pName, refillCompanyName, products);
+  }, [selectedRefillProduct, refillCompanyName, products]);
 
   // Debounced duplicate product check when typing in Add modal
   useEffect(() => {
@@ -149,7 +187,7 @@ export const InventoryPage: React.FC = () => {
     const timer = setTimeout(async () => {
       setCheckingDuplicate(true);
       try {
-        const res = await productsApi.checkDuplicate(name, editingProduct?.company_name);
+        const res = await productsApi.checkDuplicate(name, editingProduct?.company_name, undefined, editingProduct?.trade_name);
         setDuplicateAlert(res.exists ? res : null);
       } catch (err) {
         console.error('Duplicate check error', err);
@@ -159,11 +197,18 @@ export const InventoryPage: React.FC = () => {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [editingProduct?.name, editingProduct?.company_name, isEditModalOpen, editingProduct?.id]);
+  }, [editingProduct?.name, editingProduct?.company_name, editingProduct?.trade_name, isEditModalOpen, editingProduct?.id]);
 
   // Select Product for Refill Helper
   const selectProductForRefill = (prod: Product) => {
+    const prodName = prod.name || prod.product_name || '';
+    const compName = prod.company_name || '';
+    const resolved = prod.trade_name || resolveTradeName(prodName, compName, products).suggested;
+
     setRefillProductId(prod.id);
+    setRefillCompanyName(compName);
+    setRefillTradeName(resolved);
+    setRefillTradeManuallyEdited(false);
     setRefillUnit(prod.unit || 'Bags');
     setRefillPurchasePrice(prod.purchase_price ?? prod.cost_price ?? 0);
     setRefillSellingPrice(prod.selling_price ?? 0);
@@ -180,6 +225,9 @@ export const InventoryPage: React.FC = () => {
       setRefillQty(suggestedQty);
     } else {
       setRefillProductId(null);
+      setRefillCompanyName('');
+      setRefillTradeName('');
+      setRefillTradeManuallyEdited(false);
       setRefillQty(suggestedQty);
       setRefillUnit('Bags');
       setRefillBatch(`BATCH-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -203,16 +251,31 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
-    const prodName = editingProduct.name || (editingProduct as any).product_name || '';
+    const prodName = sanitizeTextInput(editingProduct.name || (editingProduct as any).product_name || '', 200).trim();
+    if (!prodName) {
+      alert('Please enter a valid Product Name.');
+      return;
+    }
+    const compName = sanitizeTextInput(editingProduct.company_name || '', 200).trim();
+    const tradeName = sanitizeTextInput(
+      editingProduct.trade_name || editTradeResolution.suggested || `${compName} ${prodName}`.trim(),
+      200
+    ).trim();
+
     const payload = {
       ...editingProduct,
       product_name: prodName,
       name: prodName,
-      purchase_price: editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0,
-      cost_price: editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0,
-      selling_price: editingProduct.selling_price ?? 0,
-      minimum_stock: editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20,
-      min_stock_level: editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20,
+      company_name: compName,
+      trade_name: tradeName,
+      hsn_code: sanitizeCodeInput(editingProduct.hsn_code || '31021000', 30),
+      batch_number: sanitizeCodeInput(editingProduct.batch_number || '', 60),
+      purchase_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
+      cost_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
+      selling_price: clampNonNegative(editingProduct.selling_price ?? 0),
+      current_stock: clampNonNegative(editingProduct.current_stock ?? 0),
+      minimum_stock: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
+      min_stock_level: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
       variants: productVariants,
     };
 
@@ -225,6 +288,7 @@ export const InventoryPage: React.FC = () => {
       setIsEditModalOpen(false);
       setEditingProduct(null);
       setProductVariants([]);
+      setTradeNameManuallyEdited(false);
       loadProducts();
     } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to save product'));
@@ -233,22 +297,37 @@ export const InventoryPage: React.FC = () => {
 
   const handleRefillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!refillProductId) return;
+    if (!refillProductId) {
+      alert('Please select a product to refill.');
+      return;
+    }
+    if (refillQty <= 0) {
+      alert('Refill quantity must be greater than 0.');
+      return;
+    }
+
+    const cleanCompany = sanitizeTextInput(refillCompanyName, 200).trim();
+    const cleanTrade = sanitizeTextInput(
+      refillTradeName || refillTradeResolution.suggested,
+      200
+    ).trim();
 
     setRefillSubmitting(true);
     try {
       await productsApi.refillStock({
         product_id: refillProductId,
-        quantity: refillQty,
+        quantity: clampNonNegative(refillQty),
         unit: refillUnit,
-        batch_number: refillBatch,
+        company_name: cleanCompany || undefined,
+        trade_name: cleanTrade || undefined,
+        batch_number: sanitizeCodeInput(refillBatch, 60),
         expiry_date: refillExpiry,
-        purchase_price: refillPurchasePrice,
-        selling_price: refillSellingPrice,
-        mrp: refillMrp,
-        supplier_name: refillSupplier,
-        invoice_number: refillInvoice,
-        notes: refillNotes,
+        purchase_price: clampNonNegative(refillPurchasePrice),
+        selling_price: clampNonNegative(refillSellingPrice),
+        mrp: clampNonNegative(refillMrp),
+        supplier_name: sanitizeTextInput(refillSupplier, 200),
+        invoice_number: sanitizeCodeInput(refillInvoice, 60),
+        notes: sanitizeTextInput(refillNotes, 400),
       });
       setIsRefillModalOpen(false);
       loadProducts();
@@ -263,13 +342,17 @@ export const InventoryPage: React.FC = () => {
   const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustingProduct) return;
+    if (!adjustQty || adjustQty === 0) {
+      alert('Please enter a non-zero quantity adjustment.');
+      return;
+    }
 
     try {
       await inventoryApi.adjustStock({
         product_id: adjustingProduct.id,
         adjustment_type: adjustType,
-        quantity: adjustQty,
-        reason: adjustReason
+        quantity: Math.abs(adjustQty),
+        reason: sanitizeTextInput(adjustReason, 300)
       });
       setIsAdjustModalOpen(false);
       setAdjustingProduct(null);
@@ -342,6 +425,7 @@ export const InventoryPage: React.FC = () => {
               setEditingProduct({
                 name: '',
                 company_name: '',
+                trade_name: '',
                 category: 'Fertilizer',
                 hsn_code: '31021000',
                 unit: 'Bags',
@@ -353,6 +437,7 @@ export const InventoryPage: React.FC = () => {
                 batch_number: 'B-' + Math.floor(1000 + Math.random() * 9000),
                 min_stock_level: 20,
               });
+              setTradeNameManuallyEdited(false);
               setProductVariants([]);
               setDuplicateAlert(null);
               setIsEditModalOpen(true);
@@ -565,9 +650,16 @@ export const InventoryPage: React.FC = () => {
                       <h4 className="font-bold text-sm text-slate-900 mt-1 leading-tight">
                         {prodName}
                       </h4>
-                      {p.company_name && (
-                        <p className="text-[11px] text-slate-500">{p.company_name}</p>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        {p.trade_name && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                            Trade: {p.trade_name}
+                          </span>
+                        )}
+                        {p.company_name && (
+                          <span className="text-[11px] text-slate-500">{p.company_name}</span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Stock level badge */}
@@ -631,6 +723,7 @@ export const InventoryPage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setEditingProduct(p);
+                        setTradeNameManuallyEdited(Boolean(p.trade_name));
                         setProductVariants(p.variants || []);
                         setDuplicateAlert(null);
                         setIsEditModalOpen(true);
@@ -677,7 +770,14 @@ export const InventoryPage: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <div>
-                          <p className="font-bold text-slate-900">{prodName}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-slate-900">{prodName}</p>
+                            {p.trade_name && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                                Trade: {p.trade_name}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400 font-mono">
                             {p.company_name ? `${p.company_name} • ` : ''}
                             Unit: {unitStr}
@@ -747,6 +847,7 @@ export const InventoryPage: React.FC = () => {
                         <button
                           onClick={() => {
                             setEditingProduct(p);
+                            setTradeNameManuallyEdited(Boolean(p.trade_name));
                             setProductVariants(p.variants || []);
                             setDuplicateAlert(null);
                             setIsEditModalOpen(true);
@@ -796,10 +897,15 @@ export const InventoryPage: React.FC = () => {
                     return (
                       <div className="bg-emerald-50/80 border border-emerald-300 rounded-xl p-3 flex items-center justify-between">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-slate-900 text-xs">
                               {sel.name || sel.product_name}
                             </span>
+                            {sel.trade_name && (
+                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-300">
+                                Trade: {sel.trade_name}
+                              </span>
+                            )}
                             <span className="font-mono text-[10px] font-bold bg-white text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
                               Code: {sel.barcode || sel.product_code}
                             </span>
@@ -830,7 +936,7 @@ export const InventoryPage: React.FC = () => {
                         type="text"
                         value={refillProductSearch}
                         onChange={(e) => setRefillProductSearch(e.target.value)}
-                        placeholder="Search 1000+ products by name, company, or 5-digit code..."
+                        placeholder="Search 1000+ products by name, trade name, company, or 5-digit code..."
                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
                         autoFocus
                       />
@@ -843,10 +949,11 @@ export const InventoryPage: React.FC = () => {
                           if (!refillProductSearch.trim()) return true;
                           const q = refillProductSearch.toLowerCase();
                           const pName = safeString(p.name || p.product_name).toLowerCase();
+                          const pTrade = safeString(p.trade_name).toLowerCase();
                           const pComp = safeString(p.company_name).toLowerCase();
                           const pBar = safeString(p.barcode).toLowerCase();
                           const pCode = safeString(p.product_code).toLowerCase();
-                          return pName.includes(q) || pComp.includes(q) || pBar.includes(q) || pCode.includes(q);
+                          return pName.includes(q) || pTrade.includes(q) || pComp.includes(q) || pBar.includes(q) || pCode.includes(q);
                         })
                         .slice(0, 30)
                         .map((p) => (
@@ -860,8 +967,13 @@ export const InventoryPage: React.FC = () => {
                             className="w-full text-left p-2.5 hover:bg-emerald-50/70 transition flex items-center justify-between text-xs"
                           >
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-bold text-slate-800">{p.name || p.product_name}</span>
+                                {p.trade_name && (
+                                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    Trade: {p.trade_name}
+                                  </span>
+                                )}
                                 <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1 rounded">
                                   {p.barcode || p.product_code}
                                 </span>
@@ -877,6 +989,72 @@ export const InventoryPage: React.FC = () => {
                           </button>
                         ))}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Company / Brand & Trade Name (Product + Brand Mapping) */}
+              <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Company / Brand Name
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={120}
+                      value={refillCompanyName}
+                      onChange={(e) => {
+                        const nextCompany = e.target.value;
+                        setRefillCompanyName(nextCompany);
+                        if (!refillTradeManuallyEdited) {
+                          const sel = products.find((p) => p.id === refillProductId);
+                          const pName = sel ? sel.name || sel.product_name || '' : '';
+                          const resolved = resolveTradeName(pName, nextCompany, products);
+                          setRefillTradeName(resolved.suggested);
+                        }
+                      }}
+                      placeholder="e.g. Bayer, Syngenta, IFFCO"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-emerald-900 mb-1">
+                      Trade Name (Product + Brand)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={150}
+                      value={refillTradeName}
+                      onChange={(e) => {
+                        setRefillTradeName(e.target.value);
+                        setRefillTradeManuallyEdited(true);
+                      }}
+                      placeholder="e.g. Confidor, Actara, Coragen"
+                      className="w-full px-2.5 py-1.5 bg-white font-bold text-emerald-900 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  Trade Name maps <strong>Product + Company/Brand</strong> (e.g., the same base product in Company A is called Trade Name C, while in Company D it is called Trade Name E).
+                </p>
+                {refillTradeResolution.relatedMappings.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] font-bold text-emerald-800">Known Brand Trade Names:</span>
+                    {refillTradeResolution.relatedMappings.map((m, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setRefillCompanyName(m.company);
+                          setRefillTradeName(m.trade_name);
+                          setRefillTradeManuallyEdited(true);
+                        }}
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition"
+                      >
+                        {m.company} → <strong>{m.trade_name}</strong>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1082,13 +1260,24 @@ export const InventoryPage: React.FC = () => {
               {/* Product Basic Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Product Name *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Product / Technical Name *</label>
                   <input
                     type="text"
                     required
+                    maxLength={150}
                     value={editingProduct.name || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    placeholder="e.g. Chlorpyrifos 20% EC"
+                    onChange={(e) => {
+                      const nextName = e.target.value;
+                      const nextTrade = !tradeNameManuallyEdited
+                        ? resolveTradeName(nextName, editingProduct.company_name || '', products).suggested
+                        : editingProduct.trade_name;
+                      setEditingProduct({
+                        ...editingProduct,
+                        name: nextName,
+                        trade_name: nextTrade,
+                      });
+                    }}
+                    placeholder="e.g. Imidacloprid 17.8% SL or Chlorpyrifos 20% EC"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                   {checkingDuplicate && (
@@ -1100,12 +1289,71 @@ export const InventoryPage: React.FC = () => {
                   <label className="block font-semibold text-slate-700 mb-1">Company / Brand</label>
                   <input
                     type="text"
+                    maxLength={120}
                     value={editingProduct.company_name || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, company_name: e.target.value })}
-                    placeholder="e.g. Dhanuka Agritech"
+                    onChange={(e) => {
+                      const nextComp = e.target.value;
+                      const nextTrade = !tradeNameManuallyEdited
+                        ? resolveTradeName(editingProduct.name || '', nextComp, products).suggested
+                        : editingProduct.trade_name;
+                      setEditingProduct({
+                        ...editingProduct,
+                        company_name: nextComp,
+                        trade_name: nextTrade,
+                      });
+                    }}
+                    placeholder="e.g. Bayer, Tata Rallis, Dhanuka"
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Trade Name (Combination of Product & Company/Brand) */}
+              <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label className="block font-bold text-emerald-900 text-xs">
+                    Trade Name (Product + Company/Brand Combination)
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-medium">
+                    Auto-mapped from Product &amp; Company (editable)
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={150}
+                  value={editingProduct.trade_name || ''}
+                  onChange={(e) => {
+                    setTradeNameManuallyEdited(true);
+                    setEditingProduct({ ...editingProduct, trade_name: e.target.value });
+                  }}
+                  placeholder="e.g. Confidor (Bayer) or Tatamida (Tata Rallis)"
+                  className="w-full px-3 py-2 bg-white font-bold text-emerald-950 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500">
+                  In Company A, Product B has Trade Name C; in Company D, the same Product B has Trade Name E.
+                </p>
+                {editTradeResolution.relatedMappings.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] font-bold text-emerald-800">Brand Mappings for this Product:</span>
+                    {editTradeResolution.relatedMappings.map((m, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setTradeNameManuallyEdited(true);
+                          setEditingProduct({
+                            ...editingProduct,
+                            company_name: m.company,
+                            trade_name: m.trade_name,
+                          });
+                        }}
+                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition"
+                      >
+                        {m.company} → <strong>{m.trade_name}</strong>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -205,17 +205,18 @@ def profit_loss(
 
     sales = sale_query.all()
     sale_ids = [s.id for s in sales]
-    items = db.query(SaleItem).filter(SaleItem.sale_id.in_(sale_ids)).all() if sale_ids else []
     expenses = exp_query.all()
 
     total_sales = sum((s.grand_total for s in sales), Decimal("0"))
 
-    cogs = Decimal("0")
-    for item in items:
-        if item.product_id:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
-            if product:
-                cogs += Decimal(str(item.quantity)) * product.purchase_price
+    # Single aggregate query instead of N+1 Product lookups
+    cogs = (
+        db.query(func.sum(SaleItem.quantity * Product.purchase_price))
+        .join(Product, Product.id == SaleItem.product_id)
+        .filter(SaleItem.sale_id.in_(sale_ids))
+        .scalar()
+        if sale_ids else None
+    ) or Decimal("0")
 
     total_expenses = sum((e.amount for e in expenses), Decimal("0"))
     gross_profit = total_sales - cogs
@@ -296,22 +297,17 @@ def dashboard_summary(
         Expense.expense_date >= date(today.year, today.month, 1),
     ).scalar() or Decimal("0")
 
-    # COGS for this month
-    month_sales_records = db.query(Sale).filter(
-        Sale.shop_id == shop_id,
-        Sale.sale_date >= month_start
-    ).all()
-    month_sale_ids = [s.id for s in month_sales_records]
-    month_items = db.query(SaleItem).filter(SaleItem.sale_id.in_(month_sale_ids)).all() if month_sale_ids else []
-    month_cogs = Decimal("0")
-    for item in month_items:
-        if item.product_id:
-            prod = db.query(Product).filter(
-                Product.id == item.product_id,
-                Product.shop_id == shop_id
-            ).first()
-            if prod:
-                month_cogs += Decimal(str(item.quantity)) * prod.purchase_price
+    # COGS for this month via a single SQL join (eliminates N+1 queries)
+    month_cogs = (
+        db.query(func.sum(SaleItem.quantity * Product.purchase_price))
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .join(Product, Product.id == SaleItem.product_id)
+        .filter(
+            Sale.shop_id == shop_id,
+            Sale.sale_date >= month_start,
+        )
+        .scalar()
+    ) or Decimal("0")
 
     month_net_profit = monthly_sales - month_cogs - monthly_expenses
 
@@ -444,6 +440,8 @@ def get_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from sqlalchemy.orm import selectinload
+    shop_id = getattr(current_user, "shop_id", 1) or 1
     now = datetime.utcnow()
 
     # Determine date/time bounds
@@ -500,8 +498,8 @@ def get_analytics(
     if not dt_end:
         dt_end = now
 
-    # Fetch sales within window for this shop
-    sales = db.query(Sale).filter(
+    # Fetch sales within window for this shop with eager-loaded items
+    sales = db.query(Sale).options(selectinload(Sale.items)).filter(
         Sale.shop_id == shop_id,
         Sale.sale_date >= dt_start,
         Sale.sale_date <= dt_end,

@@ -8,6 +8,16 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
 import { getErrorMessage } from '../api';
+import {
+  sanitizeTextInput,
+  sanitizeCodeInput,
+  sanitizePhoneInput,
+  sanitizePincodeInput,
+  isValidPhone,
+  isValidPincode,
+  isValidGstin,
+  isValidIfsc,
+} from '../utils/formatters';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -56,28 +66,41 @@ export const RegisterPage: React.FC = () => {
   const [generatedCreds, setGeneratedCreds] = useState<any | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    let cleaned = value;
+    if (name === 'phone') {
+      cleaned = sanitizePhoneInput(value);
+    } else if (name === 'pincode') {
+      cleaned = sanitizePincodeInput(value);
+    } else if (name === 'gstin' || name === 'bank_ifsc' || name === 'invoice_prefix') {
+      cleaned = sanitizeCodeInput(value, 25, true);
+    } else if (name === 'username') {
+      cleaned = sanitizeCodeInput(value, 40, false).replace(/\s+/g, '');
+    } else {
+      cleaned = sanitizeTextInput(value, 200);
+    }
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [name]: cleaned
     }));
   };
 
   const handleNextStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!formData.owner_name.trim()) {
-      setError('Please enter the shop owner or manager name');
+    if (!formData.owner_name.trim() || formData.owner_name.trim().length < 2) {
+      setError('Please enter a valid shop owner or manager name (min 2 characters)');
       return;
     }
     if (!formData.username.trim() || formData.username.length < 3) {
-      setError('Username must be at least 3 characters');
+      setError('Username must be at least 3 alphanumeric characters');
       return;
     }
-    if (!formData.phone.trim() || formData.phone.length < 10) {
-      setError('Please provide a valid 10-digit mobile number for OTP and password recovery');
+    if (!formData.phone.trim() || !isValidPhone(formData.phone)) {
+      setError('Please provide a valid 10-digit Indian mobile number starting with 6-9');
       return;
     }
-    if (!formData.email.trim() || !formData.email.includes('@')) {
+    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       setError('Please enter a valid email address for reports and alerts');
       return;
     }
@@ -95,8 +118,12 @@ export const RegisterPage: React.FC = () => {
   const handleNextStep2 = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!formData.shop_name.trim()) {
-      setError('Please enter your Shop or Agro Agency Name');
+    if (!formData.shop_name.trim() || formData.shop_name.trim().length < 2) {
+      setError('Please enter your Shop or Agro Agency Name (min 2 characters)');
+      return;
+    }
+    if (formData.gstin.trim() && !isValidGstin(formData.gstin)) {
+      setError('Please enter a valid alphanumeric GSTIN');
       return;
     }
     if (!formData.address_line1.trim()) {
@@ -107,8 +134,8 @@ export const RegisterPage: React.FC = () => {
       setError('City / Town is required');
       return;
     }
-    if (!formData.pincode.trim() || formData.pincode.length < 6) {
-      setError('Valid 6-digit Pincode is required');
+    if (!formData.pincode.trim() || !isValidPincode(formData.pincode)) {
+      setError('Valid 6-digit Indian Pincode is required');
       return;
     }
     setStep(3);
@@ -117,6 +144,10 @@ export const RegisterPage: React.FC = () => {
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (formData.bank_ifsc.trim() && !isValidIfsc(formData.bank_ifsc)) {
+      setError('IFSC code must be 11 characters (e.g., SBIN0001234)');
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -199,7 +230,7 @@ export const RegisterPage: React.FC = () => {
   const downloadCredentialsTxt = () => {
     if (!generatedCreds) return;
     const txtContent = `==================================================================
-           KISAN SEVA KENDRA - SHOP ACCESS CREDENTIALS
+           NOCKBILL SOLUTIONS - SHOP ACCESS CREDENTIALS
 ==================================================================
 Shop Name:          ${generatedCreds.shop_name}
 Shop Account ID:    ${generatedCreds.account_id}
@@ -251,7 +282,7 @@ passwords across unencrypted emails or chat messages.
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-700 to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-brand-900/20 group-hover:scale-105 transition-transform">
             <Sprout className="w-7 h-7" />
           </div>
-          <span className="text-2xl font-black text-slate-900 tracking-tight">Kisan Seva Kendra</span>
+          <span className="text-2xl font-black text-slate-900 tracking-tight">NockBill Solutions</span>
         </Link>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
           {step === 4 ? 'Shop Registration Complete' : 'Register Your Agro & Fertilizer Shop'}

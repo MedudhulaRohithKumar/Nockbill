@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, desc
 from typing import List, Optional
 from decimal import Decimal
@@ -12,7 +12,7 @@ from app.models.models import (
 )
 from app.schemas.schemas import SaleCreate, SaleResponse, SaleListResponse
 from app.utils.auth import get_current_user
-from app.utils.helpers import generate_invoice_number
+from app.utils.helpers import generate_invoice_number, resolve_trade_name
 
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
 
@@ -38,29 +38,59 @@ def create_sale(
 
     # ── Idempotency check ──────────────────────────────────────
     if payload.idempotency_key:
-        existing = db.query(Sale).filter(
+        existing = db.query(Sale).options(selectinload(Sale.items)).filter(
             Sale.shop_id == shop_id,
             Sale.idempotency_key == payload.idempotency_key
         ).first()
         if existing:
-            return existing  # replay-safe response
+            return serialize_sale(existing)  # replay-safe response
 
-    # ── Validate stock before transaction ──────────────────────
+    # ── Deadlock-Free Pre-Locking (Sorted by ID ASC) ───────────
+    # Pre-lock all involved Product rows in ascending ID order so concurrent
+    # transactions never acquire locks in opposite (AB-BA) order.
+    product_ids = sorted({item.product_id for item in payload.items if item.product_id})
+    locked_products = (
+        db.query(Product)
+        .filter(Product.shop_id == shop_id, Product.id.in_(product_ids))
+        .order_by(Product.id.asc())
+        .with_for_update()
+        .all()
+    ) if product_ids else []
+    products_by_id = {p.id: p for p in locked_products}
+
+    # Cumulative stock check per product across all cart lines
+    required_qty_by_product: dict[int, Decimal] = {}
     for item in payload.items:
         if item.product_id:
-            product = db.query(Product).filter(
-                Product.id == item.product_id,
-                Product.shop_id == shop_id
-            ).first()
-            if product and product.current_stock < Decimal(str(item.quantity)):
-                raise HTTPException(
-                    400,
-                    f"Insufficient stock for '{product.product_name}'. "
-                    f"Available: {product.current_stock}",
-                )
+            required_qty_by_product[item.product_id] = (
+                required_qty_by_product.get(item.product_id, Decimal("0")) + Decimal(str(item.quantity))
+            )
 
-    # ── Get / create shop settings ─────────────────────────────
-    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
+    for pid, total_req_qty in required_qty_by_product.items():
+        product = products_by_id.get(pid)
+        if product and (product.current_stock or Decimal("0")) < total_req_qty:
+            raise HTTPException(
+                400,
+                f"Insufficient stock for '{product.product_name}'. "
+                f"Available: {product.current_stock}, Requested: {total_req_qty}",
+            )
+
+    # Pre-lock all active ProductBatch rows in deterministic order
+    locked_batches = (
+        db.query(ProductBatch)
+        .filter(ProductBatch.product_id.in_(product_ids), ProductBatch.is_active == True)
+        .order_by(ProductBatch.product_id.asc(), ProductBatch.expiry_date.asc(), ProductBatch.id.asc())
+        .with_for_update()
+        .all()
+    ) if product_ids else []
+    batches_by_product: dict[int, list[ProductBatch]] = {}
+    batches_by_id: dict[int, ProductBatch] = {}
+    for b in locked_batches:
+        batches_by_product.setdefault(b.product_id, []).append(b)
+        batches_by_id[b.id] = b
+
+    # ── Get / create shop settings with lock on counter ────────
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).with_for_update().first()
     if not shop:
         shop = ShopSettings(shop_name=f"{current_user.name}'s Shop", invoice_counter=1)
         db.add(shop)
@@ -74,7 +104,7 @@ def create_sale(
             shop.invoice_prefix, shop.invoice_counter, sale_date
         )
         shop.invoice_counter += 1
-        existing_sale = db.query(Sale).filter(
+        existing_sale = db.query(Sale.id).filter(
             Sale.shop_id == shop_id,
             Sale.invoice_number == invoice_number
         ).first()
@@ -121,13 +151,22 @@ def create_sale(
             total_gst += gst_amount
             grand_total += total
 
+            product = products_by_id.get(item_data.product_id) if item_data.product_id else None
+            effective_company = item_data.company_name or (product.company_name if product else None)
+            effective_trade = (
+                item_data.trade_name
+                or (product.trade_name if product else None)
+                or resolve_trade_name(item_data.product_name, effective_company)
+            )
+
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=item_data.product_id,
                 batch_id=item_data.batch_id,
                 batch_number=item_data.batch_number,
                 product_name=item_data.product_name,
-                company_name=item_data.company_name,
+                company_name=effective_company,
+                trade_name=effective_trade,
                 net_content=item_data.net_content,
                 quantity=item_data.quantity,
                 price=item_data.price,
@@ -146,55 +185,47 @@ def create_sale(
             gst_buckets[rate]["taxable"] += taxable
             gst_buckets[rate]["gst"] += gst_amount
 
-            # ── Update inventory ────────────────────────────────
-            if item_data.product_id:
-                product = db.query(Product).filter(
-                    Product.id == item_data.product_id
-                ).with_for_update().first()
-                if product:
-                    prev_stock = product.current_stock or Decimal("0")
-                    qty_to_deduct = Decimal(str(item_data.quantity))
-                    product.current_stock = max(Decimal("0"), prev_stock - qty_to_deduct)
+            # ── Update inventory using pre-locked rows ──────────
+            if product:
+                prev_stock = product.current_stock or Decimal("0")
+                qty_to_deduct = Decimal(str(item_data.quantity))
+                product.current_stock = max(Decimal("0"), prev_stock - qty_to_deduct)
 
-                    # Deduct from specific ProductBatch if identified
-                    batch = None
-                    if item_data.batch_id:
-                        batch = db.query(ProductBatch).filter(ProductBatch.id == item_data.batch_id).with_for_update().first()
-                    elif item_data.batch_number:
-                        batch = db.query(ProductBatch).filter(
-                            ProductBatch.product_id == product.id,
-                            ProductBatch.batch_number == item_data.batch_number
-                        ).with_for_update().first()
+                batch = None
+                if item_data.batch_id and item_data.batch_id in batches_by_id:
+                    batch = batches_by_id[item_data.batch_id]
+                elif item_data.batch_number:
+                    batch = next(
+                        (b for b in batches_by_product.get(product.id, []) if b.batch_number == item_data.batch_number),
+                        None,
+                    )
 
-                    if batch:
-                        batch.current_stock = max(Decimal("0"), (batch.current_stock or Decimal("0")) - qty_to_deduct)
-                    else:
-                        # FIFO deduction across active batches
-                        rem = qty_to_deduct
-                        active_b = db.query(ProductBatch).filter(
-                            ProductBatch.product_id == product.id,
-                            ProductBatch.is_active == True,
-                            ProductBatch.current_stock > 0
-                        ).order_by(ProductBatch.expiry_date.asc()).with_for_update().all()
-                        for b in active_b:
-                            if rem <= 0:
-                                break
-                            ded = min(b.current_stock, rem)
-                            b.current_stock -= ded
+                if batch:
+                    batch.current_stock = max(Decimal("0"), (batch.current_stock or Decimal("0")) - qty_to_deduct)
+                else:
+                    # FIFO deduction across pre-locked active batches
+                    rem = qty_to_deduct
+                    for b in batches_by_product.get(product.id, []):
+                        if rem <= 0:
+                            break
+                        avail = b.current_stock or Decimal("0")
+                        if avail > 0:
+                            ded = min(avail, rem)
+                            b.current_stock = avail - ded
                             rem -= ded
 
-                    inv_tx = InventoryTransaction(
-                        shop_id=shop_id,
-                        product_id=product.id,
-                        transaction_type=InventoryTxType.SALE,
-                        quantity=item_data.quantity,
-                        previous_stock=prev_stock,
-                        new_stock=product.current_stock,
-                        reference_id=sale.id,
-                        reference_type="SALE",
-                        notes=f"Sold {item_data.quantity} units (Batch: {item_data.batch_number or 'DEFAULT'})",
-                    )
-                    db.add(inv_tx)
+                inv_tx = InventoryTransaction(
+                    shop_id=shop_id,
+                    product_id=product.id,
+                    transaction_type=InventoryTxType.SALE,
+                    quantity=item_data.quantity,
+                    previous_stock=prev_stock,
+                    new_stock=product.current_stock,
+                    reference_id=sale.id,
+                    reference_type="SALE",
+                    notes=f"Sold {item_data.quantity} units (Batch: {item_data.batch_number or 'DEFAULT'})",
+                )
+                db.add(inv_tx)
 
         # ── Update sale totals ─────────────────────────────────
         sale.subtotal = subtotal.quantize(Decimal("0.01"))
@@ -266,6 +297,7 @@ def serialize_sale(s: Sale) -> dict:
                 "expiry_date": it.expiry_date,
                 "product_name": it.product_name,
                 "company_name": it.company_name,
+                "trade_name": getattr(it, "trade_name", None) or resolve_trade_name(it.product_name, it.company_name),
                 "quantity": float(it.quantity or 0),
                 "price": float(it.price or 0),
                 "unit_price": float(it.price or 0),
@@ -290,10 +322,9 @@ def list_sales(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    query = db.query(Sale).filter(Sale.shop_id == shop_id)
+    query = db.query(Sale).options(selectinload(Sale.items)).filter(Sale.shop_id == shop_id)
     if start_date:
         try:
-            from datetime import date as date_type
             sd = datetime.strptime(start_date, "%Y-%m-%d")
             query = query.filter(Sale.sale_date >= sd)
         except Exception:
@@ -333,7 +364,10 @@ def get_frequently_sold(
     )
 
     prod_ids = [p.product_id for p in popular if p.product_id]
-    products = db.query(Product).filter(
+    products = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.id.in_(prod_ids),
         Product.shop_id == shop_id,
         Product.is_active == True
@@ -353,6 +387,10 @@ def get_frequently_sold(
         existing_ids = {r["id"] for r in results}
         extras = (
             db.query(Product)
+            .options(
+                selectinload(Product.variants),
+                selectinload(Product.batches),
+            )
             .filter(
                 Product.shop_id == shop_id,
                 Product.is_active == True,
@@ -377,7 +415,10 @@ def get_sale(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == shop_id).first()
+    sale = db.query(Sale).options(selectinload(Sale.items)).filter(
+        Sale.id == sale_id,
+        Sale.shop_id == shop_id
+    ).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
     return serialize_sale(sale)

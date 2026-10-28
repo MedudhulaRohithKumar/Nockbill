@@ -117,7 +117,7 @@ export const LoginPage: React.FC = () => {
             to="/" 
             className="inline-flex items-center gap-2 text-emerald-300/80 hover:text-white text-xs font-semibold px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md transition-all hover:bg-white/10"
           >
-            <span>← Back to Kisan Seva Kendra Home</span>
+            <span>← Back to NockBill Solutions Home</span>
           </Link>
         </div>
 
@@ -129,10 +129,10 @@ export const LoginPage: React.FC = () => {
               <Sprout className="w-9 h-9" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {settings.shop_name || 'Kisan Seva Kendra'}
+              NockBill Solutions
             </h1>
             <p className="text-xs text-slate-500 font-medium">
-              Fertilizer, Pesticide & Seeds Retail ERP
+              Smart Agro, Fertilizer, Pesticide & Seeds Retail ERP
             </p>
           </div>
 

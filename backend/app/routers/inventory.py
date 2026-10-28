@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List
 from decimal import Decimal
 from app.database.base import get_db
@@ -128,6 +128,10 @@ def low_stock(
     shop_id = getattr(current_user, "shop_id", 1) or 1
     products = (
         db.query(Product)
+        .options(
+            selectinload(Product.variants),
+            selectinload(Product.batches),
+        )
         .filter(
             Product.shop_id == shop_id,
             Product.is_active == True,

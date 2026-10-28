@@ -6,12 +6,29 @@ from app.models.models import (
     UserRole, UnitType, PaymentMethod,
     InventoryTxType, ExpenseCategory, AuditAction
 )
+from app.utils.helpers import (
+    sanitize_text,
+    sanitize_code,
+    validate_phone,
+    validate_pincode,
+    validate_ifsc,
+    validate_gstin,
+    resolve_trade_name,
+)
 
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
+
+    @field_validator("username")
+    @classmethod
+    def clean_username(cls, v: str) -> str:
+        cleaned = sanitize_text(v, max_length=100)
+        if not cleaned:
+            raise ValueError("Username is required")
+        return cleaned
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -49,7 +66,7 @@ class ShopRegistrationRequest(BaseModel):
     # Owner credentials
     owner_name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=128)
     email: Optional[str] = None
     phone: Optional[str] = None
 
@@ -72,6 +89,32 @@ class ShopRegistrationRequest(BaseModel):
     upi_id: Optional[str] = None
     default_gst_rate: Optional[Decimal] = Decimal("18.00")
     invoice_prefix: Optional[str] = "INV"
+
+    @model_validator(mode="after")
+    def sanitize_registration(self) -> "ShopRegistrationRequest":
+        self.owner_name = sanitize_text(self.owner_name, 100) or ""
+        self.username = sanitize_code(self.username, 50) or ""
+        self.shop_name = sanitize_text(self.shop_name, 200) or ""
+        if len(self.shop_name) < 2:
+            raise ValueError("Shop name must be at least 2 characters")
+        self.proprietor_name = sanitize_text(self.proprietor_name, 150)
+        self.address_line1 = sanitize_text(self.address_line1, 250)
+        self.address_line2 = sanitize_text(self.address_line2, 250)
+        self.city = sanitize_text(self.city, 100)
+        self.state = sanitize_text(self.state, 100)
+        self.phone = validate_phone(self.phone) if self.phone else None
+        self.pincode = validate_pincode(self.pincode) if self.pincode else None
+        self.gstin = validate_gstin(self.gstin) if self.gstin else None
+        self.fertilizer_license_no = sanitize_code(self.fertilizer_license_no, 100)
+        self.pesticide_license_no = sanitize_code(self.pesticide_license_no, 100)
+        self.seed_license_no = sanitize_code(self.seed_license_no, 100)
+        self.bank_name = sanitize_text(self.bank_name, 150)
+        self.bank_account_no = sanitize_code(self.bank_account_no, 40)
+        self.bank_ifsc = validate_ifsc(self.bank_ifsc) if self.bank_ifsc else None
+        self.bank_branch = sanitize_text(self.bank_branch, 150)
+        self.upi_id = sanitize_text(self.upi_id, 100)
+        self.invoice_prefix = (sanitize_code(self.invoice_prefix, 15, uppercase=True) or "INV")
+        return self
 
 
 class RegistrationResponse(BaseModel):
@@ -136,6 +179,38 @@ class ShopSettingsUpdate(BaseModel):
     thermal_print: Optional[bool] = None
     terms_conditions: Optional[str] = None
 
+    @model_validator(mode="after")
+    def sanitize_settings(self) -> "ShopSettingsUpdate":
+        if self.shop_name is not None:
+            self.shop_name = sanitize_text(self.shop_name, 200)
+            if not self.shop_name or len(self.shop_name) < 2:
+                raise ValueError("Shop name must be at least 2 characters")
+        if self.proprietor_name is not None:
+            self.proprietor_name = sanitize_text(self.proprietor_name, 150)
+        if self.address is not None:
+            self.address = sanitize_text(self.address, 500, allow_newlines=True)
+        if self.address_line1 is not None:
+            self.address_line1 = sanitize_text(self.address_line1, 250)
+        if self.address_line2 is not None:
+            self.address_line2 = sanitize_text(self.address_line2, 250)
+        if self.city is not None:
+            self.city = sanitize_text(self.city, 100)
+        if self.state is not None:
+            self.state = sanitize_text(self.state, 100)
+        if self.pincode:
+            self.pincode = validate_pincode(self.pincode)
+        if self.phone:
+            self.phone = validate_phone(self.phone)
+        if self.gstin:
+            self.gstin = validate_gstin(self.gstin)
+        if self.bank_ifsc:
+            self.bank_ifsc = validate_ifsc(self.bank_ifsc)
+        if self.invoice_prefix is not None:
+            self.invoice_prefix = sanitize_code(self.invoice_prefix, 15, uppercase=True) or "INV"
+        if self.terms_conditions is not None:
+            self.terms_conditions = sanitize_text(self.terms_conditions, 2000, allow_newlines=True)
+        return self
+
 class ShopSettingsResponse(BaseModel):
     id: int
     shop_name: str
@@ -176,6 +251,7 @@ class ProductCreate(BaseModel):
     product_name: str = Field(..., min_length=1, max_length=200)
     name: Optional[str] = None
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     category: Optional[str] = None
     net_content: Optional[Decimal] = None
     unit: Any = "Bags"
@@ -194,11 +270,40 @@ class ProductCreate(BaseModel):
     minimum_stock: Decimal = Decimal("5")
     min_stock_level: Optional[Decimal] = None
 
+    @model_validator(mode="after")
+    def sanitize_and_validate_product(self) -> "ProductCreate":
+        self.product_name = sanitize_text(self.product_name or self.name, 200) or ""
+        if not self.product_name:
+            raise ValueError("Product name cannot be empty")
+        self.name = self.product_name
+        self.company_name = sanitize_text(self.company_name, 200)
+        self.trade_name = resolve_trade_name(self.product_name, self.company_name, self.trade_name)
+        self.product_code = sanitize_code(self.product_code, 100, uppercase=True) if self.product_code else None
+        self.batch_number = sanitize_code(self.batch_number, 100) if self.batch_number else None
+        self.hsn_code = sanitize_code(self.hsn_code, 50) or "31021000"
+        self.barcode = sanitize_code(self.barcode, 100) if self.barcode else None
+        if self.selling_price < Decimal("0"):
+            raise ValueError("Selling price cannot be negative")
+        if self.purchase_price < Decimal("0"):
+            raise ValueError("Purchase price cannot be negative")
+        if self.cost_price is not None and self.cost_price < Decimal("0"):
+            raise ValueError("Cost price cannot be negative")
+        if self.mrp is not None and self.mrp < Decimal("0"):
+            raise ValueError("MRP cannot be negative")
+        if self.gst_rate < Decimal("0") or self.gst_rate > Decimal("100"):
+            raise ValueError("GST rate must be between 0% and 100%")
+        if self.current_stock < Decimal("0"):
+            raise ValueError("Initial stock cannot be negative")
+        if self.minimum_stock < Decimal("0"):
+            raise ValueError("Minimum stock alert level cannot be negative")
+        return self
+
 class ProductUpdate(BaseModel):
     product_code: Optional[str] = None
     product_name: Optional[str] = None
     name: Optional[str] = None
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     category: Optional[str] = None
     net_content: Optional[Decimal] = None
     unit: Optional[Any] = None
@@ -218,10 +323,34 @@ class ProductUpdate(BaseModel):
     current_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
 
+    @model_validator(mode="after")
+    def sanitize_product_update(self) -> "ProductUpdate":
+        if self.product_name is not None:
+            self.product_name = sanitize_text(self.product_name, 200)
+        if self.name is not None:
+            self.name = sanitize_text(self.name, 200)
+        if self.company_name is not None:
+            self.company_name = sanitize_text(self.company_name, 200)
+        if self.trade_name is not None:
+            self.trade_name = sanitize_text(self.trade_name, 200)
+        if self.batch_number is not None:
+            self.batch_number = sanitize_code(self.batch_number, 100)
+        if self.hsn_code is not None:
+            self.hsn_code = sanitize_code(self.hsn_code, 50)
+        if self.selling_price is not None and self.selling_price < Decimal("0"):
+            raise ValueError("Selling price cannot be negative")
+        if self.purchase_price is not None and self.purchase_price < Decimal("0"):
+            raise ValueError("Purchase price cannot be negative")
+        if self.cost_price is not None and self.cost_price < Decimal("0"):
+            raise ValueError("Cost price cannot be negative")
+        return self
+
 class ProductBatchResponse(BaseModel):
     id: int
     product_id: int
     batch_number: str
+    trade_name: Optional[str] = None
+    company_name: Optional[str] = None
     manufacture_date: Optional[str] = None
     expiry_date: str
     purchase_price: Decimal = Decimal("0")
@@ -239,6 +368,7 @@ class ProductResponse(BaseModel):
     product_name: str
     name: Optional[str] = None
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     category: Optional[str] = None
     net_content: Optional[Decimal] = None
     unit: Any = "Bags"
@@ -264,6 +394,8 @@ class ProductRefillRequest(BaseModel):
     additional_quantity: Optional[Decimal] = None
     quantity: Optional[Decimal] = None
     unit: Optional[str] = None
+    company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     purchase_price: Optional[Decimal] = None
     selling_price: Optional[Decimal] = None
     mrp: Optional[Decimal] = None
@@ -305,6 +437,19 @@ class ProductRefillRequest(BaseModel):
             self.additional_quantity = qty
         if self.quantity is None:
             self.quantity = qty
+        if self.purchase_price is not None and self.purchase_price < Decimal("0"):
+            raise ValueError("Purchase price cannot be negative")
+        if self.selling_price is not None and self.selling_price < Decimal("0"):
+            raise ValueError("Selling price cannot be negative")
+        if self.mrp is not None and self.mrp < Decimal("0"):
+            raise ValueError("MRP cannot be negative")
+        self.company_name = sanitize_text(self.company_name, 200) if self.company_name else None
+        self.trade_name = sanitize_text(self.trade_name, 200) if self.trade_name else None
+        self.new_batch_number = sanitize_code(self.new_batch_number, 100) if self.new_batch_number else None
+        self.batch_number = self.new_batch_number
+        self.supplier_name = sanitize_text(self.supplier_name, 200) if self.supplier_name else None
+        self.invoice_number = sanitize_code(self.invoice_number, 100) if self.invoice_number else None
+        self.notes = sanitize_text(self.notes, 500) if self.notes else None
         return self
 
 class ProductSearchResult(BaseModel):
@@ -312,6 +457,7 @@ class ProductSearchResult(BaseModel):
     product_name: str
     name: Optional[str] = None
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     category: Optional[str] = None
     net_content: Optional[Decimal] = None
     unit: Any = "Bags"
@@ -334,17 +480,18 @@ class SaleItemCreate(BaseModel):
     batch_number: Optional[str] = None
     product_name: str
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     net_content: Optional[str] = None
     quantity: Decimal = Field(..., gt=0)
     price: Optional[Decimal] = None
     unit_price: Optional[Decimal] = None
-    gst_rate: Decimal = Field(default=Decimal("0"), ge=0)
+    gst_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     manufacture_date: Optional[str] = None
     expiry_date: Optional[str] = None
     hsn_code: Optional[str] = None
     unit: Optional[str] = None
     mrp: Optional[Decimal] = None
-    discount_percent: Optional[Decimal] = None
+    discount_percent: Optional[Decimal] = Field(default=Decimal("0"), ge=0, le=100)
     discount_amount: Optional[Decimal] = None
     taxable_amount: Optional[Decimal] = None
     cgst_amount: Optional[Decimal] = None
@@ -367,8 +514,13 @@ class SaleItemCreate(BaseModel):
         p = self.price if self.price is not None else self.unit_price
         if p is None:
             p = Decimal("0")
+        if p < Decimal("0"):
+            raise ValueError("Item unit price cannot be negative")
         self.price = p
         self.unit_price = p
+        self.product_name = sanitize_text(self.product_name, 200) or "Product"
+        self.company_name = sanitize_text(self.company_name, 200) if self.company_name else None
+        self.trade_name = sanitize_text(self.trade_name, 200) if self.trade_name else None
         return self
 
 class SaleCreate(BaseModel):
@@ -410,6 +562,18 @@ class SaleCreate(BaseModel):
                 data['payment_method'] = PaymentMethod.CASH
         return data
 
+    @model_validator(mode='after')
+    def sanitize_sale(self) -> 'SaleCreate':
+        self.customer_name = sanitize_text(self.customer_name, 150) if self.customer_name else "Walk-in Farmer"
+        if self.customer_phone and self.customer_phone.strip():
+            self.customer_phone = validate_phone(self.customer_phone)
+        else:
+            self.customer_phone = None
+        self.customer_address = sanitize_text(self.customer_address, 300) if self.customer_address else None
+        self.customer_gstin = validate_gstin(self.customer_gstin) if self.customer_gstin else None
+        self.notes = sanitize_text(self.notes, 500) if self.notes else None
+        return self
+
 class SaleItemResponse(BaseModel):
     id: int
     product_id: Optional[int] = None
@@ -417,6 +581,7 @@ class SaleItemResponse(BaseModel):
     batch_number: Optional[str] = None
     product_name: str
     company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     net_content: Optional[str] = None
     quantity: Decimal = Decimal("0")
     price: Decimal = Decimal("0")
@@ -487,9 +652,12 @@ class SaleListResponse(BaseModel):
 
 class PurchaseItemCreate(BaseModel):
     product_id: int
+    product_name: Optional[str] = None
+    company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     quantity: Decimal = Field(..., gt=0)
     purchase_price: Decimal = Field(..., ge=0)
-    gst_rate: Decimal = Decimal("0")
+    gst_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100)
 
 class PurchaseCreate(BaseModel):
     supplier_name: Optional[str] = None
@@ -504,6 +672,9 @@ class PurchaseCreate(BaseModel):
 class PurchaseItemResponse(BaseModel):
     id: int
     product_id: int
+    product_name: Optional[str] = None
+    company_name: Optional[str] = None
+    trade_name: Optional[str] = None
     quantity: Decimal = Decimal("0")
     purchase_price: Decimal = Decimal("0")
     gst_rate: Decimal = Decimal("0")
@@ -538,9 +709,15 @@ class InventoryAdjustRequest(BaseModel):
     product_id: int
     transaction_type: Optional[InventoryTxType] = InventoryTxType.ADJUSTMENT
     adjustment_type: Optional[str] = None
-    quantity: Decimal
+    quantity: Decimal = Field(..., gt=0)
     notes: Optional[str] = None
     reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sanitize_adjust(self) -> "InventoryAdjustRequest":
+        self.notes = sanitize_text(self.notes, 500) if self.notes else None
+        self.reason = sanitize_text(self.reason, 500) if self.reason else None
+        return self
 
 class InventoryTransactionResponse(BaseModel):
     id: int
@@ -566,6 +743,12 @@ class ExpenseCreate(BaseModel):
     amount: Decimal = Field(..., gt=0)
     expense_date: date
     description: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sanitize_expense(self) -> "ExpenseCreate":
+        self.expense_name = sanitize_text(self.expense_name, 200) or "Expense"
+        self.description = sanitize_text(self.description, 500) if self.description else None
+        return self
 
 class ExpenseUpdate(BaseModel):
     expense_name: Optional[str] = None
@@ -603,6 +786,7 @@ class OcrConfidence(BaseModel):
 
 class OcrResult(BaseModel):
     product_name: Optional[str] = None
+    trade_name: Optional[str] = None
     batch_number: Optional[str] = None
     quantity: int = 1
     net_content: Optional[str] = None

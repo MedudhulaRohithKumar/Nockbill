@@ -75,9 +75,20 @@ export const productsApi = {
     return (res.data as any).product || res.data;
   },
 
-  checkDuplicate: async (name: string, company?: string, barcode?: string) => {
+  checkDuplicate: async (name: string, company?: string, barcode?: string, trade_name?: string) => {
     const res = await api.get<{ exists: boolean; message: string; product?: Product }>('/products/check-duplicate', {
-      params: { name, company, barcode }
+      params: { name, company, barcode, trade_name }
+    });
+    return res.data;
+  },
+  resolveTradeName: async (product_name: string, company_name: string) => {
+    const res = await api.get<{
+      product_name: string;
+      company_name: string;
+      suggested_trade_name: string;
+      related_company_trade_names: { product_name: string; company_name: string; trade_name: string; source: string }[];
+    }>('/products/resolve-trade-name', {
+      params: { product_name, company_name }
     });
     return res.data;
   },
@@ -89,6 +100,8 @@ export const productsApi = {
     product_id: number;
     quantity: number;
     unit?: string;
+    company_name?: string;
+    trade_name?: string;
     batch_number?: string;
     expiry_date?: string;
     purchase_price?: number;

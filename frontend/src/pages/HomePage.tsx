@@ -90,7 +90,7 @@ export const HomePage: React.FC = () => {
             </div>
             <div>
               <span className="text-xl font-black text-slate-900 tracking-tight block">
-                KrishiSeva Technologies
+                NockBill Solutions
               </span>
               <span className="text-[11px] font-bold uppercase tracking-wider text-brand-700 block">
                 Agro & Fertilizer ERP Platform
@@ -192,7 +192,7 @@ export const HomePage: React.FC = () => {
                   <div className="w-3 h-3 rounded-full bg-amber-400"></div>
                   <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
                   <span className="ml-2 text-xs font-mono text-slate-500 font-bold">
-                    kisan-seva-dashboard.internal • POS Billing Engine
+                    nockbill-solutions.cloud • POS Billing Engine
                   </span>
                 </div>
                 <span className="clay-badge px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
@@ -204,7 +204,7 @@ export const HomePage: React.FC = () => {
               <div className="rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-900">
                 <img
                   src="/images/dashboard/billing_screen.png"
-                  alt="Kisan Seva Kendra Billing Dashboard"
+                  alt="NockBill Solutions Billing Dashboard"
                   className="w-full h-auto object-cover object-top hover:scale-[1.01] transition-transform duration-500"
                 />
               </div>
@@ -449,7 +449,7 @@ export const HomePage: React.FC = () => {
               Crafted Specifically for Agricultural Retail
             </h2>
             <p className="text-sm text-slate-500 mt-2">
-              Say goodbye to generic accounting tools. Here is why top dealers across India switch to Kisan Seva Kendra.
+              Say goodbye to generic accounting tools. Here is why top dealers across India switch to NockBill Solutions.
             </p>
           </div>
 
@@ -559,7 +559,7 @@ export const HomePage: React.FC = () => {
               <Sprout className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-white font-bold block text-sm">KrishiSeva Technologies</span>
+              <span className="text-white font-bold block text-sm">NockBill Solutions</span>
               <span className="text-[11px] text-slate-500">Enterprise Cloud Platform for Agro & Fertilizer Retailing</span>
             </div>
           </div>
@@ -572,7 +572,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <div className="text-center sm:text-right text-[11px] text-slate-500">
-            © {new Date().getFullYear()} KrishiSeva Technologies. All rights reserved.
+            © {new Date().getFullYear()} NockBill Solutions. All rights reserved.
           </div>
         </div>
       </footer>

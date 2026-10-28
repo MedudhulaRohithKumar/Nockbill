@@ -5,26 +5,26 @@ import { useAuth } from './AuthContext';
 
 const defaultSettings: ShopSettings = {
   id: 1,
-  shop_name: 'KISAN SEVA KENDRA & AGRO CHEMICALS',
-  proprietor_name: 'Ramesh Kumar Patel',
-  gstin: '24AABCK1234F1Z5',
-  fertilizer_license_no: 'FL/2023/GJ/45892',
-  pesticide_license_no: 'PL/2023/GJ/11204',
-  seed_license_no: 'SL/2023/GJ/88219',
-  address_line1: 'Shop No. 12, APMC Market Yard, Station Road',
-  address_line2: 'Near Krishi Vigyan Kendra',
-  city: 'Anand',
-  state: 'Gujarat',
-  pincode: '388001',
-  phone: '+91 98765 43210',
-  email: 'kisanseva.anand@gmail.com',
-  bank_name: 'State Bank of India',
-  bank_account_no: '39485729103',
-  bank_ifsc: 'SBIN0001234',
-  bank_branch: 'APMC Market Branch',
-  upi_id: '9876543210@upi',
-  invoice_prefix: 'KSK/24-25/',
-  terms_conditions: '1. Goods once sold will not be taken back without original bill.\n2. Store fertilizers in cool and dry place away from direct sunlight.\n3. Subject to Anand jurisdiction.'
+  shop_name: 'My Agro & Fertilizer Shop',
+  proprietor_name: '',
+  gstin: '',
+  fertilizer_license_no: '',
+  pesticide_license_no: '',
+  seed_license_no: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  phone: '',
+  email: '',
+  bank_name: '',
+  bank_account_no: '',
+  bank_ifsc: '',
+  bank_branch: '',
+  upi_id: '',
+  invoice_prefix: 'INV',
+  terms_conditions: '1. Goods once sold will not be taken back without original bill.\n2. Store fertilizers in cool and dry place away from direct sunlight.'
 };
 
 interface ShopContextType {
@@ -38,21 +38,45 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const storageKey = user?.id ? `shop_settings_${user.id}` : 'shop_settings_guest';
+
   const [settings, setSettings] = useState<ShopSettings>(() => {
-    const saved = localStorage.getItem('shop_settings');
-    return saved ? JSON.parse(saved) : defaultSettings;
+    const key = user?.id ? `shop_settings_${user.id}` : null;
+    if (key) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // ignore parse error
+        }
+      }
+    }
+    return defaultSettings;
   });
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = async () => {
+    if (!user?.id) {
+      setSettings(defaultSettings);
+      setIsLoading(false);
+      return;
+    }
     try {
       const data = await settingsApi.get();
       if (data && data.shop_name) {
         setSettings(data);
-        localStorage.setItem('shop_settings', JSON.stringify(data));
+        localStorage.setItem(`shop_settings_${user.id}`, JSON.stringify(data));
       }
     } catch {
-      // Keep default settings if backend not connected yet
+      const saved = localStorage.getItem(`shop_settings_${user.id}`);
+      if (saved) {
+        try {
+          setSettings(JSON.parse(saved));
+        } catch {
+          setSettings(defaultSettings);
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -60,8 +84,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (user?.id) {
+      const saved = localStorage.getItem(`shop_settings_${user.id}`);
+      if (saved) {
+        try {
+          setSettings(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+      }
       fetchSettings();
     } else {
+      setSettings(defaultSettings);
       setIsLoading(false);
     }
   }, [user?.id, user?.username]);
@@ -70,12 +103,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await settingsApi.update(newSettings);
       setSettings(updated);
-      localStorage.setItem('shop_settings', JSON.stringify(updated));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     } catch {
       // Local fallback
       const merged = { ...settings, ...newSettings };
       setSettings(merged);
-      localStorage.setItem('shop_settings', JSON.stringify(merged));
+      localStorage.setItem(storageKey, JSON.stringify(merged));
     }
   };
 

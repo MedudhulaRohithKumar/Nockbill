@@ -133,6 +133,7 @@ class Product(Base):
     product_code = Column(String(50), index=True)
     product_name = Column(String(200), nullable=False, index=True)
     company_name = Column(String(200), index=True)
+    trade_name = Column(String(200), index=True, nullable=True)  # Combination of product_name & company_name (e.g. Company A + Product B -> Trade Name C)
     net_content = Column(Numeric(10, 3))
     unit = Column(SAEnum(UnitType), default=UnitType.ML)
     purchase_price = Column(Numeric(12, 2), default=0)
@@ -156,6 +157,8 @@ class Product(Base):
 
     __table_args__ = (
         Index("ix_product_name_company", "product_name", "company_name"),
+        Index("ix_product_shop_active", "shop_id", "is_active"),
+        Index("ix_product_shop_trade", "shop_id", "trade_name"),
     )
 
 
@@ -165,6 +168,8 @@ class ProductBatch(Base):
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
     batch_number = Column(String(100), nullable=False, index=True)
+    trade_name = Column(String(200), nullable=True, index=True)
+    company_name = Column(String(200), nullable=True)
     manufacture_date = Column(String(10))   # YYYY-MM
     expiry_date = Column(String(10), nullable=False, index=True)        # YYYY-MM
     purchase_price = Column(Numeric(12, 2), default=0)
@@ -219,18 +224,23 @@ class Sale(Base):
     returns = relationship("SalesReturn", back_populates="sale", cascade="all, delete-orphan")
     gst_transactions = relationship("GstTransaction", back_populates="sale")
 
+    __table_args__ = (
+        Index("ix_sale_shop_date", "shop_id", "sale_date"),
+    )
+
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)  # nullable: product may be deleted
+    sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True, index=True)  # nullable: product may be deleted
     batch_id = Column(Integer, ForeignKey("product_batches.id", ondelete="SET NULL"), nullable=True)
     batch_number = Column(String(100), nullable=True)
     # Snapshot of product at time of sale
     product_name = Column(String(200), nullable=False)
     company_name = Column(String(200))
+    trade_name = Column(String(200), nullable=True)
     net_content = Column(String(50))
     quantity = Column(Numeric(10, 3), nullable=False)
     price = Column(Numeric(12, 2), nullable=False)      # per unit selling price
@@ -267,9 +277,11 @@ class PurchaseItem(Base):
     __tablename__ = "purchase_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    purchase_id = Column(Integer, ForeignKey("purchases.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    purchase_id = Column(Integer, ForeignKey("purchases.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     product_name = Column(String(200))
+    company_name = Column(String(200), nullable=True)
+    trade_name = Column(String(200), nullable=True)
     unit = Column(String(30))
     batch_number = Column(String(100))
     expiry_date = Column(String(30))

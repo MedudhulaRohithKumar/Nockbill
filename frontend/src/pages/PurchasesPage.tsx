@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Plus, ShoppingBag, Truck, Check, X, FileText } from 'lucide-react';
 import { purchasesApi, productsApi } from '../api';
 import { Purchase, Product, PurchaseItem } from '../types';
-import { safeNumber, formatCurrency } from '../utils/formatters';
+import {
+  safeNumber,
+  formatCurrency,
+  sanitizeTextInput as sanitizeText,
+  sanitizeCodeInput as sanitizeCode,
+  resolveTradeName,
+} from '../utils/formatters';
 
 
 export const PurchasesPage: React.FC = () => {
@@ -21,6 +27,8 @@ export const PurchasesPage: React.FC = () => {
     {
       product_id: 1,
       product_name: 'IFFCO Neem Coated Urea (45 Kg)',
+      company_name: 'IFFCO',
+      trade_name: 'IFFCO Neem Urea',
       batch_number: 'NCU-2024-99',
       expiry_date: '2027-06-30',
       quantity: 100,
@@ -58,9 +66,15 @@ export const PurchasesPage: React.FC = () => {
   useEffect(() => { loadData(); }, []);
 
   const handleAddItemRow = () => {
+    const firstProd = products[0];
+    const pName = firstProd?.name || firstProd?.product_name || 'Fertilizer Product';
+    const pComp = firstProd?.company_name || '';
+    const pTrade = firstProd?.trade_name || resolveTradeName(pName, pComp, products).suggested;
     setItems([...items, {
-      product_id: products[0]?.id || 1,
-      product_name: products[0]?.name || 'Fertilizer Product',
+      product_id: firstProd?.id || 1,
+      product_name: pName,
+      company_name: pComp,
+      trade_name: pTrade,
       batch_number: 'B-' + Math.floor(1000 + Math.random() * 9000),
       quantity: 50, purchase_price: 1000, mrp: 1100, selling_price: 1100,
       gst_rate: 5, total_amount: 50000,
@@ -69,18 +83,36 @@ export const PurchasesPage: React.FC = () => {
 
   const handleSavePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanSupplier = sanitizeText(supplierName, 150);
+    const cleanBillNo = sanitizeCode(billNumber, 60);
+    if (!cleanSupplier || !cleanBillNo) return;
+
     const total = items.reduce((sum, item) => sum + (item.total_amount || 0), 0);
     const payload = {
-      supplier_name: supplierName, supplier_gstin: supplierGstin,
-      bill_number: billNumber, bill_date: billDate,
-      total_amount: total, total_tax: Math.round(total * 0.05 * 100) / 100,
-      items: items.map(it => ({
-        ...it,
-        taxable_amount: Math.round(((it.purchase_price || 0) * (it.quantity || 1) / 1.05) * 100) / 100,
-        cgst_amount: Math.round((((it.purchase_price || 0) * (it.quantity || 1) * 0.025)) * 100) / 100,
-        sgst_amount: Math.round((((it.purchase_price || 0) * (it.quantity || 1) * 0.025)) * 100) / 100,
-        igst_amount: 0,
-      }))
+      supplier_name: cleanSupplier,
+      supplier_gstin: sanitizeCode(supplierGstin, 15),
+      bill_number: cleanBillNo,
+      bill_date: billDate,
+      total_amount: total,
+      total_tax: Math.round(total * 0.05 * 100) / 100,
+      items: items.map(it => {
+        const cleanProdName = sanitizeText(it.product_name || 'Fertilizer Product', 150);
+        const cleanCompName = sanitizeText(it.company_name || '', 120);
+        const resolvedTrade =
+          sanitizeText(it.trade_name || '', 150) ||
+          resolveTradeName(cleanProdName, cleanCompName, products).suggested;
+        return {
+          ...it,
+          product_name: cleanProdName,
+          company_name: cleanCompName || undefined,
+          trade_name: resolvedTrade || undefined,
+          batch_number: sanitizeCode(it.batch_number || 'DEFAULT', 60),
+          taxable_amount: Math.round(((it.purchase_price || 0) * (it.quantity || 1) / 1.05) * 100) / 100,
+          cgst_amount: Math.round((((it.purchase_price || 0) * (it.quantity || 1) * 0.025)) * 100) / 100,
+          sgst_amount: Math.round((((it.purchase_price || 0) * (it.quantity || 1) * 0.025)) * 100) / 100,
+          igst_amount: 0,
+        };
+      })
     };
 
     try {
@@ -304,21 +336,69 @@ export const PurchasesPage: React.FC = () => {
 
                 {items.map((item, idx) => (
                   <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="sm:col-span-2">
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Product Name</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Product / Technical Name *</label>
                         <input
-                          type="text" value={item.product_name || ''}
-                          onChange={(e) => { const up = [...items]; up[idx].product_name = e.target.value; setItems(up); }}
-                          className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs"
+                          type="text"
+                          required
+                          maxLength={150}
+                          value={item.product_name || ''}
+                          onChange={(e) => {
+                            const up = [...items];
+                            const nextProd = e.target.value;
+                            up[idx].product_name = nextProd;
+                            up[idx].trade_name = resolveTradeName(nextProd, up[idx].company_name || '', products).suggested;
+                            setItems(up);
+                          }}
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Company / Brand</label>
+                        <input
+                          type="text"
+                          maxLength={120}
+                          value={item.company_name || ''}
+                          onChange={(e) => {
+                            const up = [...items];
+                            const nextComp = e.target.value;
+                            up[idx].company_name = nextComp;
+                            up[idx].trade_name = resolveTradeName(up[idx].product_name || '', nextComp, products).suggested;
+                            setItems(up);
+                          }}
+                          placeholder="e.g. Bayer, IFFCO, Tata Rallis"
+                          className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-800 mb-0.5">
+                          Trade Name (Product + Brand Combination)
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={150}
+                          value={item.trade_name || ''}
+                          onChange={(e) => {
+                            const up = [...items];
+                            up[idx].trade_name = e.target.value;
+                            setItems(up);
+                          }}
+                          placeholder="e.g. Confidor, Tatamida, Coragen"
+                          className="w-full px-2.5 py-2 font-bold text-emerald-900 bg-emerald-50/50 border border-emerald-300 rounded-lg text-xs"
                         />
                       </div>
                       <div>
                         <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Batch No.</label>
                         <input
-                          type="text" value={item.batch_number || ''}
+                          type="text"
+                          maxLength={60}
+                          value={item.batch_number || ''}
                           onChange={(e) => { const up = [...items]; up[idx].batch_number = e.target.value; setItems(up); }}
-                          className="w-full px-2.5 py-2 font-mono border border-slate-300 rounded-lg text-xs"
+                          className="w-full px-2.5 py-2 font-mono border border-slate-300 rounded-lg text-xs bg-white"
                         />
                       </div>
                     </div>

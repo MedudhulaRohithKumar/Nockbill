@@ -54,16 +54,21 @@ export const AppLayout: React.FC = () => {
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row pb-24 md:pb-0">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 flex-col bg-brand-900 text-white shadow-xl z-20 sticky top-0 h-screen">
-        {/* Brand header */}
+        {/* Brand header: User's Shop Name on top, NockBill Solutions company name right below */}
         <div className="p-5 border-b border-brand-800 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-500 to-emerald-300 flex items-center justify-center text-brand-950 font-bold shadow-md">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-brand-500 to-emerald-300 flex items-center justify-center text-brand-950 font-bold shadow-md shrink-0">
             <Sprout className="w-6 h-6" />
           </div>
           <div className="overflow-hidden">
             <h1 className="font-bold text-sm tracking-tight truncate text-brand-50" title={settings.shop_name}>
-              {settings.shop_name}
+              {settings.shop_name || 'My Agro Store'}
             </h1>
-            <p className="text-xs text-brand-300 truncate">GST: {settings.gstin}</p>
+            <p className="text-[11px] font-semibold text-emerald-300 truncate tracking-wide">
+              NockBill Solutions
+            </p>
+            {settings.gstin && (
+              <p className="text-[10px] text-brand-300 truncate mt-0.5">GST: {settings.gstin}</p>
+            )}
           </div>
         </div>
 
@@ -124,12 +129,12 @@ export const AppLayout: React.FC = () => {
       {/* Mobile Top Header */}
       <header className="md:hidden bg-brand-900 text-white px-4 py-3 sticky top-0 z-30 shadow flex items-center justify-between">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="h-8 w-8 rounded-lg bg-emerald-400 text-brand-950 flex items-center justify-center font-bold">
+          <div className="h-8 w-8 rounded-lg bg-emerald-400 text-brand-950 flex items-center justify-center font-bold shrink-0">
             <Sprout className="w-5 h-5" />
           </div>
           <div className="truncate">
-            <h2 className="text-sm font-bold truncate leading-tight">{settings.shop_name}</h2>
-            <p className="text-[10px] text-brand-300 truncate">Billing & Inventory</p>
+            <h2 className="text-sm font-bold truncate leading-tight">{settings.shop_name || 'My Agro Store'}</h2>
+            <p className="text-[10px] font-semibold text-emerald-300 truncate">NockBill Solutions</p>
           </div>
         </div>
         <div className="flex items-center gap-1">

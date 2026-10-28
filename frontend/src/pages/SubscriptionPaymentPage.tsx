@@ -366,7 +366,7 @@ export const SubscriptionPaymentPage: React.FC = () => {
                           Scan using Google Pay, PhonePe, Paytm, or BHIM. Instant license activation upon payment confirmation.
                         </p>
                         <span className="text-[11px] font-mono text-emerald-800 font-semibold block pt-1">
-                          UPI VPA: krishiseva.cloud@icici
+                          UPI VPA: nockbill.cloud@icici
                         </span>
                       </div>
                     </div>

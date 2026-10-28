@@ -29,7 +29,15 @@ import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
-import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
+import {
+  safeNumber,
+  safeString,
+  formatCurrency,
+  sanitizeTextInput as sanitizeText,
+  sanitizeCodeInput as sanitizeCode,
+  sanitizePhoneInput,
+  isValidPhone,
+} from '../utils/formatters';
 
 type PaymentType = 'Cash' | 'UPI' | 'Card' | 'Credit';
 interface PaymentSplit {
@@ -141,11 +149,19 @@ export const BillingPage: React.FC = () => {
     const invList = Array.isArray(inventory) ? inventory : [];
     const filtered = invList.filter(p => {
       const pName = safeString(p.name || p.product_name).toLowerCase();
+      const pTrade = safeString(p.trade_name).toLowerCase();
       const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
       const pHsn = safeString(p.hsn_code).toLowerCase();
       const pBarcode = safeString(p.barcode).toLowerCase();
       const pCompany = safeString(p.company_name).toLowerCase();
-      return pName.includes(q) || pBatch.includes(q) || pHsn.includes(q) || pBarcode.includes(q) || pCompany.includes(q);
+      return (
+        pName.includes(q) ||
+        pTrade.includes(q) ||
+        pBatch.includes(q) ||
+        pHsn.includes(q) ||
+        pBarcode.includes(q) ||
+        pCompany.includes(q)
+      );
     });
     setSearchResults(filtered.slice(0, 8));
   }, [searchQuery, inventory]);
@@ -284,11 +300,13 @@ export const BillingPage: React.FC = () => {
     const unit = variant ? variant.unit : (product.unit || 'Bags');
     const batchNo = selectedBatch?.batch_number || product.batch_number || product.product_code || 'DEFAULT';
     const expiryDate = selectedBatch?.expiry_date || product.expiry_date;
+    const tradeName = selectedBatch?.trade_name || product.trade_name || undefined;
 
     addItemToCart({
       product_id: product.id,
       batch_id: selectedBatch?.id,
       product_name: pName,
+      trade_name: tradeName,
       batch_number: batchNo,
       expiry_date: expiryDate,
       hsn_code: product.hsn_code || '31021000',
@@ -316,7 +334,9 @@ export const BillingPage: React.FC = () => {
 
     const newItem: SaleItem = {
       product_id: item.product_id || 1,
+      batch_id: item.batch_id,
       product_name: item.product_name || 'Fertilizer Product',
+      trade_name: item.trade_name,
       batch_number: item.batch_number || 'DEFAULT',
       expiry_date: item.expiry_date,
       hsn_code: item.hsn_code || '31021000',
@@ -500,12 +520,19 @@ export const BillingPage: React.FC = () => {
       ? "Split Payment: " + splitsToSave.map(s => `${s.method}: ₹${formatCurrency(s.amount)}`).join(' | ')
       : undefined;
 
+    const cleanPhone = sanitizePhoneInput(customerPhone);
+    if (cleanPhone && !isValidPhone(cleanPhone)) {
+      setErrorMsg('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 (or leave blank).');
+      setIsSaving(false);
+      return;
+    }
+
     const salePayload = {
-      customer_name: customerName || 'Cash Customer / Farmer',
-      customer_phone: customerPhone,
-      customer_address: customerAddress,
-      customer_aadhar: customerAadhar,
-      customer_gstin: customerGstin,
+      customer_name: sanitizeText(customerName, 120) || 'Cash Customer / Farmer',
+      customer_phone: cleanPhone,
+      customer_address: sanitizeText(customerAddress, 300),
+      customer_aadhar: customerAadhar.replace(/\D/g, '').slice(0, 12),
+      customer_gstin: sanitizeCode(customerGstin, 15, true),
       payment_method: primaryPaymentMethod,
       payment_mode: primaryPaymentMethod,
       payment_details: JSON.stringify(splitsToSave),
@@ -523,6 +550,7 @@ export const BillingPage: React.FC = () => {
         product_id: item.product_id,
         batch_id: item.batch_id,
         product_name: item.product_name,
+        trade_name: item.trade_name,
         batch_number: item.batch_number,
         expiry_date: item.expiry_date,
         hsn_code: item.hsn_code,
@@ -730,8 +758,13 @@ export const BillingPage: React.FC = () => {
                       className="p-3 hover:bg-emerald-50/70 cursor-pointer flex items-center justify-between text-xs transition-colors"
                     >
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-slate-800">{product.name || product.product_name}</p>
+                          {product.trade_name && (
+                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                              Trade: {product.trade_name}
+                            </span>
+                          )}
                           {product.barcode && (
                             <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
                               {product.barcode}
@@ -899,7 +932,14 @@ export const BillingPage: React.FC = () => {
                         {cart.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/70">
                             <td className="py-3 px-3">
-                              <p className="font-bold text-slate-900">{item.product_name}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-slate-900">{item.product_name}</p>
+                                {item.trade_name && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                                    Trade: {item.trade_name}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-slate-500 font-mono">Unit: {item.unit}</p>
                             </td>
                             <td className="py-3 px-2 text-center font-mono text-[11px]">

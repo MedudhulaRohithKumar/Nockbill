@@ -39,6 +39,8 @@ export interface ProductBatch {
   id: number;
   product_id: number;
   batch_number: string;
+  trade_name?: string;
+  company_name?: string;
   manufacture_date?: string;
   expiry_date: string;
   purchase_price: number;
@@ -68,6 +70,7 @@ export interface Product {
   product_name?: string;
   product_code?: string;
   company_name?: string;
+  trade_name?: string;
   category: string;
   hsn_code: string;
   unit: string;
@@ -96,6 +99,7 @@ export interface RefillRecommendation {
   product_id: number;
   product_name: string;
   company_name?: string;
+  trade_name?: string;
   unit: string;
   current_stock: number;
   minimum_stock: number;
@@ -169,6 +173,8 @@ export interface SaleItem {
   product_id: number;
   batch_id?: number;
   product_name: string;
+  company_name?: string;
+  trade_name?: string;
   batch_number: string;
   expiry_date?: string;
   hsn_code: string;
@@ -220,6 +226,8 @@ export interface PurchaseItem {
   id?: number;
   product_id: number;
   product_name?: string;
+  company_name?: string;
+  trade_name?: string;
   batch_number: string;
   expiry_date?: string;
   hsn_code?: string;

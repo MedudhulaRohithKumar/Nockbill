@@ -1,26 +1,81 @@
-import React, { useState } from 'react';
-import { Settings, Building, FileText, Landmark, ShieldCheck, Check, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, Building, FileText, Landmark, ShieldCheck, Check, Save, AlertCircle } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ShopSettings } from '../types';
+import {
+  sanitizeTextInput,
+  sanitizeCodeInput,
+  sanitizePhoneInput,
+  sanitizePincodeInput,
+  isValidPhone,
+  isValidPincode,
+  isValidGstin,
+  isValidIfsc,
+} from '../utils/formatters';
+import { getErrorMessage } from '../api';
 
 export const SettingsPage: React.FC = () => {
   const { settings, updateSettings } = useShop();
   const [form, setForm] = useState<ShopSettings>(settings);
   const [isSaved, setIsSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm(settings);
+  }, [settings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    let cleaned = value;
+    if (name === 'phone') {
+      cleaned = sanitizePhoneInput(value);
+    } else if (name === 'pincode') {
+      cleaned = sanitizePincodeInput(value);
+    } else if (name === 'gstin' || name === 'bank_ifsc' || name === 'invoice_prefix') {
+      cleaned = sanitizeCodeInput(value, 25, true);
+    } else if (name === 'terms_conditions') {
+      cleaned = value.slice(0, 1500);
+    } else {
+      cleaned = sanitizeTextInput(value, 200);
+    }
     setForm({
       ...form,
-      [e.target.name]: e.target.value
+      [name]: cleaned
     });
     setIsSaved(false);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateSettings(form);
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+    setError(null);
+    if (!form.shop_name || form.shop_name.trim().length < 2) {
+      setError('Shop / Firm Name must be at least 2 characters.');
+      return;
+    }
+    if (form.phone && !isValidPhone(form.phone)) {
+      setError('Please enter a valid 10-digit Indian mobile number starting with 6-9.');
+      return;
+    }
+    if (form.pincode && !isValidPincode(form.pincode)) {
+      setError('Please enter a valid 6-digit Indian Pincode.');
+      return;
+    }
+    if (form.gstin && !isValidGstin(form.gstin)) {
+      setError('Please enter a valid alphanumeric GSTIN.');
+      return;
+    }
+    if (form.bank_ifsc && !isValidIfsc(form.bank_ifsc)) {
+      setError('IFSC code must be 11 characters (e.g., SBIN0001234).');
+      return;
+    }
+    try {
+      await updateSettings(form);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err: any) {
+      setError(getErrorMessage(err, 'Failed to save shop settings'));
+    }
   };
 
   return (
@@ -43,6 +98,13 @@ export const SettingsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-4 py-3 rounded-xl flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6 text-xs">
         {/* Shop & Proprietor Info */}

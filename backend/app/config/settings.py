@@ -5,7 +5,7 @@ import os
 
 class Settings(BaseSettings):
     # Application
-    app_name: str = "Fertilizer Shop Manager"
+    app_name: str = "NockBill Solutions"
     app_version: str = "1.0.0"
     debug: bool = False
     secret_key: str = "change-me"

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, func, desc
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
@@ -14,6 +14,7 @@ from app.models.models import (
 )
 from app.schemas.schemas import ProductCreate, ProductUpdate, ProductResponse, ProductSearchResult, ProductRefillRequest
 from app.utils.auth import get_current_user
+from app.utils.helpers import resolve_trade_name, AGRO_TRADE_NAME_CATALOG
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
@@ -96,15 +97,22 @@ def serialize_product(p: Product) -> dict:
             "barcode": barcode_val,
         }]
 
+    # Resolve Trade Name from (product_name, company_name) if not explicitly stored
+    resolved_trade = getattr(p, "trade_name", None) or resolve_trade_name(p.product_name, p.company_name)
+
     # Multi-batch serialization with FIFO ordering
     active_batches = []
     if hasattr(p, "batches") and p.batches:
         for b in p.batches:
             if getattr(b, "is_active", True) and float(b.current_stock or 0) > 0:
+                b_company = getattr(b, "company_name", None) or p.company_name
+                b_trade = getattr(b, "trade_name", None) or resolve_trade_name(p.product_name, b_company, resolved_trade)
                 active_batches.append({
                     "id": b.id,
                     "product_id": b.product_id,
                     "batch_number": b.batch_number,
+                    "trade_name": b_trade,
+                    "company_name": b_company,
                     "manufacture_date": b.manufacture_date,
                     "expiry_date": b.expiry_date,
                     "purchase_price": float(b.purchase_price or 0),
@@ -116,10 +124,14 @@ def serialize_product(p: Product) -> dict:
         if not active_batches:
             for b in p.batches:
                 if getattr(b, "is_active", True):
+                    b_company = getattr(b, "company_name", None) or p.company_name
+                    b_trade = getattr(b, "trade_name", None) or resolve_trade_name(p.product_name, b_company, resolved_trade)
                     active_batches.append({
                         "id": b.id,
                         "product_id": b.product_id,
                         "batch_number": b.batch_number,
+                        "trade_name": b_trade,
+                        "company_name": b_company,
                         "manufacture_date": b.manufacture_date,
                         "expiry_date": b.expiry_date,
                         "purchase_price": float(b.purchase_price or 0),
@@ -134,6 +146,8 @@ def serialize_product(p: Product) -> dict:
             "id": 0,
             "product_id": p.id,
             "batch_number": p.product_code or f"BAT-{p.id}",
+            "trade_name": resolved_trade,
+            "company_name": p.company_name,
             "manufacture_date": p.manufacture_date,
             "expiry_date": p.expiry_date or "2028-06",
             "purchase_price": float(p.purchase_price or 0),
@@ -150,6 +164,7 @@ def serialize_product(p: Product) -> dict:
         "product_name": p.product_name,
         "name": p.product_name,
         "company_name": p.company_name,
+        "trade_name": resolved_trade,
         "category": p.company_name or "Fertilizer",
         "net_content": float(p.net_content) if p.net_content is not None else None,
         "unit": unit_str,
@@ -174,28 +189,96 @@ def serialize_product(p: Product) -> dict:
     }
 
 
+@router.get("/resolve-trade-name")
+def resolve_product_trade_name(
+    product_name: str = Query("", description="Technical / base product name"),
+    company_name: str = Query("", description="Company / brand name"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Resolve Trade Name for a (product_name, company_name) pair.
+    In Company A, Product B has Trade Name C; in Company D, Product B has Trade Name E.
+    Checks shop's existing products first, then standard agro-chemical catalog.
+    """
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    p_clean = (product_name or "").strip()
+    c_clean = (company_name or "").strip()
+
+    existing_match = None
+    related_mappings = []
+
+    if p_clean:
+        shop_products = db.query(Product).filter(
+            Product.shop_id == shop_id,
+            Product.is_active == True,
+            Product.product_name.ilike(f"%{p_clean}%")
+        ).limit(20).all()
+
+        for sp in shop_products:
+            sp_trade = sp.trade_name or resolve_trade_name(sp.product_name, sp.company_name)
+            if sp.company_name and sp_trade:
+                related_mappings.append({
+                    "product_name": sp.product_name,
+                    "company_name": sp.company_name,
+                    "trade_name": sp_trade,
+                    "source": "shop_inventory",
+                })
+            if c_clean and sp.company_name and sp.company_name.strip().lower() == c_clean.lower():
+                existing_match = sp_trade
+
+        # Also add catalog mappings for this product across companies
+        p_low = p_clean.lower()
+        for entry in AGRO_TRADE_NAME_CATALOG:
+            if entry["product"].lower() in p_low or p_low in entry["product"].lower():
+                if not any(
+                    m["company_name"].lower() == entry["company"].lower() and m["trade_name"].lower() == entry["trade_name"].lower()
+                    for m in related_mappings
+                ):
+                    related_mappings.append({
+                        "product_name": entry["product"],
+                        "company_name": entry["company"],
+                        "trade_name": entry["trade_name"],
+                        "source": "catalog",
+                    })
+
+    suggested = existing_match or resolve_trade_name(p_clean, c_clean)
+    return {
+        "product_name": p_clean,
+        "company_name": c_clean,
+        "suggested_trade_name": suggested or "",
+        "related_company_trade_names": related_mappings[:12],
+    }
+
+
 @router.get("/check-duplicate")
 def check_duplicate(
     name: str = Query(..., min_length=1),
     company: Optional[str] = None,
+    trade_name: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Check if a product already exists before adding."""
     shop_id = getattr(current_user, "shop_id", 1) or 1
     clean_name = name.strip()
-    query = db.query(Product).filter(
+    query = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.shop_id == shop_id,
         Product.is_active == True,
         func.lower(Product.product_name) == clean_name.lower()
     )
     if company and company.strip():
         query = query.filter(func.lower(Product.company_name) == company.strip().lower())
+    if trade_name and trade_name.strip():
+        query = query.filter(func.lower(Product.trade_name) == trade_name.strip().lower())
     existing = query.first()
     if existing:
         return {
             "exists": True,
-            "message": f"Product '{existing.product_name}' by '{existing.company_name or 'N/A'}' already exists (Stock: {existing.current_stock}). Please refill stock instead.",
+            "message": f"Product '{existing.product_name}' ({existing.trade_name or 'N/A'}) by '{existing.company_name or 'N/A'}' already exists (Stock: {existing.current_stock}). Please refill stock instead.",
             "product": serialize_product(existing)
         }
     return {"exists": False}
@@ -212,7 +295,10 @@ def get_by_barcode(
     barcode_clean = barcode.strip()
     
     # 1. Match exact product barcode or code
-    p = db.query(Product).filter(
+    p = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.shop_id == shop_id,
         Product.is_active == True,
         or_(
@@ -365,7 +451,10 @@ def get_refill_recommendations(
         for s in sales_stats if s.product_id
     }
 
-    products = db.query(Product).filter(
+    products = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.shop_id == shop_id,
         Product.is_active == True
     ).all()
@@ -408,6 +497,7 @@ def get_refill_recommendations(
                 "product_id": p.id,
                 "product_name": p.product_name,
                 "company_name": p.company_name,
+                "trade_name": prod_data["trade_name"],
                 "current_stock": c_stock,
                 "minimum_stock": m_stock,
                 "unit": prod_data["unit"],
@@ -460,6 +550,19 @@ def refill_stock(
     if payload.selling_price is not None and payload.selling_price > 0:
         product.selling_price = Decimal(str(payload.selling_price))
 
+    # Resolve company_name and trade_name (combination of product_name + company_name)
+    effective_company = (payload.company_name or "").strip() or product.company_name
+    if payload.company_name and payload.company_name.strip():
+        product.company_name = payload.company_name.strip()
+
+    effective_trade_name = resolve_trade_name(
+        product.product_name,
+        effective_company,
+        payload.trade_name or product.trade_name,
+    )
+    if effective_trade_name:
+        product.trade_name = effective_trade_name
+
     batch_no = (payload.new_batch_number or payload.batch_number or "").strip() or product.product_code or f"BAT-{product.id}"
     expiry_dt = (payload.new_expiry_date or payload.expiry_date or "").strip() or product.expiry_date or "2028-12"
 
@@ -489,11 +592,15 @@ def refill_stock(
         batch.purchase_price = p_price
         batch.selling_price = s_price
         batch.mrp = mrp_val
+        batch.company_name = effective_company
+        batch.trade_name = effective_trade_name
         batch.is_active = True
     else:
         batch = ProductBatch(
             product_id=product.id,
             batch_number=batch_no,
+            trade_name=effective_trade_name,
+            company_name=effective_company,
             expiry_date=expiry_dt,
             purchase_price=p_price,
             selling_price=s_price,
@@ -512,7 +619,7 @@ def refill_stock(
         previous_stock=prev_stock,
         new_stock=product.current_stock,
         reference_type="PURCHASE",
-        notes=payload.notes or f"Stock refilled (+{qty} {product.unit.value if hasattr(product.unit, 'value') else product.unit}, Batch: {batch_no}, Exp: {expiry_dt}) via Refill Stock feature"
+        notes=payload.notes or f"Stock refilled (+{qty} {product.unit.value if hasattr(product.unit, 'value') else product.unit}, Trade: {effective_trade_name or 'N/A'}, Batch: {batch_no}, Exp: {expiry_dt}) via Refill Stock feature"
     )
     db.add(inv_tx)
     db.flush()
@@ -526,13 +633,13 @@ def refill_stock(
 
     purchase = Purchase(
         shop_id=shop_id,
-        supplier_name=payload.supplier_name or product.company_name or "Stock Refill Supplier",
+        supplier_name=payload.supplier_name or effective_company or "Stock Refill Supplier",
         invoice_number=payload.invoice_number or f"REF-{datetime.utcnow().strftime('%Y%m%d%H%M')}-{product.id}",
         purchase_date=datetime.utcnow(),
         subtotal=taxable,
         gst_amount=gst_amount,
         grand_total=total_val,
-        notes=payload.notes or f"Quick Refill of {product.product_name} (Batch: {batch_no})",
+        notes=payload.notes or f"Quick Refill of {product.product_name} [{effective_trade_name or ''}] (Batch: {batch_no})",
         created_by=current_user.id
     )
     db.add(purchase)
@@ -542,6 +649,8 @@ def refill_stock(
         purchase_id=purchase.id,
         product_id=product.id,
         product_name=product.product_name,
+        company_name=effective_company,
+        trade_name=effective_trade_name,
         unit=unit_str,
         batch_number=batch_no,
         expiry_date=expiry_dt,
@@ -583,14 +692,18 @@ def search_products(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    query = db.query(Product).filter(
+    query = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.shop_id == shop_id,
         Product.is_active == True
     )
-    search = f"%{q}%"
+    search = f"%{q.strip()}%"
     query = query.filter(
         or_(
             Product.product_name.ilike(search),
+            Product.trade_name.ilike(search),
             Product.product_code.ilike(search),
             Product.company_name.ilike(search),
             Product.barcode.ilike(search),
@@ -603,21 +716,25 @@ def search_products(
 @router.get("")
 def list_products(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 200,
     search: Optional[str] = None,
     active_only: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    query = db.query(Product).filter(Product.shop_id == shop_id)
+    query = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(Product.shop_id == shop_id)
     if active_only:
         query = query.filter(Product.is_active == True)
     if search:
-        like = f"%{search}%"
+        like = f"%{search.strip()}%"
         query = query.filter(
             or_(
                 Product.product_name.ilike(like),
+                Product.trade_name.ilike(like),
                 Product.company_name.ilike(like),
                 Product.barcode.ilike(like),
                 Product.product_code.ilike(like)
@@ -634,7 +751,10 @@ def get_product(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    product = db.query(Product).filter(
+    product = db.query(Product).options(
+        selectinload(Product.variants),
+        selectinload(Product.batches),
+    ).filter(
         Product.id == product_id,
         Product.shop_id == shop_id
     ).first()
@@ -766,9 +886,13 @@ def create_product(
     # ProductBatch.selling_price is NOT NULL — ensure a valid value
     if initial_selling <= Decimal("0"):
         initial_selling = product.purchase_price or Decimal("1")
+    resolved_trade = product.trade_name or resolve_trade_name(product.product_name, product.company_name, payload.trade_name)
+    product.trade_name = resolved_trade
     initial_batch = ProductBatch(
         product_id=product.id,
         batch_number=payload.batch_number or product.product_code or f"BAT-{product.id}",
+        trade_name=resolved_trade,
+        company_name=product.company_name,
         manufacture_date=product.manufacture_date,
         expiry_date=product.expiry_date or "2028-12",
         purchase_price=product.purchase_price or Decimal("0"),
@@ -828,6 +952,13 @@ def update_product(
             if other:
                 raise HTTPException(400, "This barcode is already assigned to another product in your shop")
         setattr(product, field, value)
+
+    # Ensure trade_name stays resolved when product_name or company_name is updated
+    product.trade_name = resolve_trade_name(
+        product.product_name,
+        product.company_name,
+        payload.trade_name if payload.trade_name is not None else product.trade_name,
+    )
 
     if payload.variants is not None:
         for old_v in product.variants:

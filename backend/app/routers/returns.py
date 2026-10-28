@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, desc
 from typing import List, Optional
 from decimal import Decimal
@@ -65,7 +65,7 @@ def lookup_invoice_for_return(
     shop_id = getattr(current_user, "shop_id", 1) or 1
 
     # Search for sale (exact or case-insensitive) within this shop
-    sale = db.query(Sale).filter(
+    sale = db.query(Sale).options(selectinload(Sale.items)).filter(
         Sale.shop_id == shop_id,
         func.lower(Sale.invoice_number) == clean_inv.lower()
     ).first()
@@ -73,7 +73,7 @@ def lookup_invoice_for_return(
     if not sale:
         # Also try searching by invoice ID if numeric
         if clean_inv.isdigit():
-            sale = db.query(Sale).filter(
+            sale = db.query(Sale).options(selectinload(Sale.items)).filter(
                 Sale.id == int(clean_inv),
                 Sale.shop_id == shop_id
             ).first()
@@ -85,7 +85,7 @@ def lookup_invoice_for_return(
         )
 
     # Get all previous returns for this sale
-    existing_returns = db.query(SalesReturn).filter(
+    existing_returns = db.query(SalesReturn).options(selectinload(SalesReturn.items)).filter(
         SalesReturn.sale_id == sale.id,
         SalesReturn.shop_id == shop_id
     ).all()
@@ -156,7 +156,7 @@ def process_sales_return(
         raise HTTPException(status_code=400, detail="No items selected for return")
 
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    sale = db.query(Sale).filter(
+    sale = db.query(Sale).options(selectinload(Sale.items)).filter(
         Sale.id == payload.sale_id,
         Sale.shop_id == shop_id
     ).first()
@@ -167,7 +167,7 @@ def process_sales_return(
     sale_item_map = {item.id: item for item in sale.items}
 
     # Calculate existing returns per sale_item_id
-    existing_returns = db.query(SalesReturn).filter(
+    existing_returns = db.query(SalesReturn).options(selectinload(SalesReturn.items)).filter(
         SalesReturn.sale_id == sale.id,
         SalesReturn.shop_id == shop_id
     ).all()
@@ -189,6 +189,35 @@ def process_sales_return(
     created_return_items: List[SalesReturnItem] = []
 
     try:
+        # Deadlock-free pre-locking of involved Product and ProductBatch rows in ascending ID order
+        involved_product_ids = sorted({
+            sale_item_map[req.sale_item_id].product_id
+            for req in payload.items
+            if req.sale_item_id in sale_item_map and sale_item_map[req.sale_item_id].product_id
+        })
+        locked_products = (
+            db.query(Product)
+            .filter(Product.id.in_(involved_product_ids))
+            .order_by(Product.id.asc())
+            .with_for_update()
+            .all()
+        ) if involved_product_ids else []
+        products_by_id = {p.id: p for p in locked_products}
+
+        involved_batch_ids = sorted({
+            sale_item_map[req.sale_item_id].batch_id
+            for req in payload.items
+            if req.sale_item_id in sale_item_map and sale_item_map[req.sale_item_id].batch_id
+        })
+        locked_batches = (
+            db.query(ProductBatch)
+            .filter(ProductBatch.id.in_(involved_batch_ids))
+            .order_by(ProductBatch.id.asc())
+            .with_for_update()
+            .all()
+        ) if involved_batch_ids else []
+        batches_by_id = {b.id: b for b in locked_batches}
+
         # Validate and prepare items
         for req_item in payload.items:
             sale_item = sale_item_map.get(req_item.sale_item_id)
@@ -225,32 +254,30 @@ def process_sales_return(
             refund_gst_amount += item_gst
             refund_grand_total += item_total
 
-            # Restock Product
-            if sale_item.product_id:
-                product = db.query(Product).filter(Product.id == sale_item.product_id).first()
-                if product:
-                    prev_stock = product.current_stock
-                    product.current_stock += ret_qty
+            # Restock Product using pre-locked map
+            if sale_item.product_id and sale_item.product_id in products_by_id:
+                product = products_by_id[sale_item.product_id]
+                prev_stock = product.current_stock or Decimal("0")
+                product.current_stock = prev_stock + ret_qty
 
-                    # Log inventory transaction
-                    inv_tx = InventoryTransaction(
-                        shop_id=shop_id,
-                        product_id=product.id,
-                        transaction_type=InventoryTxType.RETURN,
-                        quantity=ret_qty,
-                        previous_stock=prev_stock,
-                        new_stock=product.current_stock,
-                        reference_type="RETURN",
-                        reference_id=sale.id,
-                        notes=f"Sales Return #{return_number} from Invoice #{sale.invoice_number}"
-                    )
-                    db.add(inv_tx)
+                # Log inventory transaction
+                inv_tx = InventoryTransaction(
+                    shop_id=shop_id,
+                    product_id=product.id,
+                    transaction_type=InventoryTxType.RETURN,
+                    quantity=ret_qty,
+                    previous_stock=prev_stock,
+                    new_stock=product.current_stock,
+                    reference_type="RETURN",
+                    reference_id=sale.id,
+                    notes=f"Sales Return #{return_number} from Invoice #{sale.invoice_number}"
+                )
+                db.add(inv_tx)
 
             # Restock Batch if applicable
-            if sale_item.batch_id:
-                batch = db.query(ProductBatch).filter(ProductBatch.id == sale_item.batch_id).first()
-                if batch:
-                    batch.current_stock += ret_qty
+            if sale_item.batch_id and sale_item.batch_id in batches_by_id:
+                batch = batches_by_id[sale_item.batch_id]
+                batch.current_stock = (batch.current_stock or Decimal("0")) + ret_qty
 
             return_item = SalesReturnItem(
                 sale_item_id=sale_item.id,
@@ -329,7 +356,7 @@ def get_all_returns(
 ):
     """List recent sales returns."""
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    query = db.query(SalesReturn).filter(
+    query = db.query(SalesReturn).options(selectinload(SalesReturn.items)).filter(
         SalesReturn.shop_id == shop_id
     ).order_by(desc(SalesReturn.return_date))
     if search:
@@ -350,7 +377,7 @@ def get_sales_return_by_id(
 ):
     """Get details of a specific sales return."""
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    sales_return = db.query(SalesReturn).filter(
+    sales_return = db.query(SalesReturn).options(selectinload(SalesReturn.items)).filter(
         SalesReturn.id == return_id,
         SalesReturn.shop_id == shop_id
     ).first()

@@ -1,0 +1,99 @@
+name: Deploy Kisan Seva Kendra to AWS Serverless
+
+on:
+  push:
+    branches:
+      - main
+      - Dev
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment Environment (prod/dev)'
+        required: true
+        default: 'prod'
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to AWS Lambda
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies & Build SPA
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+          cd ..
+
+      - name: Verify Frontend Production Build
+        run: |
+          test -f frontend/dist/index.html || { echo "Frontend dist/index.html missing!"; exit 1; }
+          echo "Frontend SPA bundle successfully verified."
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+
+      - name: Build SAM Serverless Application
+        run: |
+          sam build --template-file infrastructure/cloudformation_serverless.yaml
+
+      - name: Deploy to AWS SAM
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'KisanSecurePass2026!' }}
+          NOTIFY_EMAIL: ${{ secrets.REPORT_NOTIFICATION_EMAIL || 'admin@nockbill.local' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          sam deploy \
+            --config-file infrastructure/samconfig.toml \
+            --stack-name ks-serverless-${ENV_NAME} \
+            --region ${AWS_REGION} \
+            --resolve-s3 \
+            --resolve-image-repos \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              Environment="${ENV_NAME}" \
+              DbUsername="kisan_admin" \
+              DbPassword="${DB_PASSWORD}" \
+              DbAllocatedStorage="20" \
+              VpcCidr="10.0.0.0/16" \
+              ReportNotificationEmail="${NOTIFY_EMAIL}"
+
+      - name: Print Stack Outputs
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          echo "=========================================================="
+          echo " Deployment Complete! Stack Outputs:"
+          echo "=========================================================="
+          aws cloudformation describe-stacks \
+            --stack-name ks-serverless-${ENV_NAME} \
+            --region ${AWS_REGION} \
+            --query "Stacks[0].Outputs[*].[OutputKey,OutputValue]" \
+            --output table
