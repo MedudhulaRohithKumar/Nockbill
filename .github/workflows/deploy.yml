@@ -56,6 +56,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
 
+      - name: Validate CloudFormation / SAM Template
+        run: |
+          sam validate --lint --template-file infrastructure/cloudformation_serverless.yaml
+
+      - name: Clean Up Stuck Empty Stack (REVIEW_IN_PROGRESS / ROLLBACK_COMPLETE)
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          STACK_NAME="ks-serverless-${ENV_NAME}"
+          STATUS=$(aws cloudformation describe-stacks --stack-name "${STACK_NAME}" --region "${AWS_REGION}" --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "NONE")
+          echo "Current stack status for ${STACK_NAME}: ${STATUS}"
+          if [ "${STATUS}" = "REVIEW_IN_PROGRESS" ] || [ "${STATUS}" = "ROLLBACK_COMPLETE" ]; then
+            echo "Deleting empty failed stack ${STACK_NAME} (status: ${STATUS}) before fresh deployment..."
+            aws cloudformation delete-stack --stack-name "${STACK_NAME}" --region "${AWS_REGION}"
+            aws cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" --region "${AWS_REGION}"
+            echo "Deleted empty stack ${STACK_NAME}."
+          fi
+
       - name: Build SAM Serverless Application
         run: |
           sam build --template-file infrastructure/cloudformation_serverless.yaml
@@ -83,6 +102,18 @@ jobs:
               DbAllocatedStorage="20" \
               VpcCidr="10.0.0.0/16" \
               ReportNotificationEmail="${NOTIFY_EMAIL}"
+
+      - name: Diagnose CloudFormation Failure Events
+        if: failure()
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          STACK_NAME="ks-serverless-${ENV_NAME}"
+          echo "=== Failed ChangeSets ==="
+          aws cloudformation list-change-sets --stack-name "${STACK_NAME}" --region "${AWS_REGION}" --output table || true
+          echo "=== Recent CloudFormation Stack Events ==="
+          aws cloudformation describe-stack-events --stack-name "${STACK_NAME}" --region "${AWS_REGION}" --max-items 25 --query "StackEvents[*].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]" --output table || true
 
       - name: Print Stack Outputs
         env:

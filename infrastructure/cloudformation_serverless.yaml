@@ -138,6 +138,11 @@ Resources:
 
   PostgreSqlInstance:
     Type: AWS::RDS::DBInstance
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+            - W1011
     Properties:
       DBInstanceIdentifier: !Sub ks-postgres-${Environment}
       Engine: postgres
@@ -369,14 +374,6 @@ Resources:
           AWS_REGION_NAME: !Ref AWS::Region
       FunctionUrlConfig:
         AuthType: NONE
-        Cors:
-          AllowOrigins:
-            - '*'
-          AllowMethods:
-            - '*'
-          AllowHeaders:
-            - '*'
-          MaxAge: 86400
     Metadata:
       DockerTag: latest
       DockerContext: ../backend
@@ -416,12 +413,7 @@ Resources:
           AllowOrigins:
             - '*'
           AllowMethods:
-            - GET
-            - HEAD
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
+            - '*'
           AllowHeaders:
             - '*'
           MaxAge: 86400
