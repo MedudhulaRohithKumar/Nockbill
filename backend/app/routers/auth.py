@@ -315,34 +315,68 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
     if not token_str:
         raise HTTPException(status_code=400, detail="Google credential token is missing.")
 
-    # 1. Verify token with Google
+    # 1. Verify token with Google (supports both ID Token and OAuth2 Access Token)
     import httpx
+    google_data = None
+
+    # First attempt: Verify as Google ID Token
     try:
         resp = httpx.get(
             "https://oauth2.googleapis.com/tokeninfo",
             params={"id_token": token_str},
             timeout=10.0
         )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Google verification failed: invalid or expired token.")
-        google_data = resp.json()
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Failed to communicate with Google authentication servers: {str(e)}")
+        if resp.status_code == 200:
+            google_data = resp.json()
+    except Exception:
+        pass
+
+    # Second attempt: Verify as Google OAuth2 Access Token
+    if not google_data:
+        try:
+            resp = httpx.get(
+                "https://oauth2.googleapis.com/tokeninfo",
+                params={"access_token": token_str},
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                google_data = resp.json()
+                # Retrieve full name/profile from userinfo endpoint
+                try:
+                    profile_resp = httpx.get(
+                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        headers={"Authorization": f"Bearer {token_str}"},
+                        timeout=5.0
+                    )
+                    if profile_resp.status_code == 200:
+                        google_data.update(profile_resp.json())
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    if not google_data:
+        raise HTTPException(status_code=401, detail="Google verification failed: invalid or expired token.")
 
     # 2. Validate Google payload fields
     google_email = google_data.get("email")
-    email_verified = google_data.get("email_verified")
-    if not google_email or str(email_verified).lower() not in ("true", "1"):
+    email_verified = google_data.get("email_verified") or google_data.get("verified_email")
+    if not google_email or str(email_verified).lower() not in ("true", "1", "yes"):
         raise HTTPException(status_code=400, detail="Google account email is not verified.")
 
     google_sub = google_data.get("sub")
     full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
 
-    # Optional: If google_client_id is configured in settings, ensure audience matches
-    if settings.google_client_id and google_data.get("aud") != settings.google_client_id:
-        raise HTTPException(status_code=401, detail="Google token audience does not match configured Google Client ID.")
+    # Audience verification (when configured)
+    configured_id = (settings.google_client_id or "").strip()
+    if configured_id:
+        token_aud = google_data.get("aud") or google_data.get("azp")
+        if token_aud and token_aud != configured_id:
+            # Also allow matching project number prefix
+            conf_prefix = configured_id.split("-")[0]
+            token_prefix = str(token_aud).split("-")[0]
+            if conf_prefix != token_prefix:
+                raise HTTPException(status_code=401, detail="Google token audience does not match configured Google Client ID.")
 
     # 3. Lookup existing user by email
     clean_email = google_email.strip().lower()
