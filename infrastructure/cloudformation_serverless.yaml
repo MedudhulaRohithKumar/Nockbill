@@ -119,7 +119,8 @@ Resources:
       SourceSecurityGroupId: !Ref DatabaseSecurityGroup
 
   # ============================================================================
-  # 2. DATABASE: Amazon RDS PostgreSQL + Amazon RDS Proxy
+  # 2. DATABASE: Amazon RDS PostgreSQL (Free Tier db.t4g.micro)
+  # Direct connection from Lambda (RDS Proxy is not available on free tier accounts)
   # ============================================================================
   PostgreSqlSecret:
     Type: AWS::SecretsManager::Secret
@@ -163,60 +164,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ks-postgres-${Environment}
-
-  RdsProxyRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ks-rds-proxy-role-${Environment}
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ReadDbSecretPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !Ref PostgreSqlSecret
-
-  RdsProxy:
-    Type: AWS::RDS::DBProxy
-    DependsOn: [PostgreSqlInstance]
-    Properties:
-      DBProxyName: !Sub ks-rds-proxy-${Environment}
-      EngineFamily: POSTGRESQL
-      Auth:
-        - AuthScheme: SECRETS
-          SecretArn: !Ref PostgreSqlSecret
-          IAMAuth: DISABLED
-      RoleArn: !GetAtt RdsProxyRole.Arn
-      VpcSubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      VpcSecurityGroupIds:
-        - !Ref DatabaseSecurityGroup
-      IdleClientTimeout: 1800
-      RequireTLS: false
-      Tags:
-        - Key: Name
-          Value: !Sub ks-rds-proxy-${Environment}
-
-  RdsProxyTargetGroup:
-    Type: AWS::RDS::DBProxyTargetGroup
-    Properties:
-      DBProxyName: !Ref RdsProxy
-      TargetGroupName: default
-      DBInstanceIdentifiers:
-        - !Ref PostgreSqlInstance
-      ConnectionPoolConfigurationInfo:
-        MaxConnectionsPercent: 90
-        MaxIdleConnectionsPercent: 50
-        ConnectionBorrowTimeout: 120
 
   # ============================================================================
   # 3. S3 STORAGE: 4 DEDICATED BUCKETS (DATE-WISE FOLDERS)
@@ -365,7 +312,7 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          DATABASE_URL: !Sub postgresql://${DbUsername}:${DbPassword}@${RdsProxy.Endpoint}:5432/kisan_seva_db
+          DATABASE_URL: !Sub postgresql://${DbUsername}:${DbPassword}@${PostgreSqlInstance.Endpoint.Address}:${PostgreSqlInstance.Endpoint.Port}/kisan_seva_db
           S3_ENABLED: "True"
           S3_INVOICES_BUCKET: !Ref SalesInvoicesBucket
           S3_PURCHASES_BUCKET: !Ref PurchaseBillsBucket
@@ -595,9 +542,9 @@ Outputs:
     Description: Immediate public HTTPS Function URL to access Backend FastAPI
     Value: !GetAtt BackendFunctionUrl.FunctionUrl
 
-  RdsProxyEndpoint:
-    Description: Amazon RDS Proxy Endpoint for PostgreSQL connection pooling
-    Value: !GetAtt RdsProxy.Endpoint
+  RdsEndpoint:
+    Description: Amazon RDS PostgreSQL Endpoint
+    Value: !GetAtt PostgreSqlInstance.Endpoint.Address
 
   SalesInvoicesBucketName:
     Description: S3 Bucket storing Sales Invoices
