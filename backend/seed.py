@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime, date, timedelta
 from decimal import Decimal
+from sqlalchemy import inspect, text
 from app.database.base import SessionLocal, engine, Base
 from app.models.models import (
     User, UserRole, ShopSettings, Product, UnitType,
@@ -21,8 +22,31 @@ from app.models.models import (
 from app.utils.auth import hash_password
 
 
+def _run_schema_migrations(db_engine):
+    try:
+        inspector = inspect(db_engine)
+        existing_tables = set(inspector.get_table_names())
+        column_migrations = [
+            ("products", "trade_name", "VARCHAR(200)"),
+            ("product_batches", "trade_name", "VARCHAR(200)"),
+            ("product_batches", "company_name", "VARCHAR(200)"),
+            ("sale_items", "trade_name", "VARCHAR(200)"),
+            ("purchase_items", "company_name", "VARCHAR(200)"),
+            ("purchase_items", "trade_name", "VARCHAR(200)"),
+        ]
+        with db_engine.begin() as conn:
+            for table_name, col_name, col_type in column_migrations:
+                if table_name in existing_tables:
+                    cols = {c["name"] for c in inspector.get_columns(table_name)}
+                    if col_name not in cols:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+    except Exception as e:
+        print(f"Migration error in seed: {e}")
+
+
 def seed():
     Base.metadata.create_all(bind=engine)
+    _run_schema_migrations(engine)
     db = SessionLocal()
 
     try:
