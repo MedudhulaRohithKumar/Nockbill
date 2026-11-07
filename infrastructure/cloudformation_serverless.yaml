@@ -159,7 +159,7 @@ Resources:
       PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: 1
       Tags:
         - Key: Name
           Value: !Sub ks-postgres-${Environment}
