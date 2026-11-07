@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  loginWithGoogle: (credential: string, shopName?: string) => Promise<void>;
+  loginWithGoogle: (credential: string, options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string) => Promise<void>;
   register: (payload: any) => Promise<any>;
   activateSubscription: (payload: any) => Promise<any>;
   logout: () => void;
@@ -90,9 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user', JSON.stringify(userInfo));
   };
 
-  const loginWithGoogle = async (credential: string, shopName?: string) => {
+  const loginWithGoogle = async (
+    credential: string, 
+    options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string
+  ) => {
     localStorage.removeItem('shop_settings');
-    const data = await authApi.loginWithGoogle(credential, shopName);
+    const data = await authApi.loginWithGoogle(credential, options);
     localStorage.setItem('token', data.access_token);
     setToken(data.access_token);
 

@@ -399,24 +399,38 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
             shop_name=shop_title,
             proprietor_name=full_name,
             email=clean_email,
+            phone=payload.phone.strip() if payload.phone else None,
+            gstin=payload.gstin.strip().upper() if payload.gstin else None,
             subscription_status="ACTIVE",
         )
         db.add(new_shop)
         db.flush()
 
+        # Hybrid Authentication:
+        # If user provided a password during Google registration, save it so they can log in
+        # with either Google OR Email + Password anytime. Otherwise generate a secure fallback.
+        chosen_password = payload.password.strip() if payload.password else secrets.token_urlsafe(24)
+
         # Create new User
-        random_pwd = secrets.token_urlsafe(24)
         user = User(
             name=full_name,
             username=candidate_username,
             email=clean_email,
-            password_hash=hash_password(random_pwd),
+            phone=payload.phone.strip() if payload.phone else None,
+            password_hash=hash_password(chosen_password),
             role=UserRole.OWNER,
             shop_id=new_shop.id,
             subscription_status="ACTIVE",
             is_active=True
         )
         db.add(user)
+        db.flush()
+    else:
+        # User exists: if they provided a new password, update it so they can use hybrid email+pwd
+        if payload.password and payload.password.strip():
+            user.password_hash = hash_password(payload.password.strip())
+        if payload.phone and not user.phone:
+            user.phone = payload.phone.strip()
         db.flush()
 
     if not user.is_active:

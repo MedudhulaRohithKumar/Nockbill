@@ -415,7 +415,7 @@ export const LoginPage: React.FC = () => {
               <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4" autoComplete="off">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Username / Mobile Number / Email
+                    Email / Username / Mobile Number
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -429,9 +429,12 @@ export const LoginPage: React.FC = () => {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
-                      placeholder="admin or mobile number"
+                      placeholder="Google email, username, or mobile"
                     />
                   </div>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Supports Google email + password or master shop credentials
+                  </span>
                 </div>
 
                 <div>

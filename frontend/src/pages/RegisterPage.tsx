@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { 
   Sprout, User, Lock, Phone, Mail, Building, MapPin, 
   FileText, CreditCard, ShieldCheck, Download, CheckCircle2, 
-  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff
+  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
@@ -21,8 +21,20 @@ import {
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const { refreshSettings } = useShop();
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com';
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleRegData, setGoogleRegData] = useState<{
+    token: string;
+    email: string;
+    name: string;
+    shop_name: string;
+    phone: string;
+    password: string;
+    confirm_password: string;
+  } | null>(null);
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -83,6 +95,94 @@ export const RegisterPage: React.FC = () => {
       ...prev,
       [name]: cleaned
     }));
+  };
+
+  const handleGoogleRegister = () => {
+    setError(null);
+    const google = (window as any).google;
+    if (google?.accounts?.oauth2) {
+      try {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse.error) {
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setError('Google registration was cancelled.');
+              }
+              return;
+            }
+            if (tokenResponse.access_token) {
+              setIsLoading(true);
+              try {
+                let userEmail = '';
+                let userName = '';
+                try {
+                  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                  });
+                  if (res.ok) {
+                    const info = await res.json();
+                    userEmail = info.email || '';
+                    userName = info.name || '';
+                  }
+                } catch (e) {
+                  console.warn('Could not fetch userinfo', e);
+                }
+
+                setGoogleRegData({
+                  token: tokenResponse.access_token,
+                  email: userEmail,
+                  name: userName,
+                  shop_name: userName ? `${userName}'s Agro Store` : 'My Agro Store',
+                  phone: '',
+                  password: '',
+                  confirm_password: '',
+                });
+                setShowGoogleModal(true);
+              } catch (err: any) {
+                setError(getErrorMessage(err, 'Failed to connect to Google.'));
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          },
+        });
+        client.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('OAuth2 error:', err);
+      }
+    }
+    setError('Google Identity service is not available. Please fill out the registration form below.');
+  };
+
+  const handleConfirmGoogleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleRegData) return;
+    if (googleRegData.password && googleRegData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    if (googleRegData.password && googleRegData.password !== googleRegData.confirm_password) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle(googleRegData.token, {
+        shop_name: googleRegData.shop_name,
+        password: googleRegData.password || undefined,
+        phone: googleRegData.phone || undefined,
+      });
+      navigate('/billing');
+    } catch (err: any) {
+      setError(getErrorMessage(err, 'Failed to complete registration with Google.'));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNextStep1 = (e: React.FormEvent) => {
@@ -332,16 +432,54 @@ passwords across unencrypted emails or chat messages.
 
           {/* STEP 1: OWNER ACCOUNT */}
           {step === 1 && (
-            <form onSubmit={handleNextStep1} className="space-y-4">
-              <div className="border-b border-slate-200/80 pb-3 mb-2">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <User className="w-5 h-5 text-brand-700" />
-                  Owner & Security Credentials
-                </h3>
-                <p className="text-xs text-slate-500">
-                  These details will be used to generate your primary administrative access keys.
+            <div className="space-y-4">
+              {/* Google Fast Registration Option */}
+              <div className="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Fast Shop Registration with Google</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  Register your agro shop in one step. You can set a master password to sign in with either <strong>Google</strong> OR <strong>Email + Password</strong> anytime (hybrid login).
                 </p>
+                <button
+                  type="button"
+                  onClick={handleGoogleRegister}
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 shadow-sm hover:shadow transition-all active:scale-[0.99] disabled:opacity-70 group"
+                >
+                  <svg className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>Continue with Google</span>
+                </button>
               </div>
+
+              <div className="relative flex items-center justify-center my-4">
+                <div className="border-t border-slate-200 w-full"></div>
+                <span className="bg-slate-50 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 absolute">
+                  or enter details manually
+                </span>
+              </div>
+
+              <form onSubmit={handleNextStep1} className="space-y-4">
+                <div className="border-b border-slate-200/80 pb-3 mb-2">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <User className="w-5 h-5 text-brand-700" />
+                    Owner & Security Credentials
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    These details will be used to generate your primary administrative access keys.
+                  </p>
+                </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -476,7 +614,8 @@ passwords across unencrypted emails or chat messages.
                 </button>
               </div>
             </form>
-          )}
+          </div>
+        )}
 
           {/* STEP 2: SHOP & BUSINESS INFO */}
           {step === 2 && (
@@ -888,6 +1027,120 @@ passwords across unencrypted emails or chat messages.
           )}
         </div>
       </div>
+
+      {/* Google Quick Registration Modal */}
+      {showGoogleModal && googleRegData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
+          <div className="clay-card-pillowy max-w-lg w-full p-6 sm:p-7 relative border border-white/90 max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShowGoogleModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-2 shadow-sm">
+                <Sprout className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-black text-slate-900">
+                Complete Your Shop Setup
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Connected with verified Google account:{' '}
+                <strong className="text-emerald-700">{googleRegData.email}</strong>
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmGoogleRegistration} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Agro Shop / Business Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={googleRegData.shop_name}
+                  onChange={(e) => setGoogleRegData({ ...googleRegData, shop_name: e.target.value })}
+                  placeholder="e.g. Kisan Seva Agro Agencies"
+                  className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Contact Mobile Number (Optional)
+                </label>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  value={googleRegData.phone}
+                  onChange={(e) => setGoogleRegData({ ...googleRegData, phone: sanitizePhoneInput(e.target.value) })}
+                  placeholder="10-digit mobile number"
+                  className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                />
+              </div>
+
+              {/* Hybrid Password Setup */}
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl space-y-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                    <Lock className="w-4 h-4 text-emerald-700" />
+                    <span>Create Master Password (Hybrid Access)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Set a master password so you can sign in anytime using either:
+                    <br />
+                    1. <strong>Sign in with Google</strong> (1-click)
+                    <br />
+                    2. <strong>{googleRegData.email} + Password</strong> (standard login, just like GitHub!)
+                  </p>
+                </div>
+
+                <div>
+                  <input
+                    type="password"
+                    minLength={6}
+                    value={googleRegData.password}
+                    onChange={(e) => setGoogleRegData({ ...googleRegData, password: e.target.value })}
+                    placeholder="Enter backup password (min 6 characters)"
+                    className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <input
+                    type="password"
+                    value={googleRegData.confirm_password}
+                    onChange={(e) => setGoogleRegData({ ...googleRegData, confirm_password: e.target.value })}
+                    placeholder="Confirm backup password"
+                    className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="clay-btn-primary w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2 shadow-md"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Creating Shop...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Confirm & Launch Shop Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

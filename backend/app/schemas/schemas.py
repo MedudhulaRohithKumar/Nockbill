@@ -151,8 +151,11 @@ class ResetPasswordRequest(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services")
+    credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services or OAuth2 token")
     shop_name: Optional[str] = Field(None, description="Optional shop name if user is signing up for the first time")
+    password: Optional[str] = Field(None, min_length=6, description="Optional password for hybrid email+password login")
+    phone: Optional[str] = Field(None, description="Optional mobile phone number")
+    gstin: Optional[str] = Field(None, description="Optional GSTIN")
 
 
 

@@ -39,7 +39,16 @@ export const authApi = {
     const res = await api.post<{ success: boolean; message: string }>('/auth/forgot-password/reset', payload);
     return res.data;
   },
-  loginWithGoogle: async (credential: string, shopName?: string) => {
+  loginWithGoogle: async (
+    credential: string, 
+    options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string
+  ) => {
+    let payload: any = { credential };
+    if (typeof options === 'string') {
+      payload.shop_name = options;
+    } else if (options) {
+      payload = { ...payload, ...options };
+    }
     const res = await api.post<{
       access_token: string;
       token_type: string;
@@ -48,7 +57,7 @@ export const authApi = {
       name?: string;
       user_id?: number;
       subscription_status?: string;
-    }>('/auth/google', { credential, shop_name: shopName });
+    }>('/auth/google', payload);
     return res.data;
   },
   activateSubscription: async (payload: {
