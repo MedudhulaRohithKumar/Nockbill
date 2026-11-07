@@ -1,13 +1,19 @@
 import api from './client';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList } from '../types';
 
 export const authApi = {
-  login: async (credentials: { username: string; password: string } | FormData) => {
+  getCaptcha: async () => {
+    const res = await api.get<{ captcha_token: string; captcha_image: string }>('/auth/captcha');
+    return res.data;
+  },
+  login: async (credentials: { username: string; password: string; captcha_token: string; captcha_code: string } | FormData) => {
     let payload: any;
     if (credentials instanceof FormData) {
       payload = {
         username: credentials.get('username') as string,
         password: credentials.get('password') as string,
+        captcha_token: credentials.get('captcha_token') as string,
+        captcha_code: credentials.get('captcha_code') as string,
       };
     } else {
       payload = credentials;
@@ -32,7 +38,22 @@ export const authApi = {
     return res.data;
   },
   requestPasswordReset: async (identifier: string) => {
-    const res = await api.post<{ success: boolean; message: string; masked_target?: string; email_sent?: boolean }>('/auth/forgot-password/request', { identifier });
+    const res = await api.post<{
+      success: boolean;
+      message: string;
+      masked_target?: string;
+      email_sent?: boolean;
+      dev_otp?: string;
+    }>('/auth/forgot-password/request', { identifier });
+    return res.data;
+  },
+  verifyResetOtp: async (payload: { identifier: string; otp_code: string }) => {
+    const res = await api.post<{
+      success: boolean;
+      verified: boolean;
+      reset_token: string;
+      message: string;
+    }>('/auth/forgot-password/verify', payload);
     return res.data;
   },
   resetPassword: async (payload: { identifier: string; reset_token: string; new_password: string }) => {
@@ -162,6 +183,49 @@ export const productsApi = {
     if (params?.batch_id) query.set('batch_id', String(params.batch_id));
     const qs = query.toString();
     return `/api/products/${productId}/barcode-label.pdf${qs ? `?${qs}` : ''}`;
+  },
+};
+
+export const priceListsApi = {
+  getAll: async () => {
+    const res = await api.get<PriceList[]>('/price-lists');
+    return res.data;
+  },
+  create: async (payload: {
+    name: string;
+    description?: string;
+    adjustment_type: 'DISCOUNT' | 'INCREMENT';
+    calculation_mode: 'PERCENTAGE' | 'FIXED';
+    adjustment_value: number;
+    is_active?: boolean;
+    apply_to_all?: boolean;
+    product_ids?: number[];
+  }) => {
+    const res = await api.post<PriceList>('/price-lists', payload);
+    return res.data;
+  },
+  update: async (id: number, payload: Partial<{
+    name: string;
+    description: string;
+    adjustment_type: 'DISCOUNT' | 'INCREMENT';
+    calculation_mode: 'PERCENTAGE' | 'FIXED';
+    adjustment_value: number;
+    is_active: boolean;
+  }>) => {
+    const res = await api.put<PriceList>(`/price-lists/${id}`, payload);
+    return res.data;
+  },
+  assignProducts: async (id: number, payload: { apply_to_all?: boolean; product_ids?: number[] }) => {
+    const res = await api.post<{ success: boolean; message: string; price_list: PriceList }>(`/price-lists/${id}/assign`, payload);
+    return res.data;
+  },
+  unassignProducts: async (id: number, payload: { unassign_all?: boolean; product_ids?: number[] }) => {
+    const res = await api.post<{ success: boolean; message: string; price_list: PriceList }>(`/price-lists/${id}/unassign`, payload);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete<{ success: boolean; message: string }>(`/price-lists/${id}`);
+    return res.data;
   },
 };
 

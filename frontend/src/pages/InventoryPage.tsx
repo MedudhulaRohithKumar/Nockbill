@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -35,10 +36,13 @@ import {
 } from '../utils/formatters';
 import { CustomSelect } from '../components/common/CustomSelect';
 import { useShop } from '../context/ShopContext';
+import { useAuth } from '../context/AuthContext';
 import { BarcodePrintModal } from '../components/inventory/BarcodePrintModal';
 
 export const InventoryPage: React.FC = () => {
   const { settings } = useShop();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [recommendations, setRecommendations] = useState<RefillRecommendation[]>([]);
   const [search, setSearch] = useState('');
@@ -119,6 +123,7 @@ export const InventoryPage: React.FC = () => {
       list = list.filter(p => {
         const pName = safeString(p.name || p.product_name).toLowerCase();
         const pTrade = safeString(p.trade_name).toLowerCase();
+        const pCategory = safeString(p.category).toLowerCase();
         const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
         const pHsn = safeString(p.hsn_code).toLowerCase();
         const pBarcode = safeString(p.barcode).toLowerCase();
@@ -126,6 +131,7 @@ export const InventoryPage: React.FC = () => {
         return (
           pName.includes(q) ||
           pTrade.includes(q) ||
+          pCategory.includes(q) ||
           pBatch.includes(q) ||
           pHsn.includes(q) ||
           pBarcode.includes(q) ||
@@ -213,7 +219,7 @@ export const InventoryPage: React.FC = () => {
     setRefillPurchasePrice(prod.purchase_price ?? prod.cost_price ?? 0);
     setRefillSellingPrice(prod.selling_price ?? 0);
     setRefillMrp(prod.mrp ?? prod.selling_price ?? 0);
-    setRefillBatch(prod.batch_number || `BATCH-${Math.floor(1000 + Math.random() * 9000)}`);
+    setRefillBatch(prod.batch_number || '');
     setRefillExpiry(prod.expiry_date || '');
     setRefillSupplier(prod.company_name || 'Stock Refill Supplier');
   };
@@ -230,7 +236,7 @@ export const InventoryPage: React.FC = () => {
       setRefillTradeManuallyEdited(false);
       setRefillQty(suggestedQty);
       setRefillUnit('Bags');
-      setRefillBatch(`BATCH-${Math.floor(1000 + Math.random() * 9000)}`);
+      setRefillBatch('');
       setRefillExpiry('');
       setRefillPurchasePrice(0);
       setRefillSellingPrice(0);
@@ -268,7 +274,8 @@ export const InventoryPage: React.FC = () => {
       name: prodName,
       company_name: compName,
       trade_name: tradeName,
-      hsn_code: sanitizeCodeInput(editingProduct.hsn_code || '31021000', 30),
+      category: editingProduct.category || 'Fertilizer',
+      hsn_code: sanitizeCodeInput(editingProduct.hsn_code || '', 30),
       batch_number: sanitizeCodeInput(editingProduct.batch_number || '', 60),
       purchase_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
       cost_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
@@ -408,6 +415,17 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Price Lists Button (Owner Only) */}
+          {user?.role === 'owner' && (
+            <button
+              onClick={() => navigate('/price-lists')}
+              className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-xs transition-all active:scale-95"
+            >
+              <Tag className="w-4 h-4 text-amber-600" />
+              <span>Price Lists (Discounts / Increments)</span>
+            </button>
+          )}
+
           {/* Refill Button */}
           <button
             onClick={() => {
@@ -427,14 +445,14 @@ export const InventoryPage: React.FC = () => {
                 company_name: '',
                 trade_name: '',
                 category: 'Fertilizer',
-                hsn_code: '31021000',
+                hsn_code: '',
                 unit: 'Bags',
                 current_stock: 0,
                 cost_price: 0,
                 selling_price: 0,
                 mrp: 0,
                 gst_rate: 5,
-                batch_number: 'B-' + Math.floor(1000 + Math.random() * 9000),
+                batch_number: '',
                 min_stock_level: 20,
               });
               setTradeNameManuallyEdited(false);
@@ -545,7 +563,7 @@ export const InventoryPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product, barcode (890...), batch, or company..."
+              placeholder="Search product, category (Fertilizer, Seeds, Others...), barcode, batch, or company..."
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-none"
             />
           </div>
@@ -589,7 +607,7 @@ export const InventoryPage: React.FC = () => {
 
         {/* Category Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs">
-          {['ALL', 'Fertilizer', 'Pesticide', 'Seeds', 'Micronutrients', 'Bio-fertilizer', 'Organic'].map((cat) => (
+          {['ALL', 'Fertilizer', 'Pesticide', 'Seeds', 'Micronutrients', 'Bio-fertilizer', 'Organic', 'Others'].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
@@ -679,9 +697,26 @@ export const InventoryPage: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl text-xs">
                     <div>
                       <span className="text-slate-400 block text-[10px]">Selling Rate:</span>
-                      <span className="font-black text-slate-900 text-sm font-mono">
-                        ₹{formatCurrency(sellingPrice)}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-slate-900 text-sm font-mono">
+                          ₹{formatCurrency(sellingPrice)}
+                        </span>
+                        {p.base_selling_price && p.base_selling_price !== sellingPrice && (
+                          <span className="text-[10px] text-slate-400 line-through font-mono">
+                            ₹{formatCurrency(p.base_selling_price)}
+                          </span>
+                        )}
+                      </div>
+                      {p.price_list_name && p.price_list_active && (
+                        <span className={`inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          p.price_list_type === 'DISCOUNT'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          <Tag className="w-2.5 h-2.5" />
+                          {p.price_list_name}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Cost / Inward:</span>
@@ -811,8 +846,25 @@ export const InventoryPage: React.FC = () => {
                     <td className="py-3 px-3 text-right font-medium text-slate-600">
                       {formatCurrency(costPrice)}
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-900">
-                      {formatCurrency(sellingPrice)}
+                    <td className="py-3 px-3 text-right">
+                      <div className="font-bold text-slate-900">
+                        {formatCurrency(sellingPrice)}
+                      </div>
+                      {p.base_selling_price && p.base_selling_price !== sellingPrice && (
+                        <div className="text-[10px] text-slate-400 line-through font-mono">
+                          {formatCurrency(p.base_selling_price)}
+                        </div>
+                      )}
+                      {p.price_list_name && p.price_list_active && (
+                        <span className={`inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          p.price_list_type === 'DISCOUNT'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          <Tag className="w-2.5 h-2.5" />
+                          {p.price_list_name}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black ${
@@ -950,10 +1002,11 @@ export const InventoryPage: React.FC = () => {
                           const q = refillProductSearch.toLowerCase();
                           const pName = safeString(p.name || p.product_name).toLowerCase();
                           const pTrade = safeString(p.trade_name).toLowerCase();
+                          const pCat = safeString(p.category).toLowerCase();
                           const pComp = safeString(p.company_name).toLowerCase();
                           const pBar = safeString(p.barcode).toLowerCase();
                           const pCode = safeString(p.product_code).toLowerCase();
-                          return pName.includes(q) || pTrade.includes(q) || pComp.includes(q) || pBar.includes(q) || pCode.includes(q);
+                          return pName.includes(q) || pTrade.includes(q) || pCat.includes(q) || pComp.includes(q) || pBar.includes(q) || pCode.includes(q);
                         })
                         .slice(0, 30)
                         .map((p) => (
@@ -1035,9 +1088,6 @@ export const InventoryPage: React.FC = () => {
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-500 leading-relaxed">
-                  Trade Name maps <strong>Product + Company/Brand</strong> (e.g., the same base product in Company A is called Trade Name C, while in Company D it is called Trade Name E).
-                </p>
                 {refillTradeResolution.relatedMappings.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                     <span className="text-[10px] font-bold text-emerald-800">Known Brand Trade Names:</span>
@@ -1099,6 +1149,7 @@ export const InventoryPage: React.FC = () => {
                     type="text"
                     value={refillBatch}
                     onChange={(e) => setRefillBatch(e.target.value)}
+                    placeholder="e.g. BATCH-2026-01"
                     className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -1329,9 +1380,6 @@ export const InventoryPage: React.FC = () => {
                   placeholder="e.g. Confidor (Bayer) or Tatamida (Tata Rallis)"
                   className="w-full px-3 py-2 bg-white font-bold text-emerald-950 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
-                <p className="text-[10px] text-slate-500">
-                  In Company A, Product B has Trade Name C; in Company D, the same Product B has Trade Name E.
-                </p>
                 {editTradeResolution.relatedMappings.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                     <span className="text-[10px] font-bold text-emerald-800">Brand Mappings for this Product:</span>
@@ -1369,6 +1417,7 @@ export const InventoryPage: React.FC = () => {
                       { value: 'Micronutrients', label: 'Micronutrients' },
                       { value: 'Bio-fertilizer', label: 'Bio-fertilizer' },
                       { value: 'Organic', label: 'Organic' },
+                      { value: 'Others', label: 'Others' },
                     ]}
                   />
                 </div>
@@ -1394,8 +1443,9 @@ export const InventoryPage: React.FC = () => {
                   <label className="block font-semibold text-slate-700 mb-1">HSN Code</label>
                   <input
                     type="text"
-                    value={editingProduct.hsn_code || '31021000'}
+                    value={editingProduct.hsn_code ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, hsn_code: e.target.value })}
+                    placeholder="e.g. 31021000"
                     className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -1407,8 +1457,9 @@ export const InventoryPage: React.FC = () => {
                   <label className="block font-semibold text-slate-700 mb-1">Batch Number</label>
                   <input
                     type="text"
-                    value={editingProduct.batch_number || ''}
+                    value={editingProduct.batch_number ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, batch_number: e.target.value })}
+                    placeholder="e.g. BATCH-2026-01"
                     className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>

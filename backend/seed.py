@@ -28,6 +28,10 @@ def _run_schema_migrations(db_engine):
         existing_tables = set(inspector.get_table_names())
         column_migrations = [
             ("products", "trade_name", "VARCHAR(200)"),
+            ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
+            ("products", "batch_number", "VARCHAR(100)"),
+            ("products", "base_selling_price", "NUMERIC(12, 2)"),
+            ("products", "price_list_id", "INTEGER"),
             ("product_batches", "trade_name", "VARCHAR(200)"),
             ("product_batches", "company_name", "VARCHAR(200)"),
             ("sale_items", "trade_name", "VARCHAR(200)"),

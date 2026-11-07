@@ -7,7 +7,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, captchaToken: string, captchaCode: string) => Promise<void>;
   loginWithGoogle: (credential: string, options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string) => Promise<void>;
   register: (payload: any) => Promise<any>;
   activateSubscription: (payload: any) => Promise<any>;
@@ -72,9 +72,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, captchaToken: string, captchaCode: string) => {
     localStorage.removeItem('shop_settings');
-    const data = await authApi.login({ username, password });
+    const data = await authApi.login({
+      username,
+      password,
+      captcha_token: captchaToken,
+      captcha_code: captchaCode,
+    });
     localStorage.setItem('token', data.access_token);
     setToken(data.access_token);
 

@@ -177,6 +177,8 @@ export const RegisterPage: React.FC = () => {
         password: googleRegData.password || undefined,
         phone: googleRegData.phone || undefined,
       });
+      await refreshSettings();
+      setShowGoogleModal(false);
       navigate('/billing');
     } catch (err: any) {
       setError(getErrorMessage(err, 'Failed to complete registration with Google.'));
@@ -1052,6 +1054,13 @@ passwords across unencrypted emails or chat messages.
                 <strong className="text-emerald-700">{googleRegData.email}</strong>
               </p>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <form onSubmit={handleConfirmGoogleRegistration} className="space-y-4">
               <div>

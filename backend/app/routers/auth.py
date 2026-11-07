@@ -8,10 +8,11 @@ from app.models.models import User, UserRole, AuditAction, AuditLog, ShopSetting
 from app.schemas.schemas import (
     LoginRequest, TokenResponse, UserCreate, UserResponse,
     ShopRegistrationRequest, RegistrationResponse,
-    ForgotPasswordRequest, ResetPasswordRequest,
+    ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest,
     SubscriptionPaymentRequest, GoogleAuthRequest
 )
 from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.utils.captcha import generate_captcha_challenge, verify_captcha_challenge
 from app.services.email_service import send_password_reset_email
 from app.config.settings import settings
 
@@ -21,8 +22,31 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 RESET_TOKENS: dict = {}
 
 
+@router.get("/captcha")
+def get_login_captcha():
+    """
+    Generate a server-side distorted raster CAPTCHA image and a cryptographically
+    signed HMAC-SHA256 challenge token. Plaintext answer never leaves the server.
+    """
+    token, image_data_uri = generate_captcha_challenge()
+    return {
+        "captcha_token": token,
+        "captcha_image": image_data_uri,
+    }
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    # 1. Strictly enforce server-side single-use CAPTCHA verification first
+    is_valid_captcha, captcha_error = verify_captcha_challenge(
+        payload.captcha_token, payload.captcha_code
+    )
+    if not is_valid_captcha:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=captcha_error,
+        )
+
     clean_identifier = (payload.username or "").strip()
     identifier_lower = clean_identifier.lower()
 
@@ -200,15 +224,14 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
         )
     ).first()
 
-    # Always return success message to prevent user enumeration attacks
+    # Always return a clean response if user is not found
     if not user:
-        return {
-            "success": True,
-            "message": "If an active account matches that email, username, or phone, a 6-digit verification code has been dispatched.",
-            "masked_target": "your registered email"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="No active shop account found with that email, username, or mobile number."
+        )
 
-    # Generate cryptographically secure 6-digit verification code
+    # Generate cryptographically secure 6-digit numeric verification code
     otp = f"{secrets.randbelow(900000) + 100000}"
     reset_secret = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=15)
@@ -217,7 +240,9 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
         "code": otp,
         "token": reset_secret,
         "expires_at": expires_at,
-        "user_id": user.id
+        "user_id": user.id,
+        "attempts": 0,
+        "verified": False,
     }
 
     # Construct one-click reset link if frontend base URL is configured
@@ -248,11 +273,71 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
     else:
         masked = "your registered account"
 
-    return {
+    response_data = {
         "success": True,
-        "message": f"Verification code dispatched to {masked} via Amazon SES.",
+        "message": f"A 6-digit verification code has been sent to {masked}." if email_dispatched else f"Verification code generated for {masked}.",
         "email_sent": email_dispatched,
         "masked_target": masked,
+    }
+
+    # If external email delivery could not be completed (e.g. local dev container without cloud email credentials),
+    # return dev_otp so local testing is never blocked or misleading
+    if not email_dispatched:
+        response_data["dev_otp"] = otp
+
+    return response_data
+
+
+@router.post("/forgot-password/verify")
+def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
+    ident = (payload.identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="Account identifier is required.")
+
+    user = db.query(User).filter(
+        or_(
+            func.lower(User.username) == ident.lower(),
+            func.lower(User.email) == ident.lower(),
+            User.phone == ident
+        )
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid verification code or account not found.")
+
+    entry = RESET_TOKENS.get(user.username)
+    if not entry or datetime.utcnow() > entry["expires_at"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Verification code has expired (valid for 15 minutes). Please request a new code."
+        )
+
+    if entry.get("attempts", 0) >= 5:
+        del RESET_TOKENS[user.username]
+        raise HTTPException(
+            status_code=429,
+            detail="Too many incorrect attempts. Please request a new 6-digit verification code."
+        )
+
+    provided_code = (payload.otp_code or "").strip()
+    # Strict check: if 6 characters, must be 6 digits
+    if len(provided_code) == 6 and not provided_code.isdigit():
+        raise HTTPException(status_code=400, detail="Verification code must be a 6-digit number.")
+
+    if provided_code != entry["code"] and provided_code != entry.get("token"):
+        entry["attempts"] = entry.get("attempts", 0) + 1
+        remaining = max(0, 5 - entry["attempts"])
+        raise HTTPException(
+            status_code=400,
+            detail=f"Incorrect 6-digit verification code ({remaining} attempts remaining)."
+        )
+
+    entry["verified"] = True
+    return {
+        "success": True,
+        "verified": True,
+        "reset_token": entry["token"],
+        "message": "Code verified! Please set your new password."
     }
 
 
@@ -275,7 +360,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
     entry = RESET_TOKENS.get(user.username)
     is_valid = False
-    provided_code = payload.reset_token.strip()
+    provided_code = (payload.reset_token or "").strip()
 
     if entry and (entry["code"] == provided_code or entry.get("token") == provided_code):
         if datetime.utcnow() <= entry["expires_at"]:
@@ -284,15 +369,18 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     if not is_valid:
         raise HTTPException(
             status_code=400,
-            detail="The verification code is invalid or has expired (valid for 15 minutes). Please request a new one."
+            detail="The verification session is invalid or has expired. Please verify your code again."
         )
 
+    if len((payload.new_password or "").strip()) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+
     # Update password securely
-    user.password_hash = hash_password(payload.new_password)
+    user.password_hash = hash_password(payload.new_password.strip())
     audit = AuditLog(
         user_id=user.id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Password successfully reset via Amazon SES verification code for user {user.username}"
+        description=f"Password reset completed for user {user.username}"
     )
     db.add(audit)
     db.commit()
@@ -301,7 +389,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     if user.username in RESET_TOKENS:
         del RESET_TOKENS[user.username]
 
-    return {"success": True, "message": "Password reset successfully! You can now log in with your new password."}
+    return {"success": True, "message": "Password updated successfully! You can now sign in with your new password."}
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -392,15 +480,19 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
             suffix += 1
 
         # Determine shop name
-        shop_title = (payload.shop_name or "").strip() or f"{full_name}'s Agro Store"
+        shop_title = (payload.shop_name or "").strip()[:200] or f"{full_name[:150]}'s Agro Store"
 
         # Create new Shop Settings
         new_shop = ShopSettings(
             shop_name=shop_title,
-            proprietor_name=full_name,
-            email=clean_email,
-            phone=payload.phone.strip() if payload.phone else None,
-            gstin=payload.gstin.strip().upper() if payload.gstin else None,
+            proprietor_name=full_name[:200],
+            email=clean_email[:150],
+            phone=payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None,
+            gstin=payload.gstin.strip().upper()[:20] if (payload.gstin and payload.gstin.strip()) else None,
+            default_gst_rate=18,
+            invoice_prefix="INV",
+            invoice_counter=1,
+            currency="INR",
             subscription_status="ACTIVE",
         )
         db.add(new_shop)
@@ -409,14 +501,15 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
         # Hybrid Authentication:
         # If user provided a password during Google registration, save it so they can log in
         # with either Google OR Email + Password anytime. Otherwise generate a secure fallback.
-        chosen_password = payload.password.strip() if payload.password else secrets.token_urlsafe(24)
+        clean_pwd = (payload.password or "").strip()
+        chosen_password = clean_pwd if len(clean_pwd) >= 6 else secrets.token_urlsafe(24)
 
         # Create new User
         user = User(
-            name=full_name,
+            name=full_name[:100],
             username=candidate_username,
-            email=clean_email,
-            phone=payload.phone.strip() if payload.phone else None,
+            email=clean_email[:150],
+            phone=payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None,
             password_hash=hash_password(chosen_password),
             role=UserRole.OWNER,
             shop_id=new_shop.id,
@@ -427,10 +520,14 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
         db.flush()
     else:
         # User exists: if they provided a new password, update it so they can use hybrid email+pwd
-        if payload.password and payload.password.strip():
-            user.password_hash = hash_password(payload.password.strip())
-        if payload.phone and not user.phone:
-            user.phone = payload.phone.strip()
+        clean_pwd = (payload.password or "").strip()
+        if len(clean_pwd) >= 6:
+            user.password_hash = hash_password(clean_pwd)
+        if payload.phone and payload.phone.strip() and not user.phone:
+            user.phone = payload.phone.strip()[:20]
+        if payload.shop_name and payload.shop_name.strip() and user.shop:
+            if user.shop.shop_name in ("My Fertilizer Shop", "My Agro Store", f"{full_name}'s Agro Store"):
+                user.shop.shop_name = payload.shop_name.strip()[:200]
         db.flush()
 
     if not user.is_active:

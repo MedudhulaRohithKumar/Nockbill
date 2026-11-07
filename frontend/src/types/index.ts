@@ -79,7 +79,14 @@ export interface Product {
   current_stock: number;
   cost_price: number;
   purchase_price?: number;
+  base_selling_price?: number;
   selling_price: number;
+  price_list_id?: number | null;
+  price_list_name?: string | null;
+  price_list_type?: 'DISCOUNT' | 'INCREMENT' | string | null;
+  price_list_mode?: 'PERCENTAGE' | 'FIXED' | string | null;
+  price_list_value?: number | null;
+  price_list_active?: boolean;
   mrp: number;
   gst_rate: number;
   batch_number: string;
@@ -93,6 +100,62 @@ export interface Product {
   is_near_expiry?: boolean;
   variants?: ProductVariant[];
   batches?: ProductBatch[];
+}
+
+export interface PriceList {
+  id: number;
+  shop_id: number;
+  name: string;
+  description?: string;
+  adjustment_type: 'DISCOUNT' | 'INCREMENT';
+  calculation_mode: 'PERCENTAGE' | 'FIXED';
+  adjustment_value: number;
+  is_active: boolean;
+  product_count: number;
+  product_ids: number[];
+  products: {
+    id: number;
+    product_name: string;
+    trade_name?: string;
+    company_name?: string;
+    category: string;
+    unit: string;
+    base_selling_price: number;
+    selling_price: number;
+    current_stock: number;
+  }[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CategoryAnalyticsItem {
+  category: string;
+  product_count: number;
+  stock_units: number;
+  stock_value: number;
+  units_sold: number;
+  orders: number;
+  revenue: number;
+  cogs: number;
+  profit: number;
+  percentage: number;
+  products: {
+    id: number;
+    product_name: string;
+    trade_name?: string;
+    company_name?: string;
+    category: string;
+    barcode?: string;
+    batch_number?: string;
+    unit: string;
+    current_stock: number;
+    selling_price: number;
+    cost_price: number;
+    units_sold: number;
+    revenue: number;
+    profit: number;
+    orders: number;
+  }[];
 }
 
 export interface RefillRecommendation {
@@ -156,8 +219,10 @@ export interface AnalyticsData {
     amount: number;
     percentage: number;
   }[];
+  category_breakdown?: CategoryAnalyticsItem[];
   top_products: {
     product_name: string;
+    category?: string;
     quantity: number;
     revenue: number;
     cogs: number;

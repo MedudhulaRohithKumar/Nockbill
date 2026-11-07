@@ -125,6 +125,23 @@ class ShopSettings(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PriceList(Base):
+    __tablename__ = "price_lists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    name = Column(String(150), nullable=False, index=True)
+    description = Column(String(500), nullable=True)
+    adjustment_type = Column(String(20), nullable=False, default="DISCOUNT")   # "DISCOUNT" or "INCREMENT"
+    calculation_mode = Column(String(20), nullable=False, default="PERCENTAGE") # "PERCENTAGE" or "FIXED"
+    adjustment_value = Column(Numeric(12, 2), nullable=False, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    products = relationship("Product", back_populates="price_list")
+
+
 class Product(Base):
     __tablename__ = "products"
 
@@ -133,22 +150,27 @@ class Product(Base):
     product_code = Column(String(50), index=True)
     product_name = Column(String(200), nullable=False, index=True)
     company_name = Column(String(200), index=True)
-    trade_name = Column(String(200), index=True, nullable=True)  # Combination of product_name & company_name (e.g. Company A + Product B -> Trade Name C)
+    trade_name = Column(String(200), index=True, nullable=True)
+    category = Column(String(100), default="Fertilizer", index=True)
+    batch_number = Column(String(100), nullable=True, index=True)
     net_content = Column(Numeric(10, 3))
     unit = Column(SAEnum(UnitType), default=UnitType.ML)
     purchase_price = Column(Numeric(12, 2), default=0)
+    base_selling_price = Column(Numeric(12, 2), nullable=True)
     selling_price = Column(Numeric(12, 2), nullable=False)
+    price_list_id = Column(Integer, ForeignKey("price_lists.id", ondelete="SET NULL"), nullable=True, index=True)
     gst_rate = Column(Numeric(5, 2), default=18)
     manufacture_date = Column(String(10))   # stored as YYYY-MM
     expiry_date = Column(String(10))        # stored as YYYY-MM
     current_stock = Column(Numeric(12, 3), default=0)
     minimum_stock = Column(Numeric(12, 3), default=5)
     barcode = Column(String(100), unique=True, index=True, nullable=True)
-    hsn_code = Column(String(50), default="31021000")
+    hsn_code = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    price_list = relationship("PriceList", back_populates="products")
     sale_items = relationship("SaleItem", back_populates="product")
     purchase_items = relationship("PurchaseItem", back_populates="product")
     inventory_transactions = relationship("InventoryTransaction", back_populates="product")
@@ -404,3 +426,36 @@ class SalesReturnItem(Base):
     product = relationship("Product")
     batch = relationship("ProductBatch")
     sale_item = relationship("SaleItem")
+
+
+def _ensure_schema_columns():
+    """Ensure new tables and columns exist even when legacy seed.py runs before main.py."""
+    try:
+        from sqlalchemy import inspect, text
+        from app.database.base import engine
+        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+        column_migrations = [
+            ("products", "trade_name", "VARCHAR(200)"),
+            ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
+            ("products", "batch_number", "VARCHAR(100)"),
+            ("products", "base_selling_price", "NUMERIC(12, 2)"),
+            ("products", "price_list_id", "INTEGER"),
+            ("product_batches", "trade_name", "VARCHAR(200)"),
+            ("product_batches", "company_name", "VARCHAR(200)"),
+            ("sale_items", "trade_name", "VARCHAR(200)"),
+            ("purchase_items", "company_name", "VARCHAR(200)"),
+            ("purchase_items", "trade_name", "VARCHAR(200)"),
+        ]
+        with engine.begin() as conn:
+            for table_name, col_name, col_type in column_migrations:
+                if table_name in existing_tables:
+                    cols = {c["name"] for c in inspector.get_columns(table_name)}
+                    if col_name not in cols:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
+    except Exception:
+        pass
+
+
+_ensure_schema_columns()

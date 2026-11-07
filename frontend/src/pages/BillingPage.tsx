@@ -150,6 +150,7 @@ export const BillingPage: React.FC = () => {
     const filtered = invList.filter(p => {
       const pName = safeString(p.name || p.product_name).toLowerCase();
       const pTrade = safeString(p.trade_name).toLowerCase();
+      const pCat = safeString(p.category).toLowerCase();
       const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
       const pHsn = safeString(p.hsn_code).toLowerCase();
       const pBarcode = safeString(p.barcode).toLowerCase();
@@ -157,13 +158,14 @@ export const BillingPage: React.FC = () => {
       return (
         pName.includes(q) ||
         pTrade.includes(q) ||
+        pCat.includes(q) ||
         pBatch.includes(q) ||
         pHsn.includes(q) ||
         pBarcode.includes(q) ||
         pCompany.includes(q)
       );
     });
-    setSearchResults(filtered.slice(0, 8));
+    setSearchResults(filtered.slice(0, 50));
   }, [searchQuery, inventory]);
 
   // Barcode Lookup Handler
@@ -739,14 +741,14 @@ export const BillingPage: React.FC = () => {
                       }
                     }
                   }}
-                  placeholder="Type product name (Press Enter to Add) or brand, HSN..."
+                  placeholder="Search product, category (Fertilizer, Seeds, Others...), brand, or HSN..."
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-sm"
                 />
               </div>
 
               {/* Auto-suggest dropdown */}
               {searchResults.length > 0 && (
-                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-80 overflow-y-auto">
                   {searchResults.map((product) => (
                     <div
                       key={product.id}
@@ -760,9 +762,19 @@ export const BillingPage: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-slate-800">{product.name || product.product_name}</p>
+                          {product.category && (
+                            <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-full">
+                              {product.category}
+                            </span>
+                          )}
                           {product.trade_name && (
                             <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
                               Trade: {product.trade_name}
+                            </span>
+                          )}
+                          {product.price_list_name && product.price_list_active && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded border border-amber-200">
+                              {product.price_list_name}
                             </span>
                           )}
                           {product.barcode && (

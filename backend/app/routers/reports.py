@@ -360,9 +360,9 @@ def dashboard_summary(
             "name": p.product_name,
             "product_name": p.product_name,
             "product_code": p.product_code,
-            "category": p.company_name or "Fertilizer",
+            "category": getattr(p, "category", None) or "Fertilizer",
             "company_name": p.company_name,
-            "hsn_code": "31021000",
+            "hsn_code": p.hsn_code or "",
             "unit": p.unit.value if hasattr(p.unit, "value") else str(p.unit),
             "current_stock": float(p.current_stock or 0),
             "cost_price": float(p.purchase_price or 0),
@@ -370,7 +370,7 @@ def dashboard_summary(
             "selling_price": float(p.selling_price or 0),
             "mrp": float(p.selling_price or 0),
             "gst_rate": float(p.gst_rate or 0),
-            "batch_number": p.product_code or f"BAT-{p.id}",
+            "batch_number": getattr(p, "batch_number", None) or p.product_code or f"BAT-{p.id}",
             "expiry_date": p.expiry_date,
             "min_stock_level": float(p.minimum_stock or 0),
             "minimum_stock": float(p.minimum_stock or 0),
@@ -505,9 +505,85 @@ def get_analytics(
         Sale.sale_date <= dt_end,
     ).order_by(Sale.sale_date.asc()).all()
 
-    # Pre-fetch products lookup for accurate COGS
+    # Pre-fetch products lookup for accurate COGS & Category Analytics
     products = db.query(Product).filter(Product.shop_id == shop_id).all()
     prod_cost_map = {p.id: float(p.purchase_price or 0) for p in products}
+    prod_obj_map = {p.id: p for p in products}
+
+    STANDARD_CATEGORIES = [
+        "Fertilizer",
+        "Pesticide",
+        "Seeds",
+        "Micronutrients",
+        "Bio-fertilizer",
+        "Organic",
+        "Others",
+    ]
+    cat_map = {
+        cat: {
+            "category": cat,
+            "product_count": 0,
+            "stock_units": 0.0,
+            "stock_value": 0.0,
+            "units_sold": 0.0,
+            "orders": 0,
+            "revenue": 0.0,
+            "cogs": 0.0,
+            "profit": 0.0,
+            "percentage": 0.0,
+            "products_map": {},
+        }
+        for cat in STANDARD_CATEGORIES
+    }
+
+    for p in products:
+        if not p.is_active:
+            continue
+        p_cat = (getattr(p, "category", None) or "Fertilizer").strip()
+        if not p_cat or (p.company_name and p_cat == p.company_name):
+            p_cat = "Fertilizer"
+        # Match case-insensitively to standard category or keep custom
+        matched_cat = next((c for c in cat_map.keys() if c.lower() == p_cat.lower()), None)
+        if not matched_cat:
+            matched_cat = p_cat
+            cat_map[matched_cat] = {
+                "category": matched_cat,
+                "product_count": 0,
+                "stock_units": 0.0,
+                "stock_value": 0.0,
+                "units_sold": 0.0,
+                "orders": 0,
+                "revenue": 0.0,
+                "cogs": 0.0,
+                "profit": 0.0,
+                "percentage": 0.0,
+                "products_map": {},
+            }
+        stock_qty = float(p.current_stock or 0)
+        s_price = float(p.selling_price or 0)
+        c_price = float(p.purchase_price or 0)
+        unit_str = p.unit.value if hasattr(p.unit, "value") else str(p.unit or "Bags")
+
+        cat_map[matched_cat]["product_count"] += 1
+        cat_map[matched_cat]["stock_units"] += stock_qty
+        cat_map[matched_cat]["stock_value"] += stock_qty * s_price
+        cat_map[matched_cat]["products_map"][p.id] = {
+            "id": p.id,
+            "product_name": p.product_name,
+            "trade_name": getattr(p, "trade_name", None) or "",
+            "company_name": p.company_name or "",
+            "category": matched_cat,
+            "barcode": p.barcode or str(10000 + p.id),
+            "batch_number": getattr(p, "batch_number", None) or p.product_code or "",
+            "unit": unit_str,
+            "current_stock": stock_qty,
+            "selling_price": s_price,
+            "cost_price": c_price,
+            "units_sold": 0.0,
+            "revenue": 0.0,
+            "profit": 0.0,
+            "orders": 0,
+        }
 
     total_revenue = 0.0
     total_taxable = 0.0
@@ -541,11 +617,32 @@ def get_analytics(
             cost = qty * c_price
             sale_cogs += cost
 
+            # Category aggregation
+            p_obj = prod_obj_map.get(item.product_id)
+            raw_cat = (getattr(p_obj, "category", None) or "Fertilizer").strip() if p_obj else "Others"
+            if p_obj and p_obj.company_name and raw_cat == p_obj.company_name:
+                raw_cat = "Fertilizer"
+            matched_cat = next((c for c in cat_map.keys() if c.lower() == raw_cat.lower()), "Others")
+            cat_entry = cat_map[matched_cat]
+            cat_entry["units_sold"] += qty
+            cat_entry["orders"] += 1
+            cat_entry["revenue"] += item_rev
+            cat_entry["cogs"] += cost
+            cat_entry["profit"] += (item_rev - cost)
+
+            if item.product_id and item.product_id in cat_entry["products_map"]:
+                p_stat = cat_entry["products_map"][item.product_id]
+                p_stat["units_sold"] = round(p_stat["units_sold"] + qty, 2)
+                p_stat["revenue"] = round(p_stat["revenue"] + item_rev, 2)
+                p_stat["profit"] = round(p_stat["profit"] + (item_rev - cost), 2)
+                p_stat["orders"] += 1
+
             # Product aggregation
             p_name = item.product_name or f"Product #{item.product_id}"
             if p_name not in prod_sales_map:
                 prod_sales_map[p_name] = {
                     "product_name": p_name,
+                    "category": matched_cat,
                     "quantity": 0.0,
                     "revenue": 0.0,
                     "cogs": 0.0,
@@ -675,6 +772,30 @@ def get_analytics(
         tp["revenue"] = round(tp["revenue"], 2)
         tp["profit"] = round(tp["revenue"] - tp["cogs"], 2)
 
+    # Finalize category_breakdown
+    category_breakdown = []
+    for cat_name, c_data in cat_map.items():
+        rev = round(c_data["revenue"], 2)
+        pct = round((rev / total_revenue * 100), 1) if total_revenue > 0 else 0.0
+        prods_list = sorted(
+            c_data["products_map"].values(),
+            key=lambda x: (x["revenue"], x["current_stock"]),
+            reverse=True
+        )
+        category_breakdown.append({
+            "category": cat_name,
+            "product_count": c_data["product_count"],
+            "stock_units": round(c_data["stock_units"], 2),
+            "stock_value": round(c_data["stock_value"], 2),
+            "units_sold": round(c_data["units_sold"], 2),
+            "orders": c_data["orders"],
+            "revenue": rev,
+            "cogs": round(c_data["cogs"], 2),
+            "profit": round(c_data["profit"], 2),
+            "percentage": pct,
+            "products": prods_list,
+        })
+
     return {
         "period": {
             "start": dt_start.isoformat(),
@@ -695,6 +816,7 @@ def get_analytics(
         "monthly": month_series,
         "hourly": hourly_data,
         "payment_breakdown": payment_breakdown,
+        "category_breakdown": category_breakdown,
         "top_products": top_products,
     }
 

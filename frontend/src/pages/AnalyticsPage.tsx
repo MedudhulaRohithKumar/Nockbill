@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   Calendar,
   Clock,
   DollarSign,
-  ShoppingBag,
   Receipt,
   Percent,
   RefreshCw,
-  ArrowUpRight,
   Filter,
   BarChart2,
   PieChart as PieIcon,
   Package,
   Layers,
-  Sparkles
+  Sparkles,
+  Search,
+  X,
+  Tag
 } from 'lucide-react';
 import {
   AreaChart,
@@ -32,9 +33,20 @@ import {
   Legend
 } from 'recharts';
 import { reportsApi } from '../api';
-import { AnalyticsData } from '../types';
+import { AnalyticsData, CategoryAnalyticsItem } from '../types';
 
-const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4'];
+const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#64748B'];
+
+const ALL_CATEGORIES = [
+  'All Categories',
+  'Fertilizer',
+  'Pesticide',
+  'Seeds',
+  'Micronutrients',
+  'Bio-fertilizer',
+  'Organic',
+  'Others',
+];
 
 export const AnalyticsPage: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -43,6 +55,10 @@ export const AnalyticsPage: React.FC = () => {
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'day' | 'month' | 'hourly'>('day');
+
+  // Category & Product Search Explorer states
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
+  const [selectedCategoryPill, setSelectedCategoryPill] = useState<string>('All Categories');
 
   const fetchAnalytics = async (p = preset, s = customStart, e = customEnd) => {
     setLoading(true);
@@ -79,6 +95,67 @@ export const AnalyticsPage: React.FC = () => {
     }).format(val || 0);
   };
 
+  const categoryBreakdown: CategoryAnalyticsItem[] = useMemo(() => {
+    return data?.category_breakdown || [];
+  }, [data]);
+
+  // Flatten all products across categories & filter by category search or selected category pill
+  const filteredCategoryProducts = useMemo(() => {
+    const allProds: Array<{
+      id: number;
+      product_name: string;
+      category: string;
+      unit: string;
+      current_stock: number;
+      selling_price: number;
+      units_sold: number;
+      revenue: number;
+      profit: number;
+    }> = [];
+
+    for (const catItem of categoryBreakdown) {
+      for (const p of catItem.products || []) {
+        allProds.push({
+          ...p,
+          category: p.category || catItem.category,
+        });
+      }
+    }
+
+    const q = categorySearchQuery.trim().toLowerCase();
+
+    return allProds.filter((p) => {
+      const matchesPill =
+        selectedCategoryPill === 'All Categories' ||
+        (p.category || 'Fertilizer').toLowerCase() === selectedCategoryPill.toLowerCase();
+
+      if (!q) return matchesPill;
+
+      // Match either category name OR product name
+      const matchesQuery =
+        (p.category || '').toLowerCase().includes(q) ||
+        (p.product_name || '').toLowerCase().includes(q);
+
+      return matchesPill && matchesQuery;
+    });
+  }, [categoryBreakdown, categorySearchQuery, selectedCategoryPill]);
+
+  // Also filter category breakdown cards if user searches a category
+  const matchingCategoriesSummary = useMemo(() => {
+    const q = categorySearchQuery.trim().toLowerCase();
+    return categoryBreakdown.filter((c) => {
+      const matchesPill =
+        selectedCategoryPill === 'All Categories' ||
+        c.category.toLowerCase() === selectedCategoryPill.toLowerCase();
+      if (!q) return matchesPill;
+      const catMatches = c.category.toLowerCase().includes(q);
+      const anyProdMatches = (c.products || []).some(
+        (p) => (p.product_name || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
+      );
+      return matchesPill && (catMatches || anyProdMatches);
+    });
+  }, [categoryBreakdown, categorySearchQuery, selectedCategoryPill]);
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -89,9 +166,9 @@ export const AnalyticsPage: React.FC = () => {
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Business Analytics & Insights</h1>
+              <h1 className="text-xl font-bold text-slate-900">Business & Category Analytics</h1>
               <p className="text-xs md:text-sm text-slate-500">
-                Real-time sales velocity, gross margins, hourly rush & customer demand
+                Real-time sales velocity, category-wise breakdown, gross margins & product search explorer
               </p>
             </div>
           </div>
@@ -195,12 +272,11 @@ export const AnalyticsPage: React.FC = () => {
         )}
       </div>
 
-
       {loading && !data ? (
         <div className="min-h-[300px] flex items-center justify-center bg-white rounded-2xl border border-slate-200">
           <div className="flex flex-col items-center gap-2">
             <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs text-slate-500 font-medium">Crunching sales numbers...</p>
+            <p className="text-xs text-slate-500 font-medium">Crunching sales & category numbers...</p>
           </div>
         </div>
       ) : (
@@ -287,6 +363,241 @@ export const AnalyticsPage: React.FC = () => {
                   CGST + SGST
                 </span>
                 <span>Ready for GSTR-1</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================================== */}
+          {/* NEW: Category-Based Analytics & Category Product Search        */}
+          {/* ============================================================== */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-emerald-600" />
+                  Analytics by Product Category &amp; Category Search
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Compare sales revenue, profit, stock value, and search any category (including Fertilizer, Pesticide, Seeds, Others) to view all products in that category.
+                </p>
+              </div>
+            </div>
+
+            {/* Category Bar Chart + Category Breakdown Table */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Category Chart */}
+              <div className="lg:col-span-5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
+                  Category Revenue &amp; Stock Value Comparison
+                </h3>
+                <div className="h-64 w-full">
+                  {categoryBreakdown.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={categoryBreakdown} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                        <XAxis
+                          dataKey="category"
+                          tick={{ fontSize: 10, fill: '#475569' }}
+                          interval={0}
+                          angle={-20}
+                          textAnchor="end"
+                        />
+                        <YAxis tick={{ fontSize: 10, fill: '#64748B' }} tickFormatter={(v) => `₹${v}`} />
+                        <Tooltip
+                          formatter={(val: any, name: string) => [
+                            formatCurrency(Number(val)),
+                            name,
+                          ]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                        <Bar dataKey="revenue" name="Sales Revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="profit" name="Gross Profit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="stock_value" name="Stock Value" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                      No category analytics available
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Summary Table */}
+              <div className="lg:col-span-7 overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                    <tr>
+                      <th className="py-2.5 px-3">Category</th>
+                      <th className="py-2.5 px-3 text-right">Products</th>
+                      <th className="py-2.5 px-3 text-right">In-Stock Units</th>
+                      <th className="py-2.5 px-3 text-right">Stock Value</th>
+                      <th className="py-2.5 px-3 text-right">Units Sold</th>
+                      <th className="py-2.5 px-3 text-right">Revenue</th>
+                      <th className="py-2.5 px-3 text-right">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {matchingCategoriesSummary.map((cat, idx) => {
+                      const isSelected = selectedCategoryPill.toLowerCase() === cat.category.toLowerCase();
+                      return (
+                        <tr
+                          key={cat.category}
+                          onClick={() =>
+                            setSelectedCategoryPill(isSelected ? 'All Categories' : cat.category)
+                          }
+                          className={`cursor-pointer transition ${
+                            isSelected
+                              ? 'bg-emerald-50/90 font-semibold'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          title="Click to filter products in this category"
+                        >
+                          <td className="py-2.5 px-3 flex items-center gap-2 font-semibold text-slate-900">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                            />
+                            <span>{cat.category}</span>
+                            {cat.percentage > 0 && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                {cat.percentage}%
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-700 font-medium">
+                            {cat.product_count}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-700">
+                            {cat.stock_units}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-slate-700 font-medium">
+                            {formatCurrency(cat.stock_value)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-slate-800">
+                            {cat.units_sold}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                            {formatCurrency(cat.revenue)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">
+                            +{formatCurrency(cat.profit)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Category & Product Search Explorer */}
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Search className="w-4 h-4 text-emerald-600" />
+                    Search Products by Category or Name
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Search any category name (e.g., &ldquo;Fertilizer&rdquo;, &ldquo;Pesticide&rdquo;, &ldquo;Seeds&rdquo;, &ldquo;Others&rdquo;) or click a category pill to see all products in that category.
+                  </p>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={categorySearchQuery}
+                    onChange={(e) => setCategorySearchQuery(e.target.value)}
+                    placeholder="Search category (e.g. Fertilizer, Others) or product..."
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                  {categorySearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setCategorySearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Category Filter Pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategoryPill(cat)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      selectedCategoryPill === cat
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Products in Selected/Searched Category */}
+              <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-80">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
+                    <tr>
+                      <th className="py-2.5 px-3">Product Name</th>
+                      <th className="py-2.5 px-3">Category</th>
+                      <th className="py-2.5 px-3 text-right">Current Stock</th>
+                      <th className="py-2.5 px-3 text-right">Selling Price</th>
+                      <th className="py-2.5 px-3 text-right">Units Sold</th>
+                      <th className="py-2.5 px-3 text-right">Sales Revenue</th>
+                      <th className="py-2.5 px-3 text-right">Gross Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredCategoryProducts.length > 0 ? (
+                      filteredCategoryProducts.map((prod) => (
+                        <tr key={prod.id} className="hover:bg-slate-50 transition">
+                          <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-2">
+                            <Package className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{prod.product_name}</span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <Tag className="w-2.5 h-2.5" />
+                              {prod.category}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-medium text-slate-700">
+                            {prod.current_stock} {prod.unit}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-medium text-slate-800">
+                            {formatCurrency(prod.selling_price)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-slate-800">
+                            {prod.units_sold} {prod.unit}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                            {formatCurrency(prod.revenue)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-emerald-700">
+                            +{formatCurrency(prod.profit)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
+                          No products found matching this category or search query.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

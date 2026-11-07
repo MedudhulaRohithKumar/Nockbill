@@ -21,6 +21,8 @@ from app.utils.helpers import (
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=1, max_length=200)
+    captcha_token: str = Field(..., min_length=10, description="Cryptographically signed server CAPTCHA token")
+    captcha_code: str = Field(..., min_length=6, max_length=6, description="6-character CAPTCHA code")
 
     @field_validator("username")
     @classmethod
@@ -28,6 +30,14 @@ class LoginRequest(BaseModel):
         cleaned = sanitize_text(v, max_length=100)
         if not cleaned:
             raise ValueError("Username is required")
+        return cleaned
+
+    @field_validator("captcha_code")
+    @classmethod
+    def clean_captcha_code(cls, v: str) -> str:
+        cleaned = "".join(ch for ch in (v or "").strip().upper() if ch.isalnum())
+        if len(cleaned) != 6:
+            raise ValueError("CAPTCHA code must be exactly 6 alphanumeric characters")
         return cleaned
 
 class TokenResponse(BaseModel):
@@ -144,6 +154,11 @@ class ForgotPasswordRequest(BaseModel):
     identifier: str
 
 
+class VerifyOtpRequest(BaseModel):
+    identifier: str
+    otp_code: str = Field(..., min_length=6, max_length=64)
+
+
 class ResetPasswordRequest(BaseModel):
     identifier: str
     reset_token: str
@@ -153,7 +168,7 @@ class ResetPasswordRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services or OAuth2 token")
     shop_name: Optional[str] = Field(None, description="Optional shop name if user is signing up for the first time")
-    password: Optional[str] = Field(None, min_length=6, description="Optional password for hybrid email+password login")
+    password: Optional[str] = Field(None, description="Optional password for hybrid email+password login")
     phone: Optional[str] = Field(None, description="Optional mobile phone number")
     gstin: Optional[str] = Field(None, description="Optional GSTIN")
 
@@ -285,10 +300,11 @@ class ProductCreate(BaseModel):
             raise ValueError("Product name cannot be empty")
         self.name = self.product_name
         self.company_name = sanitize_text(self.company_name, 200)
+        self.category = sanitize_text(self.category, 100) or "Fertilizer"
         self.trade_name = resolve_trade_name(self.product_name, self.company_name, self.trade_name)
         self.product_code = sanitize_code(self.product_code, 100, uppercase=True) if self.product_code else None
         self.batch_number = sanitize_code(self.batch_number, 100) if self.batch_number else None
-        self.hsn_code = sanitize_code(self.hsn_code, 50) or "31021000"
+        self.hsn_code = sanitize_code(self.hsn_code, 50) if self.hsn_code else None
         self.barcode = sanitize_code(self.barcode, 100) if self.barcode else None
         if self.selling_price < Decimal("0"):
             raise ValueError("Selling price cannot be negative")
@@ -339,6 +355,8 @@ class ProductUpdate(BaseModel):
             self.name = sanitize_text(self.name, 200)
         if self.company_name is not None:
             self.company_name = sanitize_text(self.company_name, 200)
+        if self.category is not None:
+            self.category = sanitize_text(self.category, 100) or "Fertilizer"
         if self.trade_name is not None:
             self.trade_name = sanitize_text(self.trade_name, 200)
         if self.batch_number is not None:
@@ -382,7 +400,10 @@ class ProductResponse(BaseModel):
     unit: Any = "Bags"
     purchase_price: Decimal = Decimal("0")
     cost_price: Optional[Decimal] = None
+    base_selling_price: Optional[Decimal] = None
     selling_price: Decimal = Decimal("0")
+    price_list_id: Optional[int] = None
+    price_list_name: Optional[str] = None
     mrp: Optional[Decimal] = None
     gst_rate: Decimal = Decimal("0")
     manufacture_date: Optional[str] = None
@@ -396,6 +417,82 @@ class ProductResponse(BaseModel):
     minimum_stock: Decimal = Decimal("5")
     min_stock_level: Optional[Decimal] = None
     is_active: bool = True
+
+
+# ─── Price Lists (Discount & Price Increase) ─────────────────────────────────
+
+class PriceListCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=150)
+    description: Optional[str] = None
+    adjustment_type: str = Field(..., description="'DISCOUNT' or 'INCREMENT'")
+    calculation_mode: str = Field("PERCENTAGE", description="'PERCENTAGE' or 'FIXED'")
+    adjustment_value: Decimal = Field(..., gt=0)
+    is_active: bool = True
+    apply_to_all: bool = False
+    product_ids: Optional[List[int]] = None
+
+    @model_validator(mode="after")
+    def validate_price_list(self) -> "PriceListCreate":
+        self.name = sanitize_text(self.name, 150) or ""
+        if len(self.name) < 2:
+            raise ValueError("Price list name must be at least 2 characters")
+        self.description = sanitize_text(self.description, 500) if self.description else None
+        adj_type = (self.adjustment_type or "").strip().upper()
+        if adj_type not in {"DISCOUNT", "INCREMENT"}:
+            raise ValueError("adjustment_type must be 'DISCOUNT' or 'INCREMENT'")
+        self.adjustment_type = adj_type
+
+        calc_mode = (self.calculation_mode or "PERCENTAGE").strip().upper()
+        if calc_mode not in {"PERCENTAGE", "FIXED"}:
+            raise ValueError("calculation_mode must be 'PERCENTAGE' or 'FIXED'")
+        self.calculation_mode = calc_mode
+
+        if self.adjustment_value <= Decimal("0"):
+            raise ValueError("Adjustment value must be greater than 0")
+        if self.adjustment_type == "DISCOUNT" and self.calculation_mode == "PERCENTAGE" and self.adjustment_value >= Decimal("100"):
+            raise ValueError("Percentage discount must be less than 100%")
+        return self
+
+
+class PriceListUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    adjustment_type: Optional[str] = None
+    calculation_mode: Optional[str] = None
+    adjustment_value: Optional[Decimal] = None
+    is_active: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_price_list_update(self) -> "PriceListUpdate":
+        if self.name is not None:
+            self.name = sanitize_text(self.name, 150)
+            if not self.name or len(self.name) < 2:
+                raise ValueError("Price list name must be at least 2 characters")
+        if self.description is not None:
+            self.description = sanitize_text(self.description, 500)
+        if self.adjustment_type is not None:
+            adj_type = self.adjustment_type.strip().upper()
+            if adj_type not in {"DISCOUNT", "INCREMENT"}:
+                raise ValueError("adjustment_type must be 'DISCOUNT' or 'INCREMENT'")
+            self.adjustment_type = adj_type
+        if self.calculation_mode is not None:
+            calc_mode = self.calculation_mode.strip().upper()
+            if calc_mode not in {"PERCENTAGE", "FIXED"}:
+                raise ValueError("calculation_mode must be 'PERCENTAGE' or 'FIXED'")
+            self.calculation_mode = calc_mode
+        if self.adjustment_value is not None and self.adjustment_value <= Decimal("0"):
+            raise ValueError("Adjustment value must be greater than 0")
+        return self
+
+
+class PriceListAssignRequest(BaseModel):
+    apply_to_all: bool = False
+    product_ids: List[int] = Field(default_factory=list)
+
+
+class PriceListUnassignRequest(BaseModel):
+    unassign_all: bool = False
+    product_ids: List[int] = Field(default_factory=list)
 
 class ProductRefillRequest(BaseModel):
     product_id: int

@@ -45,6 +45,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/uploads:/app/uploads
+      - ~/.aws:/root/.aws:ro
 
   # 3. React + Vite Frontend
   frontend:

@@ -15,7 +15,8 @@ import {
   ScanLine,
   Bell,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
@@ -32,11 +33,14 @@ export const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
+  const isOwner = (user?.role || '').toLowerCase() === 'owner';
+
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
     { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
+    ...(isOwner ? [{ to: '/price-lists', label: 'Price Lists', icon: Tag, badge: 'Owner' }] : []),
     { to: '/purchases', label: 'Inward / Purchases', icon: ShoppingBag },
     { to: '/reports', label: 'GST & Reports', icon: BarChart3 },
     { to: '/analytics', label: 'Analytics', icon: TrendingUp, badge: 'Live' },

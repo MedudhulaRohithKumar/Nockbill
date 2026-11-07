@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   Sprout, Lock, User as UserIcon, AlertCircle, ArrowRight, 
   ShieldCheck, Eye, EyeOff, KeyRound, Mail, CheckCircle2, 
-  Sparkles, X, ScanLine, FileText, Users, Award, Check
+  Sparkles, X, ScanLine, FileText, Users, Award, Check, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
@@ -16,20 +16,30 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Server-Side Cryptographic CAPTCHA State
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
   // Search parameters for deep links (e.g. ?action=reset&user=...&code=...)
   const [searchParams] = useSearchParams();
 
-  // Forgot Password Modal State
+  // Forgot Password Modal State (3-Step Flow: 1=Identify, 2=Verify 6-Digit OTP, 3=Set New Password)
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
   const [forgotIdentifier, setForgotIdentifier] = useState('');
   const [resetOtp, setResetOtp] = useState('');
+  const [verifiedResetToken, setVerifiedResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
   const [maskedTarget, setMaskedTarget] = useState<string | null>(null);
+  const [emailSentStatus, setEmailSentStatus] = useState<boolean>(true);
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
 
   // Google OAuth Guide Modal State
   const [showGoogleGuide, setShowGoogleGuide] = useState(false);
@@ -40,16 +50,41 @@ export const LoginPage: React.FC = () => {
   const { settings } = useShop();
   const navigate = useNavigate();
 
+  // Fetch server-side cryptographic CAPTCHA challenge
+  const fetchCaptcha = async () => {
+    setCaptchaLoading(true);
+    try {
+      const data = await authApi.getCaptcha();
+      setCaptchaToken(data.captcha_token);
+      setCaptchaImage(data.captcha_image);
+      setCaptchaCode('');
+    } catch (err) {
+      console.error('Failed to load security CAPTCHA:', err);
+    } finally {
+      setCaptchaLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
+
   // Handle URL deep links for password reset
   useEffect(() => {
     const action = searchParams.get('action');
     const user = searchParams.get('user');
-    const code = searchParams.get('code') || searchParams.get('token');
+    const code = searchParams.get('code');
+    const token = searchParams.get('token');
 
-    if (action === 'reset' || code) {
+    if (action === 'reset' || code || token) {
       if (user) setForgotIdentifier(user);
-      if (code) setResetOtp(code);
-      setForgotStep(2);
+      if (token) {
+        setVerifiedResetToken(token);
+        setForgotStep(3);
+      } else if (code) {
+        setResetOtp(code.replace(/\D/g, '').slice(0, 6));
+        setForgotStep(2);
+      }
       setShowForgotModal(true);
     }
   }, [searchParams]);
@@ -166,15 +201,29 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const cleanCaptcha = captchaCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+    if (cleanCaptcha.length !== 6) {
+      setError('Please enter all 6 characters shown in the security CAPTCHA image.');
+      return;
+    }
+    if (!captchaToken) {
+      await fetchCaptcha();
+      setError('Security challenge expired. Please enter the new code shown.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await login(username.trim(), password);
+      await login(username.trim(), password, captchaToken, cleanCaptcha);
       navigate('/billing');
     } catch (err: any) {
+      // Every verification attempt burns the single-use server nonce — always issue a fresh CAPTCHA
+      fetchCaptcha();
       if (err.response?.status === 401) {
         setError(err.response?.data?.detail || 'Incorrect username, mobile, or password.');
       } else {
-        setError(getErrorMessage(err, 'Invalid username, mobile, or password.'));
+        setError(getErrorMessage(err, 'Invalid credentials or security verification code.'));
       }
     } finally {
       setIsLoading(false);
@@ -184,14 +233,42 @@ export const LoginPage: React.FC = () => {
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError(null);
+    setForgotSuccess(null);
     setForgotLoading(true);
     try {
       const res = await authApi.requestPasswordReset(forgotIdentifier.trim());
       setMaskedTarget(res.masked_target || null);
-      setForgotSuccess(res.message || 'Verification code dispatched via Amazon SES.');
+      setEmailSentStatus(res.email_sent !== false);
+      setDevOtpCode(res.dev_otp || null);
+      setResetOtp('');
       setForgotStep(2);
     } catch (err: any) {
       setForgotError(getErrorMessage(err, 'Failed to send verification code.'));
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+    const cleanedOtp = resetOtp.replace(/\D/g, '').slice(0, 6);
+    if (cleanedOtp.length !== 6) {
+      setForgotError('Please enter a valid 6-digit numeric verification code.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await authApi.verifyResetOtp({
+        identifier: forgotIdentifier.trim(),
+        otp_code: cleanedOtp,
+      });
+      setVerifiedResetToken(res.reset_token || cleanedOtp);
+      setForgotStep(3);
+    } catch (err: any) {
+      setForgotError(getErrorMessage(err, 'Invalid or expired 6-digit verification code.'));
     } finally {
       setForgotLoading(false);
     }
@@ -213,18 +290,22 @@ export const LoginPage: React.FC = () => {
     try {
       await authApi.resetPassword({
         identifier: forgotIdentifier.trim(),
-        reset_token: resetOtp.trim(),
+        reset_token: verifiedResetToken || resetOtp.trim(),
         new_password: newPassword
       });
-      setForgotSuccess('Password updated successfully! Redirecting to login...');
+      setForgotSuccess('Password updated successfully! You can now sign in.');
       setTimeout(() => {
         setShowForgotModal(false);
         setForgotStep(1);
         setForgotSuccess(null);
+        setResetOtp('');
+        setVerifiedResetToken('');
+        setNewPassword('');
+        setConfirmNewPassword('');
         setPassword(newPassword);
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
-      setForgotError(getErrorMessage(err, 'Failed to reset password. Check verification code.'));
+      setForgotError(getErrorMessage(err, 'Failed to update password. Please verify your code again.'));
     } finally {
       setForgotLoading(false);
     }
@@ -476,10 +557,77 @@ export const LoginPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Server-Side Cryptographic CAPTCHA Verification */}
+                <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Security Verification (CAPTCHA)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={fetchCaptcha}
+                      disabled={captchaLoading}
+                      title="Generate new security challenge"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-50 transition-colors"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2.5 items-center">
+                    {/* Server-Rendered Distorted Raster Image */}
+                    <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shadow-inner select-none">
+                      {captchaImage ? (
+                        <img
+                          src={captchaImage}
+                          alt="Security CAPTCHA Challenge"
+                          draggable={false}
+                          onContextMenu={(e) => e.preventDefault()}
+                          className={`w-full h-full object-cover select-none pointer-events-none transition-opacity duration-200 ${
+                            captchaLoading ? 'opacity-40' : 'opacity-100'
+                          }`}
+                        />
+                      ) : (
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {captchaLoading ? 'Generating...' : 'Unavailable'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Strictly Sanitized 6-Character Code Input */}
+                    <div className="col-span-5 relative">
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={captchaCode}
+                        onChange={(e) => {
+                          const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+                          setCaptchaCode(sanitized);
+                        }}
+                        className="clay-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-slate-900 uppercase"
+                        placeholder="6-CHAR"
+                      />
+                      {captchaCode.length === 6 && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1.5 pointer-events-none" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Type the 6 characters shown in the image</span>
+                    <span className="font-mono font-semibold text-slate-600">{captchaCode.length}/6</span>
+                  </div>
+                </div>
+
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="clay-btn-primary w-full mt-2 py-3.5 px-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-70 shadow-md"
+                  disabled={isLoading || captchaCode.length !== 6}
+                  className="clay-btn-primary w-full mt-2 py-3.5 px-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 shadow-md"
                 >
                   {isLoading ? (
                     <>
@@ -520,7 +668,7 @@ export const LoginPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Forgot Password Modal (Amazon SES Verified) */}
+      {/* Forgot Password Modal (3-Step Flow: 1. Identify -> 2. Verify 6-Digit Code -> 3. Set New Password) */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
           <div className="clay-card-pillowy max-w-md w-full p-6 sm:p-7 relative border border-white/90">
@@ -531,23 +679,47 @@ export const LoginPage: React.FC = () => {
                 setForgotStep(1);
                 setForgotError(null);
                 setForgotSuccess(null);
+                setResetOtp('');
+                setVerifiedResetToken('');
+                setDevOtpCode(null);
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <X className="w-5 h-5" />
             </button>
 
+            {/* Step Progress Indicator */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 1 ? 'bg-brand-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                1. Account
+              </span>
+              <span className="w-4 h-0.5 bg-slate-200"></span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 2 ? 'bg-brand-700 text-white' : forgotStep > 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'}`}>
+                2. Verify OTP
+              </span>
+              <span className="w-4 h-0.5 bg-slate-200"></span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 3 ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                3. New Password
+              </span>
+            </div>
+
             <div className="text-center mb-5">
               <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2">
                 <KeyRound className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">
-                {forgotStep === 1 ? 'Reset Shop Password' : 'Enter OTP & Set New Password'}
+                {forgotStep === 1
+                  ? 'Reset Shop Password'
+                  : forgotStep === 2
+                  ? 'Verify 6-Digit Code'
+                  : 'Create New Password'}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 {forgotStep === 1
-                  ? 'Enter your registered email, username, or phone. A secure reset code will be delivered via Amazon SES.'
-                  : 'Enter the 6-digit verification code or token sent to your email to update your password.'}
+                  ? 'Enter your registered email, username, or mobile number to receive a 6-digit verification code.'
+                  : forgotStep === 2
+                  ? `Enter the 6-digit code for ${maskedTarget || forgotIdentifier} to verify your identity.`
+                  : 'Your identity has been verified. Choose a new password below.'}
               </p>
             </div>
 
@@ -565,80 +737,166 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {forgotStep === 1 ? (
+            {/* STEP 1: IDENTIFY ACCOUNT */}
+            {forgotStep === 1 && (
               <form onSubmit={handleRequestOtp} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Registered Email / Username / Phone
+                    Registered Email / Username / Mobile
                   </label>
                   <input
                     type="text"
                     required
                     value={forgotIdentifier}
                     onChange={(e) => setForgotIdentifier(e.target.value)}
-                    placeholder="e.g. dealer@nockbill.com or 9876543210"
+                    placeholder="e.g. yourname@gmail.com or 9876543210"
                     className="clay-input w-full px-4 py-3 text-sm text-slate-900"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                    <Mail className="w-3 h-3 text-emerald-600" />
-                    Sent via verified sender <strong>admin@nockbill.com</strong>
-                  </p>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={forgotLoading}
-                  className="clay-btn-primary w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2"
+                  disabled={forgotLoading || !forgotIdentifier.trim()}
+                  className="clay-btn-primary w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {forgotLoading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Dispatching via Amazon SES...</span>
+                      <span>Sending Code...</span>
                     </>
                   ) : (
-                    'Send Verification Code'
+                    'Send 6-Digit Verification Code'
                   )}
                 </button>
               </form>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-4">
-                <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800 space-y-1">
-                  <p className="font-semibold flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-emerald-600" />
-                    Dispatched from admin@nockbill.com
-                  </p>
-                  <p className="text-[11px] text-emerald-700 leading-relaxed">
-                    Check your email inbox (and spam/junk folder) for the 6-digit code or click the direct one-click reset link in the message.
-                  </p>
-                </div>
+            )}
+
+            {/* STEP 2: VERIFY 6-DIGIT OTP ONLY */}
+            {forgotStep === 2 && (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                {emailSentStatus ? (
+                  <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5">
+                      <Mail className="w-4 h-4 text-emerald-600" />
+                      Verification code sent to {maskedTarget || 'your email'}
+                    </p>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed">
+                      Please check your email inbox (and spam folder) and enter the 6-digit code below.
+                    </p>
+                  </div>
+                ) : (
+                  devOtpCode && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold">Local Dev Verification Code:</span>
+                        <button
+                          type="button"
+                          onClick={() => setResetOtp(devOtpCode)}
+                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline"
+                        >
+                          Click to Fill
+                        </button>
+                      </div>
+                      <div className="font-mono text-lg font-black tracking-widest text-center py-1 bg-white rounded-lg border border-amber-200">
+                        {devOtpCode}
+                      </div>
+                      <p className="text-[10px] text-amber-700">
+                        Shown locally because outbound email credentials are not active in the local container.
+                      </p>
+                    </div>
+                  )
+                )}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    6-Digit Verification Code (or Token)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      6-Digit Verification Code
+                    </label>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      {resetOtp.length}/6 digits
+                    </span>
+                  </div>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
                     required
-                    maxLength={64}
+                    maxLength={6}
+                    autoFocus
                     value={resetOtp}
-                    onChange={(e) => setResetOtp(e.target.value)}
-                    placeholder="e.g. 784920"
-                    className="clay-input w-full px-4 py-3 text-center tracking-widest font-mono text-base text-slate-900 font-bold"
+                    onChange={(e) => {
+                      // Strictly allow only digits 0-9 and cap at 6 characters
+                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setResetOtp(digitsOnly);
+                    }}
+                    placeholder="000000"
+                    className="clay-input w-full px-4 py-3.5 text-center tracking-[0.5em] font-mono text-xl text-slate-900 font-black"
                   />
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStep(1);
+                      setForgotError(null);
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    ← Change Account
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading || resetOtp.length !== 6}
+                    className="clay-btn-primary px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60"
+                  >
+                    {forgotLoading ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Verify Code</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* STEP 3: SET NEW PASSWORD (ONLY AFTER OTP IS VERIFIED) */}
+            {forgotStep === 3 && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Code verified for <strong>{maskedTarget || forgotIdentifier}</strong></span>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     New Master Password
                   </label>
-                  <input
-                    type="password"
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      autoFocus
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Min 6 characters"
+                      className="clay-input w-full pl-4 pr-10 py-3 text-sm text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -646,11 +904,12 @@ export const LoginPage: React.FC = () => {
                     Confirm New Password
                   </label>
                   <input
-                    type="password"
+                    type={showNewPassword ? 'text' : 'password'}
                     required
+                    minLength={6}
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Re-type password"
+                    placeholder="Re-type new password"
                     className="clay-input w-full px-4 py-3 text-sm text-slate-900"
                   />
                 </div>
@@ -658,15 +917,18 @@ export const LoginPage: React.FC = () => {
                 <div className="flex items-center justify-between pt-2">
                   <button
                     type="button"
-                    onClick={() => setForgotStep(1)}
+                    onClick={() => {
+                      setForgotStep(2);
+                      setForgotError(null);
+                    }}
                     className="text-xs font-semibold text-slate-500 hover:text-slate-800"
                   >
                     ← Back
                   </button>
                   <button
                     type="submit"
-                    disabled={forgotLoading}
-                    className="clay-btn-primary px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2"
+                    disabled={forgotLoading || newPassword.length < 6}
+                    className="clay-btn-primary px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60"
                   >
                     {forgotLoading ? (
                       <>

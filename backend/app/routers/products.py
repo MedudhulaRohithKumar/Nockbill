@@ -63,7 +63,7 @@ def _generate_barcode(db: Session, shop_id: int = 1) -> str:
 def serialize_product(p: Product) -> dict:
     unit_str = p.unit.value if hasattr(p.unit, "value") else str(p.unit or "Bags")
     barcode_val = p.barcode or str(10000 + p.id)
-    hsn_val = p.hsn_code or "31021000"
+    hsn_val = p.hsn_code or ""
 
     active_variants = []
     if hasattr(p, "variants") and p.variants:
@@ -145,7 +145,7 @@ def serialize_product(p: Product) -> dict:
         active_batches.append({
             "id": 0,
             "product_id": p.id,
-            "batch_number": p.product_code or f"BAT-{p.id}",
+            "batch_number": getattr(p, "batch_number", None) or p.product_code or f"BAT-{p.id}",
             "trade_name": resolved_trade,
             "company_name": p.company_name,
             "manufacture_date": p.manufacture_date,
@@ -158,6 +158,17 @@ def serialize_product(p: Product) -> dict:
         })
     active_batches.sort(key=lambda x: x.get("expiry_date") or "9999-99")
 
+    pl = getattr(p, "price_list", None)
+    base_selling = float(
+        p.base_selling_price
+        if getattr(p, "base_selling_price", None) is not None and float(p.base_selling_price or 0) > 0
+        else (p.selling_price or 0)
+    )
+    cat_val = getattr(p, "category", None)
+    if not cat_val or (p.company_name and cat_val == p.company_name):
+        cat_val = "Fertilizer"
+    batch_val = getattr(p, "batch_number", None) or (active_batches[0]["batch_number"] if active_batches else "")
+
     return {
         "id": p.id,
         "product_code": p.product_code,
@@ -165,17 +176,24 @@ def serialize_product(p: Product) -> dict:
         "name": p.product_name,
         "company_name": p.company_name,
         "trade_name": resolved_trade,
-        "category": p.company_name or "Fertilizer",
+        "category": cat_val,
         "net_content": float(p.net_content) if p.net_content is not None else None,
         "unit": unit_str,
         "purchase_price": float(p.purchase_price or 0),
         "cost_price": float(p.purchase_price or 0),
+        "base_selling_price": base_selling,
         "selling_price": float(p.selling_price or 0),
-        "mrp": float(p.selling_price or 0),
+        "price_list_id": getattr(p, "price_list_id", None),
+        "price_list_name": pl.name if pl else None,
+        "price_list_type": pl.adjustment_type if pl else None,
+        "price_list_mode": pl.calculation_mode if pl else None,
+        "price_list_value": float(pl.adjustment_value or 0) if pl else None,
+        "price_list_active": bool(pl.is_active) if pl else False,
+        "mrp": base_selling if base_selling > float(p.selling_price or 0) else float(p.selling_price or 0),
         "gst_rate": float(p.gst_rate or 0),
         "manufacture_date": p.manufacture_date,
         "expiry_date": p.expiry_date,
-        "batch_number": p.product_code or f"BAT-{p.id}",
+        "batch_number": batch_val,
         "hsn_code": hsn_val,
         "barcode": barcode_val,
         "current_stock": float(p.current_stock or 0),
@@ -548,7 +566,12 @@ def refill_stock(
         product.purchase_price = Decimal(str(payload.purchase_price))
 
     if payload.selling_price is not None and payload.selling_price > 0:
-        product.selling_price = Decimal(str(payload.selling_price))
+        product.base_selling_price = Decimal(str(payload.selling_price))
+        if product.price_list and product.price_list.is_active:
+            from app.routers.price_lists import compute_adjusted_price
+            product.selling_price = compute_adjusted_price(product.base_selling_price, product.price_list)
+        else:
+            product.selling_price = Decimal(str(payload.selling_price))
 
     # Resolve company_name and trade_name (combination of product_name + company_name)
     effective_company = (payload.company_name or "").strip() or product.company_name
@@ -563,7 +586,8 @@ def refill_stock(
     if effective_trade_name:
         product.trade_name = effective_trade_name
 
-    batch_no = (payload.new_batch_number or payload.batch_number or "").strip() or product.product_code or f"BAT-{product.id}"
+    batch_no = (payload.new_batch_number or payload.batch_number or "").strip() or product.batch_number or product.product_code or f"BAT-{product.id}"
+    product.batch_number = batch_no
     expiry_dt = (payload.new_expiry_date or payload.expiry_date or "").strip() or product.expiry_date or "2028-12"
 
     if expiry_dt:
@@ -695,6 +719,7 @@ def search_products(
     query = db.query(Product).options(
         selectinload(Product.variants),
         selectinload(Product.batches),
+        selectinload(Product.price_list),
     ).filter(
         Product.shop_id == shop_id,
         Product.is_active == True
@@ -704,12 +729,14 @@ def search_products(
         or_(
             Product.product_name.ilike(search),
             Product.trade_name.ilike(search),
+            Product.category.ilike(search),
             Product.product_code.ilike(search),
             Product.company_name.ilike(search),
             Product.barcode.ilike(search),
+            Product.batch_number.ilike(search),
         )
     )
-    products = query.limit(25).all()
+    products = query.limit(100).all()
     return [serialize_product(p) for p in products]
 
 
@@ -718,6 +745,7 @@ def list_products(
     skip: int = 0,
     limit: int = 200,
     search: Optional[str] = None,
+    category: Optional[str] = None,
     active_only: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -726,18 +754,23 @@ def list_products(
     query = db.query(Product).options(
         selectinload(Product.variants),
         selectinload(Product.batches),
+        selectinload(Product.price_list),
     ).filter(Product.shop_id == shop_id)
     if active_only:
         query = query.filter(Product.is_active == True)
+    if category and category.strip().upper() != "ALL":
+        query = query.filter(Product.category.ilike(category.strip()))
     if search:
         like = f"%{search.strip()}%"
         query = query.filter(
             or_(
                 Product.product_name.ilike(like),
                 Product.trade_name.ilike(like),
+                Product.category.ilike(like),
                 Product.company_name.ilike(like),
                 Product.barcode.ilike(like),
-                Product.product_code.ilike(like)
+                Product.product_code.ilike(like),
+                Product.batch_number.ilike(like),
             )
         )
     products = query.order_by(Product.product_name).offset(skip).limit(limit).all()
@@ -754,6 +787,7 @@ def get_product(
     product = db.query(Product).options(
         selectinload(Product.variants),
         selectinload(Product.batches),
+        selectinload(Product.price_list),
     ).filter(
         Product.id == product_id,
         Product.shop_id == shop_id
@@ -818,6 +852,9 @@ def create_product(
     p_dict["shop_id"] = shop_id
     p_dict["product_code"] = code
     p_dict["barcode"] = barcode
+    p_dict["category"] = payload.category or "Fertilizer"
+    p_dict["batch_number"] = payload.batch_number
+    p_dict["base_selling_price"] = payload.selling_price
     if payload.hsn_code:
         p_dict["hsn_code"] = payload.hsn_code
 
@@ -952,6 +989,12 @@ def update_product(
             if other:
                 raise HTTPException(400, "This barcode is already assigned to another product in your shop")
         setattr(product, field, value)
+
+    if "selling_price" in update_data and update_data["selling_price"] is not None:
+        product.base_selling_price = Decimal(str(update_data["selling_price"]))
+        if product.price_list and product.price_list.is_active:
+            from app.routers.price_lists import compute_adjusted_price
+            product.selling_price = compute_adjusted_price(product.base_selling_price, product.price_list)
 
     # Ensure trade_name stays resolved when product_name or company_name is updated
     product.trade_name = resolve_trade_name(
