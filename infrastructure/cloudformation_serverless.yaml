@@ -294,6 +294,11 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref PostgreSqlSecret
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
 
   BackendFunction:
     Type: AWS::Serverless::Function
@@ -319,6 +324,11 @@ Resources:
           S3_GST_REPORTS_BUCKET: !Ref GstReportsBucket
           S3_STOCK_REPORTS_BUCKET: !Ref StockReportsBucket
           AWS_REGION_NAME: !Ref AWS::Region
+          SES_ENABLED: "True"
+          SES_SENDER_EMAIL: "admin@nockbill.com"
+          SES_REGION: !Ref AWS::Region
+          APP_BASE_URL: "https://nockbill.com"
+          GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
       FunctionUrlConfig:
         AuthType: NONE
     Metadata:

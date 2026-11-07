@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     step_functions_arn_report_generator: str = ""
     frontend_function_url: str = ""
 
+    # Amazon SES Email Settings
+    ses_enabled: bool = True
+    ses_sender_email: str = "admin@nockbill.com"
+    ses_region: str = "ap-south-1"
+    app_base_url: str = "https://nockbill.com"
+
+    # Google OAuth
+    google_client_id: str = "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
+    google_client_secret: str = "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"
+
     # File Upload
     max_image_size_mb: int = 10
     upload_dir: str = "uploads"

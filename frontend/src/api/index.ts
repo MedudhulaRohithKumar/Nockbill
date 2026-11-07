@@ -32,11 +32,23 @@ export const authApi = {
     return res.data;
   },
   requestPasswordReset: async (identifier: string) => {
-    const res = await api.post<{ success: boolean; message: string; demo_otp?: string; masked_target?: string }>('/auth/forgot-password/request', { identifier });
+    const res = await api.post<{ success: boolean; message: string; masked_target?: string; email_sent?: boolean }>('/auth/forgot-password/request', { identifier });
     return res.data;
   },
   resetPassword: async (payload: { identifier: string; reset_token: string; new_password: string }) => {
     const res = await api.post<{ success: boolean; message: string }>('/auth/forgot-password/reset', payload);
+    return res.data;
+  },
+  loginWithGoogle: async (credential: string, shopName?: string) => {
+    const res = await api.post<{
+      access_token: string;
+      token_type: string;
+      role: string;
+      username: string;
+      name?: string;
+      user_id?: number;
+      subscription_status?: string;
+    }>('/auth/google', { credential, shop_name: shopName });
     return res.data;
   },
   activateSubscription: async (payload: {

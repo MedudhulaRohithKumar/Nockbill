@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string, shopName?: string) => Promise<void>;
   register: (payload: any) => Promise<any>;
   activateSubscription: (payload: any) => Promise<any>;
   logout: () => void;
@@ -89,6 +90,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user', JSON.stringify(userInfo));
   };
 
+  const loginWithGoogle = async (credential: string, shopName?: string) => {
+    localStorage.removeItem('shop_settings');
+    const data = await authApi.loginWithGoogle(credential, shopName);
+    localStorage.setItem('token', data.access_token);
+    setToken(data.access_token);
+
+    const userInfo: User = {
+      id: data.user_id || 1,
+      username: data.username,
+      full_name: data.name || data.username,
+      role: (data.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
+      subscription_status: data.subscription_status || 'ACTIVE',
+      is_active: true
+    };
+    setUser(userInfo);
+    localStorage.setItem('user', JSON.stringify(userInfo));
+  };
+
   const register = async (payload: any) => {
     localStorage.removeItem('shop_settings');
     const data = await authApi.register(payload);
@@ -130,7 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, isLoading, login, register, activateSubscription, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, isLoading, login, loginWithGoogle, register, activateSubscription, logout }}>
       {children}
     </AuthContext.Provider>
   );

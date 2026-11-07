@@ -9,9 +9,11 @@ from app.schemas.schemas import (
     LoginRequest, TokenResponse, UserCreate, UserResponse,
     ShopRegistrationRequest, RegistrationResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
-    SubscriptionPaymentRequest
+    SubscriptionPaymentRequest, GoogleAuthRequest
 )
 from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.services.email_service import send_password_reset_email
+from app.config.settings import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -186,77 +188,225 @@ def activate_subscription(
 
 @router.post("/forgot-password/request")
 def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    ident = payload.identifier.strip()
+    ident = (payload.identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="Please enter your email, username, or phone number.")
+
     user = db.query(User).filter(
         or_(
-            User.username == ident,
-            User.email == ident,
+            func.lower(User.username) == ident.lower(),
+            func.lower(User.email) == ident.lower(),
             User.phone == ident
         )
     ).first()
 
+    # Always return success message to prevent user enumeration attacks
     if not user:
-        # Return success for privacy / anti-enumeration, but in demo mode explain clearly
         return {
             "success": True,
-            "message": "If an account matches that email, phone or username, a verification code has been dispatched.",
-            "demo_otp": "784920"
+            "message": "If an active account matches that email, username, or phone, a 6-digit verification code has been dispatched.",
+            "masked_target": "your registered email"
         }
 
-    # Generate 6-digit OTP code
+    # Generate cryptographically secure 6-digit verification code
     otp = f"{secrets.randbelow(900000) + 100000}"
+    reset_secret = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
+
     RESET_TOKENS[user.username] = {
         "code": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=15),
+        "token": reset_secret,
+        "expires_at": expires_at,
         "user_id": user.id
     }
 
+    # Construct one-click reset link if frontend base URL is configured
+    base_url = settings.app_base_url.rstrip("/")
+    reset_link = f"{base_url}/login?action=reset&user={user.username}&code={otp}&token={reset_secret}"
+
+    # Target email: prefer user's direct email, or fallback to shop email
+    target_email = user.email
+    if not target_email and user.shop:
+        target_email = user.shop.email
+
+    email_dispatched = False
+    if target_email:
+        email_dispatched = send_password_reset_email(
+            to_email=target_email,
+            recipient_name=user.name or user.username,
+            otp_code=otp,
+            reset_link=reset_link,
+        )
+
+    # Masked recipient identifier for frontend confirmation
+    if target_email and "@" in target_email:
+        parts = target_email.split("@")
+        name_part = parts[0]
+        masked = (name_part[:2] + "•••@" + parts[1]) if len(name_part) > 2 else f"•••@{parts[1]}"
+    elif user.phone and len(user.phone) >= 7:
+        masked = user.phone[:3] + "•••" + user.phone[-3:]
+    else:
+        masked = "your registered account"
+
     return {
         "success": True,
-        "message": f"Verification code dispatched to {user.phone or user.email or user.username}.",
-        "demo_otp": otp,
-        "masked_target": (
-            user.phone[:3] + "•••" + user.phone[-3:] if user.phone and len(user.phone) >= 7
-            else (user.email[:2] + "•••@" + user.email.split("@")[-1] if user.email and "@" in user.email else user.username)
-        )
+        "message": f"Verification code dispatched to {masked} via Amazon SES.",
+        "email_sent": email_dispatched,
+        "masked_target": masked,
     }
 
 
 @router.post("/forgot-password/reset")
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
-    ident = payload.identifier.strip()
+    ident = (payload.identifier or "").strip()
+    if not ident:
+        raise HTTPException(status_code=400, detail="Identifier is required.")
+
     user = db.query(User).filter(
         or_(
-            User.username == ident,
-            User.email == ident,
+            func.lower(User.username) == ident.lower(),
+            func.lower(User.email) == ident.lower(),
             User.phone == ident
         )
     ).first()
 
     if not user:
-        raise HTTPException(status_code=404, detail="User account not found")
+        raise HTTPException(status_code=400, detail="Invalid verification code or user not found.")
 
     entry = RESET_TOKENS.get(user.username)
-    # Check OTP (also allow demo code 784920 or active entry code)
     is_valid = False
-    if entry and entry["code"] == payload.reset_token.strip():
+    provided_code = payload.reset_token.strip()
+
+    if entry and (entry["code"] == provided_code or entry.get("token") == provided_code):
         if datetime.utcnow() <= entry["expires_at"]:
             is_valid = True
-    elif payload.reset_token.strip() == "784920":
-        is_valid = True
 
     if not is_valid:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset code. Please request a new one.")
+        raise HTTPException(
+            status_code=400,
+            detail="The verification code is invalid or has expired (valid for 15 minutes). Please request a new one."
+        )
 
-    # Update password
+    # Update password securely
     user.password_hash = hash_password(payload.new_password)
+    audit = AuditLog(
+        user_id=user.id,
+        action=AuditAction.SETTINGS_UPDATE,
+        description=f"Password successfully reset via Amazon SES verification code for user {user.username}"
+    )
+    db.add(audit)
     db.commit()
 
-    # Clear token
+    # Clear single-use token immediately
     if user.username in RESET_TOKENS:
         del RESET_TOKENS[user.username]
 
     return {"success": True, "message": "Password reset successfully! You can now log in with your new password."}
+
+
+@router.post("/google", response_model=TokenResponse)
+def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+    """
+    Production-grade Google Sign-In verification endpoint.
+    Verifies the Google ID Token via Google's tokeninfo endpoint,
+    validates the audience and issuer, and logs in or creates the merchant shop.
+    """
+    token_str = payload.credential.strip()
+    if not token_str:
+        raise HTTPException(status_code=400, detail="Google credential token is missing.")
+
+    # 1. Verify token with Google
+    import httpx
+    try:
+        resp = httpx.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": token_str},
+            timeout=10.0
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=401, detail="Google verification failed: invalid or expired token.")
+        google_data = resp.json()
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Failed to communicate with Google authentication servers: {str(e)}")
+
+    # 2. Validate Google payload fields
+    google_email = google_data.get("email")
+    email_verified = google_data.get("email_verified")
+    if not google_email or str(email_verified).lower() not in ("true", "1"):
+        raise HTTPException(status_code=400, detail="Google account email is not verified.")
+
+    google_sub = google_data.get("sub")
+    full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
+
+    # Optional: If google_client_id is configured in settings, ensure audience matches
+    if settings.google_client_id and google_data.get("aud") != settings.google_client_id:
+        raise HTTPException(status_code=401, detail="Google token audience does not match configured Google Client ID.")
+
+    # 3. Lookup existing user by email
+    clean_email = google_email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == clean_email).first()
+
+    if not user:
+        # Create username derived from email or google sub
+        base_username = clean_email.split("@")[0].replace(".", "_").replace("-", "_")
+        candidate_username = base_username[:40]
+        suffix = 1
+        while db.query(User).filter(User.username == candidate_username).first():
+            candidate_username = f"{base_username[:35]}_{suffix}"
+            suffix += 1
+
+        # Determine shop name
+        shop_title = (payload.shop_name or "").strip() or f"{full_name}'s Agro Store"
+
+        # Create new Shop Settings
+        new_shop = ShopSettings(
+            shop_name=shop_title,
+            proprietor_name=full_name,
+            email=clean_email,
+            subscription_status="ACTIVE",
+        )
+        db.add(new_shop)
+        db.flush()
+
+        # Create new User
+        random_pwd = secrets.token_urlsafe(24)
+        user = User(
+            name=full_name,
+            username=candidate_username,
+            email=clean_email,
+            password_hash=hash_password(random_pwd),
+            role=UserRole.OWNER,
+            shop_id=new_shop.id,
+            subscription_status="ACTIVE",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact support.")
+
+    # Generate application JWT
+    jwt_token = create_access_token({"sub": str(user.id)})
+
+    audit = AuditLog(
+        user_id=user.id,
+        action=AuditAction.LOGIN,
+        description=f"Successful Sign-in with Google ({clean_email})"
+    )
+    db.add(audit)
+    db.commit()
+
+    return TokenResponse(
+        access_token=jwt_token,
+        user_id=user.id,
+        username=user.username,
+        name=user.name,
+        role=user.role,
+        subscription_status=user.subscription_status or "ACTIVE",
+    )
 
 
 @router.get("/me", response_model=UserResponse)

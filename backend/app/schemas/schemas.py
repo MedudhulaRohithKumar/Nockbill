@@ -150,6 +150,11 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
 
 
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services")
+    shop_name: Optional[str] = Field(None, description="Optional shop name if user is signing up for the first time")
+
+
 
 # ─── Shop Settings ───────────────────────────────────────────────────────────
 

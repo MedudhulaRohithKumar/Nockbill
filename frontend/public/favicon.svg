@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Rounded Base Badge -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGradient)"/>
+  
+  <!-- Subtle Internal Glow Border -->
+  <rect x="1" y="1" width="62" height="62" rx="15" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+
+  <!-- Invoice / Bill Sheet (White with subtle drop shadow) -->
+  <path d="M17 14C17 11.7909 18.7909 10 21 10H43C45.2091 10 47 11.7909 47 14V50L42 47L37 50L32 47L27 50L22 47L17 50V14Z" 
+        fill="#FFFFFF" 
+        filter="url(#billShadow)"/>
+
+  <!-- Bill Header Accent Bar (Emerald) -->
+  <rect x="22" y="15" width="20" height="3" rx="1.5" fill="#059669"/>
+
+  <!-- Bill Receipt Lines -->
+  <rect x="22" y="21" width="14" height="2" rx="1" fill="#94A3B8"/>
+  <rect x="38" y="21" width="4" height="2" rx="1" fill="#059669"/>
+  <rect x="22" y="25" width="11" height="2" rx="1" fill="#CBD5E1"/>
+  <rect x="38" y="25" width="4" height="2" rx="1" fill="#059669"/>
+
+  <!-- Divider Line -->
+  <line x1="21" y1="29.5" x2="43" y2="29.5" stroke="#E2E8F0" stroke-width="1" stroke-dasharray="2 1"/>
+
+  <!-- Agro Growth Sprout (Overlaying bottom right of the bill) -->
+  <g transform="translate(26, 28)">
+    <!-- Sprout Stem -->
+    <path d="M6 16C6 11 9 7 14 6" stroke="#047857" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Left Leaf (Vibrant Lime/Emerald) -->
+    <path d="M8 11C4 11 2 7 2 4C5 4 8 6 8 11Z" fill="#10B981"/>
+    <!-- Right Leaf (Bright Leaf Green) -->
+    <path d="M14 6C14 2 18 1 21 1C21 4 19 6 14 6Z" fill="#34D399"/>
+    <!-- Central Seed / Growth Dot -->
+    <circle cx="6" cy="16" r="2" fill="#065F46"/>
+  </g>
+
+  <!-- Gradients & Filters -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="50%" stop-color="#064E3B"/>
+      <stop offset="100%" stop-color="#022C22"/>
+    </linearGradient>
+    <filter id="billShadow" x="15" y="9" width="34" height="43" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+</svg>
