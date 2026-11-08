@@ -49,7 +49,8 @@ class Settings(BaseSettings):
 
     # Google OAuth
     google_client_id: str = "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
-    google_client_secret: str = "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"
+    # Never hard-code secrets; supply via GOOGLE_CLIENT_SECRET env var if ever required.
+    google_client_secret: str = ""
 
     # File Upload
     max_image_size_mb: int = 10

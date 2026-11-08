@@ -486,7 +486,7 @@ passwords across unencrypted emails or chat messages.
                   </span>
                 </div>
                 <p className="text-xs text-emerald-800 leading-relaxed">
-                  Register your shop in one step. You can set a master password to sign in with either <strong>Google</strong> OR <strong>Email + Password</strong> anytime (hybrid login).
+                  Register your shop in one step using your Google account.
                 </p>
                 <button
                   type="button"
@@ -1130,42 +1130,33 @@ passwords across unencrypted emails or chat messages.
                 />
               </div>
 
-              {/* Hybrid Password Setup */}
-              <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl space-y-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
-                    <Lock className="w-4 h-4 text-emerald-700" />
-                    <span>Create Master Password (Hybrid Access)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Set a master password so you can sign in anytime using either:
-                    <br />
-                    1. <strong>Sign in with Google</strong> (1-click)
-                    <br />
-                    2. <strong>{googleRegData.email} + Password</strong> (standard login, just like GitHub!)
-                  </p>
-                </div>
+              {/* Optional Password Setup */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  Password <span className="font-normal text-slate-400">(optional)</span>
+                </label>
 
-                <div>
-                  <input
-                    type="password"
-                    minLength={6}
-                    value={googleRegData.password}
-                    onChange={(e) => setGoogleRegData({ ...googleRegData, password: e.target.value })}
-                    placeholder="Enter backup password (min 6 characters)"
-                    className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
-                  />
-                </div>
+                <input
+                  type="password"
+                  minLength={6}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  value={googleRegData.password}
+                  onChange={(e) => setGoogleRegData({ ...googleRegData, password: e.target.value })}
+                  placeholder="Min 6 characters"
+                  className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
+                />
 
-                <div>
-                  <input
-                    type="password"
-                    value={googleRegData.confirm_password}
-                    onChange={(e) => setGoogleRegData({ ...googleRegData, confirm_password: e.target.value })}
-                    placeholder="Confirm backup password"
-                    className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
-                  />
-                </div>
+                <input
+                  type="password"
+                  maxLength={128}
+                  autoComplete="new-password"
+                  value={googleRegData.confirm_password}
+                  onChange={(e) => setGoogleRegData({ ...googleRegData, confirm_password: e.target.value })}
+                  placeholder="Confirm password"
+                  className="clay-input w-full px-4 py-2.5 text-sm text-slate-900"
+                />
               </div>
 
               <button

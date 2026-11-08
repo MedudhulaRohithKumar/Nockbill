@@ -64,7 +64,27 @@ export const authApi = {
     credential: string, 
     options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string
   ) => {
-    let payload: any = { credential };
+    let finalCredential = credential;
+    if (credential && !credential.startsWith('nockbill_gauth.')) {
+      try {
+        const bridgeResp = await fetch('/oauth/google-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential }),
+        });
+        const contentType = bridgeResp.headers.get('content-type') || '';
+        if (bridgeResp.ok && contentType.includes('application/json')) {
+          const bridgeData = await bridgeResp.json();
+          if (bridgeData?.verified_credential) {
+            finalCredential = bridgeData.verified_credential;
+          }
+        }
+      } catch {
+        // Local dev or direct backend mode: fall back to raw Google credential
+      }
+    }
+
+    let payload: any = { credential: finalCredential };
     if (typeof options === 'string') {
       payload.shop_name = options;
     } else if (options) {
@@ -403,7 +423,17 @@ export const settingsApi = {
 
 export function getErrorMessage(err: any, fallback: string = 'An unexpected error occurred'): string {
   if (!err) return fallback;
-  const detail = err.response?.data?.detail ?? err.response?.data?.message ?? err.message;
+  const status = err.response?.status;
+  const rawDetail = err.response?.data?.detail;
+  // Gateway-level failures (API Gateway / Lambda timeout) return generic bodies like
+  // {"message":"Service Unavailable"} — translate them into something actionable.
+  if (!rawDetail && (status === 502 || status === 503 || status === 504)) {
+    return 'Server is taking too long to respond. Please try again in a moment.';
+  }
+  if (!err.response && err.code === 'ERR_NETWORK') {
+    return 'Unable to reach the server. Please check your internet connection.';
+  }
+  const detail = rawDetail ?? err.response?.data?.message ?? err.message;
   if (!detail) return fallback;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {

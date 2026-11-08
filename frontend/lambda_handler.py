@@ -95,6 +95,112 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Prevent directory traversal attacks
     clean_path = os.path.normpath(clean_path).lstrip("/\\.")
 
+    # Google OAuth Verification Bridge (runs in Frontend Lambda outside VPC with direct internet)
+    if clean_path == "oauth/google-verify":
+        import json
+        import hmac
+        import hashlib
+        import time
+        import urllib.request
+        import urllib.parse
+        import urllib.error
+
+        method = event.get("requestContext", {}).get("http", {}).get("method", "POST")
+        if method == "OPTIONS":
+            return {
+                "statusCode": 204,
+                "headers": {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                },
+                "body": "",
+                "isBase64Encoded": False,
+            }
+
+        try:
+            raw_body = event.get("body") or "{}"
+            if event.get("isBase64Encoded"):
+                raw_body = base64.b64decode(raw_body).decode("utf-8")
+            payload = json.loads(raw_body)
+            token_str = (payload.get("credential") or "").strip()
+        except Exception:
+            token_str = ""
+
+        if not token_str:
+            return {
+                "statusCode": 400,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": "Google credential token is missing."}),
+                "isBase64Encoded": False,
+            }
+
+        google_data = None
+        param_key = "id_token" if token_str.count(".") == 2 else "access_token"
+        tokeninfo_url = f"https://oauth2.googleapis.com/tokeninfo?{urllib.parse.urlencode({param_key: token_str})}"
+        try:
+            with urllib.request.urlopen(tokeninfo_url, timeout=6) as resp:
+                if resp.status == 200:
+                    google_data = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            google_data = None
+
+        if google_data and param_key == "access_token":
+            try:
+                u_req = urllib.request.Request(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {token_str}"},
+                )
+                with urllib.request.urlopen(u_req, timeout=4) as u_resp:
+                    if u_resp.status == 200:
+                        google_data.update(json.loads(u_resp.read().decode("utf-8")))
+            except Exception:
+                pass
+
+        if not google_data:
+            return {
+                "statusCode": 401,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": "Google verification failed: invalid or expired token."}),
+                "isBase64Encoded": False,
+            }
+
+        expected_cid = os.environ.get(
+            "GOOGLE_CLIENT_ID",
+            "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com",
+        ).strip()
+        token_aud = google_data.get("aud") or google_data.get("azp") or ""
+        if expected_cid and token_aud != expected_cid:
+            return {
+                "statusCode": 401,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": "Google token was not issued for this application."}),
+                "isBase64Encoded": False,
+            }
+
+        bridge_secret = os.environ.get(
+            "GOOGLE_BRIDGE_SECRET",
+            "nockbill-google-oauth-bridge-hmac-2026-995123724994",
+        ).encode("utf-8")
+        claims = {
+            "email": google_data.get("email"),
+            "email_verified": google_data.get("email_verified") or google_data.get("verified_email"),
+            "sub": google_data.get("sub"),
+            "name": google_data.get("name") or google_data.get("given_name"),
+            "aud": token_aud,
+            "exp": int(time.time()) + 120,
+        }
+        claims_b64 = base64.urlsafe_b64encode(
+            json.dumps(claims, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        ).decode("ascii").rstrip("=")
+        sig = hmac.new(bridge_secret, claims_b64.encode("ascii"), hashlib.sha256).hexdigest()
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+            "body": json.dumps({"verified_credential": f"nockbill_gauth.{claims_b64}.{sig}"}),
+            "isBase64Encoded": False,
+        }
+
     # API Reverse Proxy (enables direct Frontend Function URL testing before CloudFront)
     backend_url = os.environ.get("BACKEND_API_URL")
     if backend_url and (clean_path.startswith("api/") or clean_path == "api"):

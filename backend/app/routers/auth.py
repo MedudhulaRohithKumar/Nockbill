@@ -15,6 +15,12 @@ from app.utils.auth import hash_password, verify_password, create_access_token, 
 from app.utils.captcha import generate_captcha_challenge, verify_captcha_challenge
 from app.services.email_service import send_password_reset_email
 from app.config.settings import settings
+from app.utils.google_auth import (
+    verify_google_token, GoogleVerificationError, GoogleUnreachableError
+)
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -406,52 +412,24 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
     Verifies the Google ID Token via Google's tokeninfo endpoint,
     validates the audience and issuer, and logs in or creates the merchant shop.
     """
-    token_str = payload.credential.strip()
+    token_str = (payload.credential or "").strip()
     if not token_str:
         raise HTTPException(status_code=400, detail="Google credential token is missing.")
 
-    # 1. Verify token with Google (supports both ID Token and OAuth2 Access Token)
-    import httpx
-    google_data = None
-
-    # First attempt: Verify as Google ID Token
+    # 1. Verify token (ID Token -> local JWKS signature check; Access Token -> tokeninfo,
+    #    both with strict audience validation against our Google Client ID).
     try:
-        resp = httpx.get(
-            "https://oauth2.googleapis.com/tokeninfo",
-            params={"id_token": token_str},
-            timeout=10.0
+        google_data = verify_google_token(token_str, settings.google_client_id)
+    except GoogleUnreachableError:
+        logger.error(
+            "Google sign-in: backend cannot reach Google (no outbound internet from Lambda/VPC)."
         )
-        if resp.status_code == 200:
-            google_data = resp.json()
-    except Exception:
-        pass
-
-    # Second attempt: Verify as Google OAuth2 Access Token
-    if not google_data:
-        try:
-            resp = httpx.get(
-                "https://oauth2.googleapis.com/tokeninfo",
-                params={"access_token": token_str},
-                timeout=10.0
-            )
-            if resp.status_code == 200:
-                google_data = resp.json()
-                # Retrieve full name/profile from userinfo endpoint
-                try:
-                    profile_resp = httpx.get(
-                        "https://www.googleapis.com/oauth2/v3/userinfo",
-                        headers={"Authorization": f"Bearer {token_str}"},
-                        timeout=5.0
-                    )
-                    if profile_resp.status_code == 200:
-                        google_data.update(profile_resp.json())
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-    if not google_data:
-        raise HTTPException(status_code=401, detail="Google verification failed: invalid or expired token.")
+        raise HTTPException(
+            status_code=503,
+            detail="Google sign-in is temporarily unavailable. Please sign in with your email and password.",
+        )
+    except GoogleVerificationError as exc:
+        raise HTTPException(status_code=401, detail=f"Google sign-in failed: {exc}")
 
     # 2. Validate Google payload fields
     google_email = google_data.get("email")
@@ -461,17 +439,6 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
 
     google_sub = google_data.get("sub")
     full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
-
-    # Audience verification (when configured)
-    configured_id = (settings.google_client_id or "").strip()
-    if configured_id:
-        token_aud = google_data.get("aud") or google_data.get("azp")
-        if token_aud and token_aud != configured_id:
-            # Also allow matching project number prefix
-            conf_prefix = configured_id.split("-")[0]
-            token_prefix = str(token_aud).split("-")[0]
-            if conf_prefix != token_prefix:
-                raise HTTPException(status_code=401, detail="Google token audience does not match configured Google Client ID.")
 
     # 3. Lookup existing user by email
     clean_email = google_email.strip().lower()
