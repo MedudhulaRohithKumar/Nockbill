@@ -44,9 +44,9 @@ def download_invoice_pdf(
     file_date = sale.sale_date or datetime.utcnow()
     disposition = "inline" if inline else "attachment"
 
-    # If S3 is enabled, upload to date-wise folder and optionally redirect to presigned URL
+    # If S3 is enabled, upload to scoped customer folder and optionally redirect to presigned URL
     if settings.s3_enabled:
-        key = build_date_wise_key(filename, file_date)
+        key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
         if not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
             pdf_bytes = generate_invoice_pdf(sale, shop)
             upload_report_to_s3(
@@ -55,7 +55,10 @@ def download_invoice_pdf(
                 category=ReportCategory.SALES_INVOICE,
                 content_type="application/pdf",
                 file_date=file_date,
-                metadata={"sale_id": str(sale.id), "invoice_number": sale.invoice_number},
+                metadata={"sale_id": str(sale.id), "invoice_number": sale.invoice_number, "shop_id": str(current_user.shop_id)},
+                shop_id=current_user.shop_id,
+                record_id=sale.id,
+                key_override=key,
             )
 
         if redirect_s3:
@@ -95,7 +98,7 @@ def get_invoice_s3_url(
 
     filename = f"Invoice_{sale.invoice_number}.pdf"
     file_date = sale.sale_date or datetime.utcnow()
-    key = build_date_wise_key(filename, file_date)
+    key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
 
     if not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
         pdf_bytes = generate_invoice_pdf(sale, shop)
@@ -105,7 +108,10 @@ def get_invoice_s3_url(
             category=ReportCategory.SALES_INVOICE,
             content_type="application/pdf",
             file_date=file_date,
-            metadata={"sale_id": str(sale.id), "invoice_number": sale.invoice_number},
+            metadata={"sale_id": str(sale.id), "invoice_number": sale.invoice_number, "shop_id": str(current_user.shop_id)},
+            shop_id=current_user.shop_id,
+            record_id=sale.id,
+            key_override=key,
         )
 
     presigned_url = generate_presigned_download_url(
@@ -144,7 +150,7 @@ def download_purchase_pdf(
     file_date = purchase.purchase_date or datetime.utcnow()
 
     if settings.s3_enabled:
-        key = build_date_wise_key(filename, file_date)
+        key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
         if not check_report_exists_in_s3(key, ReportCategory.PURCHASE_BILL):
             pdf_bytes = generate_purchase_pdf(purchase, shop)
             upload_report_to_s3(
@@ -153,7 +159,10 @@ def download_purchase_pdf(
                 category=ReportCategory.PURCHASE_BILL,
                 content_type="application/pdf",
                 file_date=file_date,
-                metadata={"purchase_id": str(purchase.id)},
+                metadata={"purchase_id": str(purchase.id), "shop_id": str(current_user.shop_id)},
+                shop_id=current_user.shop_id,
+                record_id=purchase.id,
+                key_override=key,
             )
 
         if redirect_s3:
@@ -193,7 +202,7 @@ def get_purchase_s3_url(
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"
     file_date = purchase.purchase_date or datetime.utcnow()
-    key = build_date_wise_key(filename, file_date)
+    key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
 
     if not check_report_exists_in_s3(key, ReportCategory.PURCHASE_BILL):
         pdf_bytes = generate_purchase_pdf(purchase, shop)
@@ -203,6 +212,10 @@ def get_purchase_s3_url(
             category=ReportCategory.PURCHASE_BILL,
             content_type="application/pdf",
             file_date=file_date,
+            metadata={"purchase_id": str(purchase.id), "shop_id": str(current_user.shop_id)},
+            shop_id=current_user.shop_id,
+            record_id=purchase.id,
+            key_override=key,
         )
 
     presigned_url = generate_presigned_download_url(

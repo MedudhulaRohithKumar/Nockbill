@@ -73,19 +73,10 @@ export const SubscriptionPaymentPage: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // Step 1: Simulated Gateway Handshake
-      setProcessingStep('Connecting to Secure Payment Gateway...');
+      setProcessingStep('Demo activation—no payment processed. Activating license...');
       await new Promise(r => setTimeout(r, 600));
 
-      // Step 2: Bank / UPI Verification
-      setProcessingStep(`Verifying ${paymentMethod} Transaction with Bank Switch...`);
-      await new Promise(r => setTimeout(r, 800));
-
-      // Step 3: Authorization & Tokenization
-      setProcessingStep('Authorizing ₹' + currentPlan.total.toFixed(2) + ' (Inc. 18% GST)...');
-      await new Promise(r => setTimeout(r, 600));
-
-      const paymentRef = `TXN-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const paymentRef = `DEMO-ACT-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.floor(100000 + Math.random() * 900000)}`;
 
       // Backend Activation Call
       const res = await activateSubscription({
@@ -99,13 +90,13 @@ export const SubscriptionPaymentPage: React.FC = () => {
       setPaymentSuccess({
         paymentRef: res.payment_ref || paymentRef,
         planName: currentPlan.name,
-        amount: currentPlan.total,
+        amount: 0,
         shopName: settings.shop_name || 'My Fertilizer Shop',
         date: new Date().toLocaleString(),
-        method: paymentMethod
+        method: 'Demo Activation'
       });
     } catch (err: any) {
-      setError(getErrorMessage(err, 'Payment authorization failed. Please try again.'));
+      setError(getErrorMessage(err, 'Activation failed. Please try again.'));
     } finally {
       setIsProcessing(false);
       setProcessingStep('');
@@ -121,15 +112,15 @@ export const SubscriptionPaymentPage: React.FC = () => {
       <div className="max-w-4xl w-full mx-auto relative z-10">
         {/* Top Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold mb-3">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Official Shop Activation Gateway • 256-bit Encrypted</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold mb-3">
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <span>Demo activation—no payment processed</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Activate Your Shop Cloud License
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Complete your subscription to unlock POS billing, batch management, and barcode printing for <strong>{settings.shop_name || user?.full_name}</strong>.
+            Demo activation—no payment processed. Unlock POS billing, batch management, and barcode printing for <strong>{settings.shop_name || user?.full_name}</strong>.
           </p>
         </div>
 
@@ -140,18 +131,22 @@ export const SubscriptionPaymentPage: React.FC = () => {
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
-            <span className="clay-badge px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black uppercase inline-block mb-2">
-              Subscription Active & Verified
+            <span className="clay-badge px-3 py-1 bg-amber-100 text-amber-800 text-xs font-black uppercase inline-block mb-2">
+              Demo activation—no payment processed
             </span>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Payment Successful!
+              Store License Activated (Demo Mode)
             </h2>
             <p className="text-xs text-slate-600 mt-1">
-              Your license has been activated. Official GST tax invoice dispatched to your registered email.
+              Demo activation—no payment processed. Your license has been activated for evaluation.
             </p>
 
             {/* Receipt Summary Card */}
             <div className="my-6 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left font-mono text-xs space-y-2">
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Activation Mode:</span>
+                <span className="font-bold text-amber-800">Demo Activation (No payment processed)</span>
+              </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Transaction Ref:</span>
                 <span className="font-bold text-slate-900">{paymentSuccess.paymentRef}</span>
@@ -162,15 +157,15 @@ export const SubscriptionPaymentPage: React.FC = () => {
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Selected Plan:</span>
-                <span className="font-bold text-emerald-700">{paymentSuccess.planName}</span>
+                <span className="font-bold text-emerald-700">{paymentSuccess.planName} (Demo)</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500">Total Paid (Inc. 18% GST):</span>
-                <span className="font-bold text-slate-900 text-sm">₹{paymentSuccess.amount.toFixed(2)}</span>
+                <span className="text-slate-500">Amount Charged:</span>
+                <span className="font-bold text-slate-900 text-sm">₹0.00 (Demo Mode)</span>
               </div>
               <div className="flex justify-between pt-1">
-                <span className="text-slate-500">Payment Channel:</span>
-                <span className="font-bold text-slate-700">{paymentSuccess.method} (Success)</span>
+                <span className="text-slate-500">Payment Status:</span>
+                <span className="font-bold text-slate-700">Unpaid / Demo Evaluation</span>
               </div>
             </div>
 
@@ -471,28 +466,22 @@ export const SubscriptionPaymentPage: React.FC = () => {
                     {isProcessing ? (
                       <>
                         <RefreshCw className="w-5 h-5 animate-spin" />
-                        <span>{processingStep || 'Processing Payment...'}</span>
+                        <span>{processingStep || 'Activating Demo License...'}</span>
                       </>
                     ) : (
                       <>
                         <Lock className="w-4 h-4" />
-                        <span>Pay ₹{currentPlan.total.toFixed(2)} & Activate Shop</span>
+                        <span>Demo activation—no payment processed</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
 
-                  {/* Sandbox Instant Simulation Shortcut */}
+                  {/* Demo Mode Notice */}
                   <div className="text-center pt-2">
-                    <button
-                      type="button"
-                      disabled={isProcessing}
-                      onClick={handleSimulatePayment}
-                      className="text-xs text-brand-700 hover:text-brand-900 underline font-bold inline-flex items-center gap-1"
-                    >
-                      <Zap className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Simulate Instant Gateway Approval (Sandbox Demo Mode)</span>
-                    </button>
+                    <p className="text-xs text-slate-400 font-medium">
+                      Demo mode: no credit card, UPI charge, or bank transaction is processed.
+                    </p>
                   </div>
                 </div>
               </div>

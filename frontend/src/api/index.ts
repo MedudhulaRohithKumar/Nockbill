@@ -78,8 +78,16 @@ export const authApi = {
           if (bridgeData?.verified_credential) {
             finalCredential = bridgeData.verified_credential;
           }
+        } else if (bridgeResp.status !== 404 && contentType.includes('application/json')) {
+          const errData = await bridgeResp.json().catch(() => null);
+          if (errData?.detail) {
+            throw new Error(errData.detail);
+          }
         }
-      } catch {
+      } catch (err: any) {
+        if (err?.message && !err.message.includes('fetch')) {
+          throw err;
+        }
         // Local dev or direct backend mode: fall back to raw Google credential
       }
     }

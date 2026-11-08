@@ -51,16 +51,27 @@ def get_bucket_for_category(category: str) -> str:
     return mapping.get(category, settings.s3_invoices_bucket)
 
 
-def build_date_wise_key(filename: str, file_date: Optional[datetime] = None) -> str:
+def build_date_wise_key(
+    filename: str,
+    file_date: Optional[datetime] = None,
+    shop_id: Optional[int] = None,
+    record_id: Optional[int] = None,
+) -> str:
     """
-    Build date-wise folder hierarchy: YYYY/MM/DD/filename
-    Example: 2026/09/27/Invoice_INV-001.pdf
+    Build customer document S3 key hierarchy:
+      shops/<shop_id>/records/<record_id>/YYYY/MM/DD/<filename>
+    Fallback for general exports (without shop_id and record_id):
+      YYYY/MM/DD/<filename>
     """
     dt = file_date or datetime.utcnow()
     year = dt.strftime("%Y")
     month = dt.strftime("%m")
     day = dt.strftime("%d")
     clean_name = filename.strip().replace(" ", "_")
+    if shop_id is not None and record_id is not None:
+        return f"shops/{shop_id}/records/{record_id}/{year}/{month}/{day}/{clean_name}"
+    elif shop_id is not None:
+        return f"shops/{shop_id}/{year}/{month}/{day}/{clean_name}"
     return f"{year}/{month}/{day}/{clean_name}"
 
 
@@ -71,9 +82,12 @@ def upload_report_to_s3(
     content_type: str = "application/pdf",
     file_date: Optional[datetime] = None,
     metadata: Optional[dict] = None,
+    shop_id: Optional[int] = None,
+    record_id: Optional[int] = None,
+    key_override: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Upload report to the designated S3 bucket under date-wise folder.
+    Upload report to the designated S3 bucket under scoped folder.
     Returns the S3 object key or None if S3 is not active.
     """
     if not settings.s3_enabled:
@@ -84,7 +98,7 @@ def upload_report_to_s3(
         return None
 
     bucket = get_bucket_for_category(category)
-    key = build_date_wise_key(filename, file_date)
+    key = key_override or build_date_wise_key(filename, file_date, shop_id=shop_id, record_id=record_id)
 
     extra_args = {
         "ContentType": content_type,

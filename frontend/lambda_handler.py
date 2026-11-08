@@ -140,24 +140,48 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         google_data = None
         param_key = "id_token" if token_str.count(".") == 2 else "access_token"
         tokeninfo_url = f"https://oauth2.googleapis.com/tokeninfo?{urllib.parse.urlencode({param_key: token_str})}"
+        req = urllib.request.Request(
+            tokeninfo_url,
+            headers={
+                "User-Agent": "NockBill-AuthBridge/1.0 (AWS Lambda)",
+                "Accept": "application/json",
+            },
+        )
         try:
-            with urllib.request.urlopen(tokeninfo_url, timeout=6) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 if resp.status == 200:
                     google_data = json.loads(resp.read().decode("utf-8"))
-        except Exception:
+        except urllib.error.HTTPError as http_err:
+            try:
+                err_body = json.loads(http_err.read().decode("utf-8"))
+                err_desc = err_body.get("error_description") or err_body.get("error")
+            except Exception:
+                err_desc = None
+            return {
+                "statusCode": 401,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": f"Google verification failed: {err_desc or 'invalid or expired token.'}"}),
+                "isBase64Encoded": False,
+            }
+        except Exception as exc:
+            logger.error("Tokeninfo lookup exception: %s", exc)
             google_data = None
 
         if google_data and param_key == "access_token":
             try:
                 u_req = urllib.request.Request(
                     "https://www.googleapis.com/oauth2/v3/userinfo",
-                    headers={"Authorization": f"Bearer {token_str}"},
+                    headers={
+                        "Authorization": f"Bearer {token_str}",
+                        "User-Agent": "NockBill-AuthBridge/1.0 (AWS Lambda)",
+                        "Accept": "application/json",
+                    },
                 )
-                with urllib.request.urlopen(u_req, timeout=4) as u_resp:
+                with urllib.request.urlopen(u_req, timeout=5) as u_resp:
                     if u_resp.status == 200:
                         google_data.update(json.loads(u_resp.read().decode("utf-8")))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Userinfo fetch warning: %s", exc)
 
         if not google_data:
             return {

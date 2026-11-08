@@ -38,20 +38,6 @@ Parameters:
     Default: admin@kisansevakendra.local
     Description: Notification email for generated reports and deployment alerts
 
-  JwtSecretKey:
-    Type: String
-    NoEcho: true
-    Default: "nockbill-jwt-secure-signing-prod-key-2026-c98f82a1b94d7e03"
-    Description: Cryptographically strong secret key for signing backend JWT tokens (min 32 characters)
-    MinLength: 32
-
-  GoogleBridgeSecret:
-    Type: String
-    NoEcho: true
-    Default: "nockbill-google-bridge-hmac-prod-secret-2026-f4a8b1c9d2e703"
-    Description: Cryptographically strong shared HMAC secret between Frontend Lambda and Backend Lambda for Google OAuth bridge (min 32 characters)
-    MinLength: 32
-
 Resources:
   # ============================================================================
   # 1. NETWORKING (VPC, Subnets, Security Groups)
@@ -260,6 +246,24 @@ Resources:
           "dbname": "kisan_seva_db"
         }
 
+  JwtSigningSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ks-jwt-signing-secret-${Environment}
+      Description: Cryptographically secure 64-character signing secret for backend JWT tokens
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  GoogleBridgeSigningSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ks-google-bridge-secret-${Environment}
+      Description: Cryptographically secure 64-character shared HMAC secret for Google OAuth bridge
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
   PostgreSqlInstance:
     Type: AWS::RDS::DBInstance
     Metadata:
@@ -416,7 +420,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref PostgreSqlSecret
+                Resource:
+                  - !Ref PostgreSqlSecret
+                  - !Ref JwtSigningSecret
+                  - !Ref GoogleBridgeSigningSecret
               - Effect: Allow
                 Action:
                   - ses:SendEmail
@@ -452,8 +459,8 @@ Resources:
           SES_REGION: !Ref AWS::Region
           APP_BASE_URL: "https://nockbill.com"
           GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
-          SECRET_KEY: !Ref JwtSecretKey
-          GOOGLE_BRIDGE_SECRET: !Ref GoogleBridgeSecret
+          SECRET_KEY: !Sub '{{resolve:secretsmanager:${JwtSigningSecret}:SecretString}}'
+          GOOGLE_BRIDGE_SECRET: !Sub '{{resolve:secretsmanager:${GoogleBridgeSigningSecret}:SecretString}}'
       FunctionUrlConfig:
         AuthType: NONE
     Metadata:
@@ -474,6 +481,15 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReadBridgeSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref GoogleBridgeSigningSecret
 
   FrontendFunction:
     Type: AWS::Serverless::Function
@@ -489,7 +505,8 @@ Resources:
         Variables:
           ENVIRONMENT: !Ref Environment
           BACKEND_API_URL: !GetAtt BackendFunctionUrl.FunctionUrl
-          GOOGLE_BRIDGE_SECRET: !Ref GoogleBridgeSecret
+          GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
+          GOOGLE_BRIDGE_SECRET: !Sub '{{resolve:secretsmanager:${GoogleBridgeSigningSecret}:SecretString}}'
       FunctionUrlConfig:
         AuthType: NONE
         Cors:

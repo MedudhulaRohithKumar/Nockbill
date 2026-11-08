@@ -235,21 +235,7 @@ def activate_subscription(
             detail="User account is not linked to a valid shop."
         )
 
-    clean_ref = (payload.payment_ref or "").strip()
-    if not clean_ref or len(clean_ref) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A valid payment reference is required."
-        )
-
-    import os
-    env_mode = (os.environ.get("ENVIRONMENT") or "").lower()
-    is_prod = env_mode in ("production", "prod") or (not settings.debug and "localhost" not in settings.database_url and "sqlite" not in settings.database_url)
-    if is_prod and not clean_ref.startswith(("pay_", "txn_", "TXN-")):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payment reference could not be verified by payment gateway."
-        )
+    clean_ref = (payload.payment_ref or "DEMO-ACTIVATION").strip()
 
     current_user.subscription_status = "ACTIVE"
     shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
@@ -259,15 +245,17 @@ def activate_subscription(
     audit = AuditLog(
         user_id=current_user.id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Subscription activated: {payload.plan_name} (₹{payload.amount:.2f}) via {payload.payment_method} Ref: {clean_ref}"
+        description=f"Subscription activated in demo mode: {payload.plan_name} (demo mode, no payment processed) Ref: {clean_ref}"
     )
     db.add(audit)
     db.commit()
 
     return {
         "success": True,
-        "message": f"Payment of ₹{payload.amount:.2f} confirmed! {payload.plan_name} is now active.",
+        "message": "Demo activation—no payment processed.",
         "subscription_status": "ACTIVE",
+        "demo": True,
+        "payment_verified": False,
         "payment_ref": clean_ref,
         "activated_at": datetime.utcnow().isoformat()
     }

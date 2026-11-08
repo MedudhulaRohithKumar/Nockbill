@@ -501,7 +501,7 @@ export const AnalyticsPage: React.FC = () => {
 
                 {/* Horizontal Bar Chart — zero tilted text, zero label overlap */}
                 <div className="h-72 w-full bg-white rounded-xl border border-slate-200/80 p-2.5">
-                  {categoryBreakdown.length > 0 ? (
+                  {categoryBreakdown.length > 0 && hasCategoryActivity ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={categoryBreakdown}
@@ -607,17 +607,19 @@ export const AnalyticsPage: React.FC = () => {
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                      No category analytics available
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2.5">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-2xs">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-slate-800">No Category Sales or Stock Recorded Yet</p>
+                        <p className="text-[11px] text-slate-500 max-w-xs">
+                          Live comparison bars will appear automatically once you add products under Stock or create your first bill.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {!hasCategoryActivity && (
-                  <p className="text-[11px] text-slate-500 text-center bg-white/80 py-1.5 px-3 rounded-lg border border-slate-200/70">
-                    All categories are currently at ₹0 — add products in <strong>Stock</strong> or complete a <strong>Bill</strong> to see live comparison bars.
-                  </p>
-                )}
               </div>
 
               {/* Category Summary Table */}

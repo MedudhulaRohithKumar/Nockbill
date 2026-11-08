@@ -150,7 +150,7 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
             return {
                 "status": "COMPLETED",
                 "action": action,
-                "message": "Database tables created/verified and initial seed data populated successfully in RDS.",
+                "message": "Database tables and schema migrations verified successfully in RDS.",
             }
 
         else:

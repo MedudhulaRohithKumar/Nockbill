@@ -12,11 +12,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     google_bridge_secret: str = ""
+    subscription_payment_mode: str = "demo"
 
     def model_post_init(self, __context) -> None:
         key = (self.secret_key or "").strip()
         insecure_keys = ("change-me", "your-secret-key-here", "insecure-default", "secret", "password", "test")
-        if not key or key.lower() in insecure_keys or len(key) < 16:
+        if not key or key.lower() in insecure_keys or len(key) < 32:
             env_mode = (os.environ.get("ENVIRONMENT") or "").lower()
             is_prod = env_mode in ("production", "prod") or (not self.debug and "localhost" not in self.database_url and "sqlite" not in self.database_url)
             if is_prod and not self.debug:

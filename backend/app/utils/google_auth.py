@@ -22,7 +22,9 @@ import time
 from typing import Optional
 
 import httpx
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError, InvalidTokenError
+from jwt.algorithms import RSAAlgorithm
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
@@ -75,28 +77,29 @@ def _get_jwks() -> list:
 def _verify_id_token(token: str, client_id: str) -> dict:
     try:
         header = jwt.get_unverified_header(token)
-    except JWTError as exc:
+    except (PyJWTError, Exception) as exc:
         raise GoogleVerificationError("Malformed Google ID token.") from exc
 
     kid = header.get("kid")
     keys = _get_jwks()
-    key = next((k for k in keys if k.get("kid") == kid), None)
-    if key is None:
+    key_dict = next((k for k in keys if k.get("kid") == kid), None)
+    if key_dict is None:
         # Google may have rotated keys — force one refresh.
         _jwks_cache["expires_at"] = 0.0
-        key = next((k for k in _get_jwks() if k.get("kid") == kid), None)
-    if key is None:
+        key_dict = next((k for k in _get_jwks() if k.get("kid") == kid), None)
+    if key_dict is None:
         raise GoogleVerificationError("Google ID token signing key not recognised.")
 
     try:
+        public_key = RSAAlgorithm.from_jwk(key_dict)
         claims = jwt.decode(
             token,
-            key,
+            public_key,
             algorithms=["RS256"],
             audience=client_id,
             options={"verify_at_hash": False},
         )
-    except JWTError as exc:
+    except (PyJWTError, InvalidTokenError, Exception) as exc:
         raise GoogleVerificationError("Google ID token is invalid or expired.") from exc
 
     if claims.get("iss") not in GOOGLE_ISSUERS:

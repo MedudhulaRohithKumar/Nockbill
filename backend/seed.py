@@ -53,9 +53,23 @@ def seed():
     _run_schema_migrations(engine)
     db = SessionLocal()
 
+    seed_demo_enabled = os.environ.get("SEED_DEMO_DATA", "false").strip().lower() in ("true", "1", "yes")
+    admin_password = (os.environ.get("SEED_ADMIN_PASSWORD") or "").strip()
+
+    if not seed_demo_enabled:
+        print("SEED_DEMO_DATA=false. Database schema tables verified. Skipping demo account and sample data creation.")
+        db.close()
+        return
+
+    if not admin_password or len(admin_password) < 8 or admin_password == "admin123":
+        print("SEED_DEMO_DATA is true but valid SEED_ADMIN_PASSWORD (min 8 chars, non-default) was not supplied. Skipping demo account creation.")
+        db.close()
+        return
+
     try:
         # ── Shop settings ────────────────────────────────────────
-        if not db.query(ShopSettings).first():
+        shop = db.query(ShopSettings).first()
+        if not shop:
             shop = ShopSettings(
                 shop_name="Green Field Agro Store",
                 address="123, Main Market Road",
@@ -70,20 +84,20 @@ def seed():
             )
             db.add(shop)
             db.flush()
-            print("Created shop settings")
+            print("Created demo shop settings")
 
-        # ── Owner user ──────────────────────────────────────────
-        if not db.query(User).filter(User.username == "admin").first():
+        # ── Owner user (opt-in demo only) ────────────────────────
+        if not db.query(User).filter(User.username == "demo_admin").first():
             owner = User(
-                name="Shop Owner",
-                username="admin",
-                password_hash=hash_password("admin123"),
+                name="Demo Shop Owner",
+                username="demo_admin",
+                password_hash=hash_password(admin_password),
                 role=UserRole.OWNER,
                 shop_id=shop.id,
             )
             db.add(owner)
             db.flush()
-            print("Created admin user (username: admin, password: admin123)")
+            print("Created demo admin user (username: demo_admin).")
 
         db.commit()
 

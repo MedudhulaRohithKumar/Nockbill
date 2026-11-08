@@ -9,7 +9,7 @@ region = "ap-south-1"
 confirm_changeset = false
 fail_on_empty_changeset = false
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
-parameter_overrides = "Environment=\"prod\" DbUsername=\"kisan_admin\" DbAllocatedStorage=\"20\" VpcCidr=\"10.0.0.0/16\" JwtSecretKey=\"nockbill-jwt-secure-signing-prod-key-2026-c98f82a1b94d7e03\" GoogleBridgeSecret=\"nockbill-google-bridge-hmac-prod-secret-2026-f4a8b1c9d2e703\""
+parameter_overrides = "Environment=\"prod\" DbUsername=\"kisan_admin\" DbAllocatedStorage=\"20\" VpcCidr=\"10.0.0.0/16\""
 
 [default.global.parameters]
 region = "ap-south-1"

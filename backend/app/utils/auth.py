@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError, InvalidTokenError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -34,7 +35,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-    except JWTError:
+    except (PyJWTError, InvalidTokenError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
