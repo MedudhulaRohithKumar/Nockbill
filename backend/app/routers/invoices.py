@@ -20,7 +20,7 @@ from app.services.s3_service import (
     build_date_wise_key,
     ReportCategory,
 )
-from app.utils.auth import get_current_user, get_current_user_optional
+from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/invoices", tags=["Invoices"])
 
@@ -31,14 +31,14 @@ def download_invoice_pdf(
     redirect_s3: bool = Query(False, description="Redirect to S3 presigned URL if S3 is enabled"),
     inline: bool = Query(True, description="Display inline in browser if true, or download if false"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == current_user.shop_id).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
-    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(sale, "shop_id", 1)).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     filename = f"Invoice_{sale.invoice_number}.pdf"
     file_date = sale.sale_date or datetime.utcnow()
@@ -86,12 +86,12 @@ def get_invoice_s3_url(
     current_user: User = Depends(get_current_user),
 ):
     """Generate on-demand S3 presigned URL for an invoice."""
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    sale = db.query(Sale).filter(Sale.id == sale_id, Sale.shop_id == current_user.shop_id).first()
     if not sale:
         raise HTTPException(404, "Sale not found")
-    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(sale, "shop_id", 1)).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     filename = f"Invoice_{sale.invoice_number}.pdf"
     file_date = sale.sale_date or datetime.utcnow()
@@ -130,14 +130,14 @@ def download_purchase_pdf(
     purchase_id: int,
     redirect_s3: bool = Query(False, description="Redirect to S3 presigned URL if S3 is enabled"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    purchase = db.query(Purchase).filter(Purchase.id == purchase_id, Purchase.shop_id == current_user.shop_id).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(purchase, "shop_id", 1)).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"
@@ -183,12 +183,12 @@ def get_purchase_s3_url(
     current_user: User = Depends(get_current_user),
 ):
     """Generate on-demand S3 presigned URL for a purchase bill."""
-    purchase = db.query(Purchase).filter(Purchase.id == purchase_id).first()
+    purchase = db.query(Purchase).filter(Purchase.id == purchase_id, Purchase.shop_id == current_user.shop_id).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).filter(ShopSettings.id == getattr(purchase, "shop_id", 1)).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"

@@ -8,9 +8,24 @@ class Settings(BaseSettings):
     app_name: str = "NockBill Solutions"
     app_version: str = "1.0.0"
     debug: bool = False
-    secret_key: str = "change-me"
+    secret_key: str = ""
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
+    google_bridge_secret: str = ""
+
+    def model_post_init(self, __context) -> None:
+        key = (self.secret_key or "").strip()
+        insecure_keys = ("change-me", "your-secret-key-here", "insecure-default", "secret", "password", "test")
+        if not key or key.lower() in insecure_keys or len(key) < 16:
+            env_mode = (os.environ.get("ENVIRONMENT") or "").lower()
+            is_prod = env_mode in ("production", "prod") or (not self.debug and "localhost" not in self.database_url and "sqlite" not in self.database_url)
+            if is_prod and not self.debug:
+                raise RuntimeError(
+                    "FATAL SECURITY CONFIGURATION ERROR: SECRET_KEY is not set or uses an insecure default in production. "
+                    "You must provide a cryptographically secure SECRET_KEY (min 32 chars) via environment variable or Secrets Manager."
+                )
+            import secrets
+            self.secret_key = secrets.token_urlsafe(32)
 
     # Database
     database_url: str = "sqlite:///./fertilizer_db.sqlite3"

@@ -144,8 +144,9 @@ export const HomePage: React.FC = () => {
         </div>
       </header>
 
-      {/* ─── HERO SECTION ─────────────────────────────────────────────────────── */}
-      <section className="relative pt-12 pb-20 overflow-hidden">
+      <main id="main-content">
+        {/* ─── HERO SECTION ─────────────────────────────────────────────────────── */}
+        <section className="relative pt-12 pb-20 overflow-hidden">
         {/* Soft Background Clay Glows */}
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-emerald-200/40 via-green-100/30 to-transparent rounded-full blur-3xl pointer-events-none -z-10"></div>
 
@@ -212,6 +213,10 @@ export const HomePage: React.FC = () => {
                 <img
                   src="/images/dashboard/billing_screen.png"
                   alt="NockBill Solutions Billing Dashboard"
+                  width={2880}
+                  height={1566}
+                  loading="eager"
+                  decoding="async"
                   className="w-full h-auto object-cover object-top hover:scale-[1.01] transition-transform duration-500"
                 />
               </div>
@@ -243,6 +248,10 @@ export const HomePage: React.FC = () => {
                 <img
                   src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80"
                   alt="Fertilizers & Nutrients"
+                  width={800}
+                  height={505}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
@@ -269,6 +278,10 @@ export const HomePage: React.FC = () => {
                 <img
                   src="https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=800&q=80"
                   alt="Seed Varieties & Germination"
+                  width={800}
+                  height={505}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
@@ -295,6 +308,10 @@ export const HomePage: React.FC = () => {
                 <img
                   src="https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80"
                   alt="Crop Protection & Sprays"
+                  width={800}
+                  height={505}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
@@ -437,6 +454,10 @@ export const HomePage: React.FC = () => {
                 <img
                   src={moduleData[activeModule].image}
                   alt={moduleData[activeModule].title}
+                  width={2880}
+                  height={1566}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               </div>
@@ -557,9 +578,10 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+      </main>
 
       {/* ─── FOOTER ──────────────────────────────────────────────────────────── */}
-      <footer className="bg-slate-900 text-slate-400 py-12 border-t border-slate-800 text-xs">
+      <footer className="bg-slate-900 text-slate-300 py-12 border-t border-slate-800 text-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-slate-950 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
@@ -570,11 +592,11 @@ export const HomePage: React.FC = () => {
                 <span className="text-white font-black text-sm tracking-tight">
                   Nock<span className="text-emerald-400">Bill</span>
                 </span>
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-400">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-300">
                   Solutions
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500">Retail Billing, Inventory &amp; GST Management Platform</span>
+              <span className="text-[11px] text-slate-300">Retail Billing, Inventory &amp; GST Management Platform</span>
             </div>
           </div>
 
@@ -585,7 +607,7 @@ export const HomePage: React.FC = () => {
             <a href="#dashboard-tour" className="hover:text-white transition-colors">Tour</a>
           </div>
 
-          <div className="text-center sm:text-right text-[11px] text-slate-500">
+          <div className="text-center sm:text-right text-[11px] text-slate-300">
             © {new Date().getFullYear()} NockBill Solutions (nockbill.com). All rights reserved.
           </div>
         </div>

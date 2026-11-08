@@ -28,6 +28,8 @@ MIME_OVERRIDES = {
     ".woff": "font/woff",
     ".woff2": "font/woff2",
     ".ttf": "font/ttf",
+    ".txt": "text/plain; charset=utf-8",
+    ".xml": "application/xml; charset=utf-8",
 }
 
 BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".ico", ".woff", ".woff2", ".ttf", ".eot"}
@@ -178,10 +180,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "isBase64Encoded": False,
             }
 
-        bridge_secret = os.environ.get(
-            "GOOGLE_BRIDGE_SECRET",
-            "nockbill-google-oauth-bridge-hmac-2026-995123724994",
-        ).encode("utf-8")
+        bridge_secret_str = (os.environ.get("GOOGLE_BRIDGE_SECRET") or "").strip()
+        if not bridge_secret_str or len(bridge_secret_str) < 32:
+            return {
+                "statusCode": 500,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": "Google OAuth bridge secret is not configured on this server."}),
+                "isBase64Encoded": False,
+            }
+        bridge_secret = bridge_secret_str.encode("utf-8")
         claims = {
             "email": google_data.get("email"),
             "email_verified": google_data.get("email_verified") or google_data.get("verified_email"),

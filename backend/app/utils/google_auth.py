@@ -29,7 +29,6 @@ GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 GOOGLE_ISSUERS = ("accounts.google.com", "https://accounts.google.com")
 BRIDGE_PREFIX = "nockbill_gauth."
-DEFAULT_BRIDGE_SECRET = "nockbill-google-oauth-bridge-hmac-2026-995123724994"
 
 # Keep total worst-case latency far below the API Gateway 30 s integration limit.
 _TIMEOUT = httpx.Timeout(connect=3.0, read=4.0, write=4.0, pool=3.0)
@@ -134,12 +133,22 @@ def _verify_access_token(token: str, client_id: str) -> dict:
 
 
 def _verify_bridge_token(token: str, client_id: str) -> dict:
-    """Verify an HMAC-SHA256 signed token issued by the Frontend Lambda OAuth bridge."""
+    """
+    Verify an HMAC-SHA256 signed token issued by the Frontend Lambda OAuth bridge.
+    Requires an explicitly configured GOOGLE_BRIDGE_SECRET in the environment.
+    """
+    bridge_secret_str = (os.environ.get("GOOGLE_BRIDGE_SECRET") or "").strip()
+    if not bridge_secret_str or len(bridge_secret_str) < 32:
+        raise GoogleVerificationError(
+            "Google OAuth bridge is not securely configured on this server (missing GOOGLE_BRIDGE_SECRET)."
+        )
+
     parts = token.split(".")
     if len(parts) != 3:
         raise GoogleVerificationError("Malformed Google verification token.")
     _, claims_b64, sig = parts
-    bridge_secret = os.environ.get("GOOGLE_BRIDGE_SECRET", DEFAULT_BRIDGE_SECRET).encode("utf-8")
+
+    bridge_secret = bridge_secret_str.encode("utf-8")
     expected_sig = hmac.new(bridge_secret, claims_b64.encode("ascii"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected_sig):
         raise GoogleVerificationError("Invalid Google verification signature.")
@@ -150,11 +159,24 @@ def _verify_bridge_token(token: str, client_id: str) -> dict:
     except Exception as exc:
         raise GoogleVerificationError("Invalid Google verification payload.") from exc
 
-    if int(claims.get("exp") or 0) < int(time.time()):
+    # Enforce mandatory expiration
+    exp = claims.get("exp")
+    if not isinstance(exp, (int, float)) or int(exp) < int(time.time()):
         raise GoogleVerificationError("Google verification token has expired. Please try again.")
 
-    if client_id and claims.get("aud") and claims.get("aud") != client_id:
+    # Enforce mandatory audience matching
+    token_aud = claims.get("aud")
+    if not token_aud:
+        raise GoogleVerificationError("Google token audience claim is missing.")
+    if client_id and token_aud != client_id:
         raise GoogleVerificationError("Google token was not issued for this application.")
+
+    # Enforce verified email
+    email = claims.get("email")
+    if not email or not isinstance(email, str) or not email.strip():
+        raise GoogleVerificationError("Google account email is missing.")
+    if claims.get("email_verified") is not True:
+        raise GoogleVerificationError("Google account email is not verified.")
 
     return claims
 

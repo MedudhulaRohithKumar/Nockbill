@@ -81,7 +81,7 @@ class User(Base):
     role = Column(SAEnum(UserRole), default=UserRole.STAFF, nullable=False)
     email = Column(String(150), nullable=True, index=True)
     phone = Column(String(20), nullable=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     subscription_status = Column(String(20), default="ACTIVE")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -320,7 +320,7 @@ class InventoryTransaction(Base):
     __tablename__ = "inventory_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     transaction_type = Column(SAEnum(InventoryTxType), nullable=False)
     quantity = Column(Numeric(10, 3), nullable=False)
@@ -338,7 +338,7 @@ class GstTransaction(Base):
     __tablename__ = "gst_transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
     invoice_number = Column(String(50), nullable=False)
     taxable_amount = Column(Numeric(14, 2), default=0)

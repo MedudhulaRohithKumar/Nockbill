@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+
+# Disallow authenticated private dashboard endpoints
+Disallow: /api/
+Disallow: /oauth/
+Disallow: /billing
+Disallow: /inventory
+Disallow: /analytics
+Disallow: /reports
+Disallow: /settings
+Disallow: /returns
+Disallow: /purchases
+Disallow: /price-lists
+
+Sitemap: https://nockbill.com/sitemap.xml

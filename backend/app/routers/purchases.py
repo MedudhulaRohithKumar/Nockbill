@@ -10,7 +10,7 @@ from app.models.models import (
     InventoryTransaction, InventoryTxType,
     AuditLog, AuditAction, User, ShopSettings
 )
-from app.utils.auth import get_current_user, get_current_user_optional
+from app.utils.auth import get_current_user
 from app.utils.helpers import sanitize_text, sanitize_code, validate_gstin, resolve_trade_name
 
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
@@ -335,18 +335,17 @@ def download_purchase_pdf(
     purchase_id: int,
     inline: bool = Query(True, description="Display inline in browser if true, or download if false"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
-    shop_id = getattr(current_user, "shop_id", 1) if current_user else 1
     purchase = db.query(Purchase).filter(
         Purchase.id == purchase_id,
-        Purchase.shop_id == shop_id
+        Purchase.shop_id == current_user.shop_id
     ).first()
     if not purchase:
         raise HTTPException(404, "Purchase not found")
-    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="My Fertilizer Shop")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     pdf_bytes = generate_purchase_pdf(purchase, shop)
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"

@@ -48,4 +48,5 @@ dist/
 
 # OS Files
 .DS_Store
+scratch/
 Thumbs.db

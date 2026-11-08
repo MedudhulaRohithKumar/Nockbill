@@ -38,6 +38,18 @@ Parameters:
     Default: admin@kisansevakendra.local
     Description: Notification email for generated reports and deployment alerts
 
+  JwtSecretKey:
+    Type: String
+    NoEcho: true
+    Description: Cryptographically strong secret key for signing backend JWT tokens (min 32 characters)
+    MinLength: 32
+
+  GoogleBridgeSecret:
+    Type: String
+    NoEcho: true
+    Description: Cryptographically strong shared HMAC secret between Frontend Lambda and Backend Lambda for Google OAuth bridge (min 32 characters)
+    MinLength: 32
+
 Resources:
   # ============================================================================
   # 1. NETWORKING (VPC, Subnets, Security Groups)
@@ -438,6 +450,8 @@ Resources:
           SES_REGION: !Ref AWS::Region
           APP_BASE_URL: "https://nockbill.com"
           GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
+          SECRET_KEY: !Ref JwtSecretKey
+          GOOGLE_BRIDGE_SECRET: !Ref GoogleBridgeSecret
       FunctionUrlConfig:
         AuthType: NONE
     Metadata:
@@ -473,6 +487,7 @@ Resources:
         Variables:
           ENVIRONMENT: !Ref Environment
           BACKEND_API_URL: !GetAtt BackendFunctionUrl.FunctionUrl
+          GOOGLE_BRIDGE_SECRET: !Ref GoogleBridgeSecret
       FunctionUrlConfig:
         AuthType: NONE
         Cors:

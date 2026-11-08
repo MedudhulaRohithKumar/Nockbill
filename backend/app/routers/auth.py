@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import secrets
+import hmac
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
@@ -13,7 +14,11 @@ from app.schemas.schemas import (
 )
 from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
 from app.utils.captcha import generate_captcha_challenge, verify_captcha_challenge
-from app.services.email_service import send_password_reset_email
+from app.services.email_service import (
+    send_password_reset_email,
+    send_password_reset_confirmation_email,
+    send_welcome_account_email
+)
 from app.config.settings import settings
 from app.utils.google_auth import (
     verify_google_token, GoogleVerificationError, GoogleUnreachableError
@@ -163,6 +168,23 @@ def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db
 
     # 5. Business credential export payload
     base_login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+
+    # 6. Dispatch Welcome Email
+    if clean_email:
+        try:
+            send_welcome_account_email(
+                to_email=clean_email,
+                recipient_name=clean_owner,
+                username=clean_username,
+                shop_name=shop_record.shop_name,
+                login_url=base_login_url,
+                gstin=shop_record.gstin,
+                license_no=shop_record.fertilizer_license_no,
+                role_name="Store Owner / Administrator"
+            )
+        except Exception as exc:
+            logger.warning("Could not dispatch welcome email to %s: %s", clean_email, exc)
+
     credentials = {
         "account_id": f"SHOP-{shop_record.id:05d}",
         "shop_name": shop_record.shop_name,
@@ -200,16 +222,44 @@ def activate_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.role != UserRole.OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the shop owner can manage or activate subscriptions."
+        )
+
+    shop_id = getattr(current_user, "shop_id", None)
+    if not shop_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account is not linked to a valid shop."
+        )
+
+    clean_ref = (payload.payment_ref or "").strip()
+    if not clean_ref or len(clean_ref) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid payment reference is required."
+        )
+
+    import os
+    env_mode = (os.environ.get("ENVIRONMENT") or "").lower()
+    is_prod = env_mode in ("production", "prod") or (not settings.debug and "localhost" not in settings.database_url and "sqlite" not in settings.database_url)
+    if is_prod and not clean_ref.startswith(("pay_", "txn_", "TXN-")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payment reference could not be verified by payment gateway."
+        )
+
     current_user.subscription_status = "ACTIVE"
-    shop_id = getattr(current_user, "shop_id", 1) or 1
-    settings = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
-    if settings:
-        settings.subscription_status = "ACTIVE"
-    
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
+    if shop:
+        shop.subscription_status = "ACTIVE"
+
     audit = AuditLog(
         user_id=current_user.id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Subscription activated: {payload.plan_name} (₹{payload.amount}) via {payload.payment_method} Ref: {payload.payment_ref}"
+        description=f"Subscription activated: {payload.plan_name} (₹{payload.amount:.2f}) via {payload.payment_method} Ref: {clean_ref}"
     )
     db.add(audit)
     db.commit()
@@ -218,7 +268,7 @@ def activate_subscription(
         "success": True,
         "message": f"Payment of ₹{payload.amount:.2f} confirmed! {payload.plan_name} is now active.",
         "subscription_status": "ACTIVE",
-        "payment_ref": payload.payment_ref,
+        "payment_ref": clean_ref,
         "activated_at": datetime.utcnow().isoformat()
     }
 
@@ -237,12 +287,14 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
         )
     ).first()
 
-    # Always return a clean response if user is not found
+    # Generic response if user is not found to prevent user enumeration
     if not user:
-        raise HTTPException(
-            status_code=404,
-            detail="No active shop account found with that email, username, or mobile number."
-        )
+        return {
+            "success": True,
+            "message": "If an account matches that identifier, a 6-digit verification code has been dispatched.",
+            "email_sent": False,
+            "masked_target": "your registered account",
+        }
 
     # Generate cryptographically secure 6-digit numeric verification code
     otp = f"{secrets.randbelow(900000) + 100000}"
@@ -252,10 +304,13 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
     RESET_TOKENS[user.username] = {
         "code": otp,
         "token": reset_secret,
+        "verified_token": None,
+        "verified": False,
+        "verified_at": None,
         "expires_at": expires_at,
         "user_id": user.id,
         "attempts": 0,
-        "verified": False,
+        "reset_attempts": 0,
     }
 
     # Construct one-click reset link if frontend base URL is configured
@@ -286,19 +341,16 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
     else:
         masked = "your registered account"
 
-    response_data = {
+    # In local debug mode, log to server logger ONLY; NEVER return OTP in API response
+    if not email_dispatched and settings.debug:
+        logger.info("[LOCAL DEV] Password reset OTP for %s: %s", user.username, otp)
+
+    return {
         "success": True,
-        "message": f"A 6-digit verification code has been sent to {masked}." if email_dispatched else f"Verification code generated for {masked}.",
+        "message": f"If an account matches that identifier, a 6-digit verification code has been dispatched to {masked}.",
         "email_sent": email_dispatched,
         "masked_target": masked,
     }
-
-    # If external email delivery could not be completed (e.g. local dev container without cloud email credentials),
-    # return dev_otp so local testing is never blocked or misleading
-    if not email_dispatched:
-        response_data["dev_otp"] = otp
-
-    return response_data
 
 
 @router.post("/forgot-password/verify")
@@ -333,23 +385,43 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
         )
 
     provided_code = (payload.otp_code or "").strip()
-    # Strict check: if 6 characters, must be 6 digits
     if len(provided_code) == 6 and not provided_code.isdigit():
         raise HTTPException(status_code=400, detail="Verification code must be a 6-digit number.")
 
-    if provided_code != entry["code"] and provided_code != entry.get("token"):
+    valid_code = entry.get("code")
+    valid_token = entry.get("token")
+    is_match = False
+    if valid_code and hmac.compare_digest(provided_code, valid_code):
+        is_match = True
+    elif valid_token and hmac.compare_digest(provided_code, valid_token):
+        is_match = True
+
+    if not is_match:
         entry["attempts"] = entry.get("attempts", 0) + 1
         remaining = max(0, 5 - entry["attempts"])
+        if remaining == 0:
+            del RESET_TOKENS[user.username]
+            raise HTTPException(
+                status_code=429,
+                detail="Too many incorrect attempts. Please request a new 6-digit verification code."
+            )
         raise HTTPException(
             status_code=400,
             detail=f"Incorrect 6-digit verification code ({remaining} attempts remaining)."
         )
 
+    # Burn OTP so it cannot be reused
+    entry["code"] = None
+    # Issue high-entropy single-use verified token for the reset step
+    verified_token = secrets.token_urlsafe(32)
+    entry["verified_token"] = verified_token
     entry["verified"] = True
+    entry["verified_at"] = datetime.utcnow()
+
     return {
         "success": True,
         "verified": True,
-        "reset_token": entry["token"],
+        "reset_token": verified_token,
         "message": "Code verified! Please set your new password."
     }
 
@@ -369,27 +441,53 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     ).first()
 
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid verification code or user not found.")
+        raise HTTPException(status_code=400, detail="Invalid verification session or user not found.")
 
     entry = RESET_TOKENS.get(user.username)
-    is_valid = False
-    provided_code = (payload.reset_token or "").strip()
-
-    if entry and (entry["code"] == provided_code or entry.get("token") == provided_code):
-        if datetime.utcnow() <= entry["expires_at"]:
-            is_valid = True
-
-    if not is_valid:
+    if not entry or not entry.get("verified") or not entry.get("verified_token"):
         raise HTTPException(
             status_code=400,
-            detail="The verification session is invalid or has expired. Please verify your code again."
+            detail="The verification session is invalid. You must verify your 6-digit code first."
         )
 
-    if len((payload.new_password or "").strip()) < 6:
+    if datetime.utcnow() > entry["expires_at"]:
+        del RESET_TOKENS[user.username]
+        raise HTTPException(
+            status_code=400,
+            detail="The verification session has expired. Please request a new code."
+        )
+
+    # Check verification freshness (must complete reset within 10 minutes of OTP verification)
+    verified_at = entry.get("verified_at")
+    if verified_at and (datetime.utcnow() - verified_at).total_seconds() > 600:
+        del RESET_TOKENS[user.username]
+        raise HTTPException(
+            status_code=400,
+            detail="The verification session has expired. Please verify your code again."
+        )
+
+    if entry.get("reset_attempts", 0) >= 3:
+        del RESET_TOKENS[user.username]
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed reset attempts. Please request a new verification code."
+        )
+
+    provided_token = (payload.reset_token or "").strip()
+    expected_token = entry["verified_token"]
+    if not hmac.compare_digest(provided_token, expected_token):
+        entry["reset_attempts"] = entry.get("reset_attempts", 0) + 1
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid reset verification token. Please verify your code again."
+        )
+
+    new_pwd = (payload.new_password or "").strip()
+    if len(new_pwd) < 6:
         raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
 
     # Update password securely
-    user.password_hash = hash_password(payload.new_password.strip())
+    user.password_hash = hash_password(new_pwd)
     audit = AuditLog(
         user_id=user.id,
         action=AuditAction.SETTINGS_UPDATE,
@@ -397,6 +495,22 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     )
     db.add(audit)
     db.commit()
+
+    # Dispatch password reset confirmation email
+    target_email = user.email
+    if not target_email and user.shop and user.shop.email:
+        target_email = user.shop.email
+    if target_email:
+        try:
+            shop_title = user.shop.shop_name if user.shop else "Your Shop"
+            send_password_reset_confirmation_email(
+                to_email=target_email,
+                recipient_name=user.name or user.username,
+                username=user.username,
+                shop_name=shop_title,
+            )
+        except Exception as exc:
+            logger.warning("Could not dispatch password reset confirmation email to %s: %s", target_email, exc)
 
     # Clear single-use token immediately
     if user.username in RESET_TOKENS:
@@ -492,6 +606,23 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
         )
         db.add(user)
         db.flush()
+
+        # Dispatch Welcome Email to new Google user
+        if clean_email:
+            try:
+                login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+                send_welcome_account_email(
+                    to_email=clean_email,
+                    recipient_name=full_name,
+                    username=candidate_username,
+                    shop_name=new_shop.shop_name,
+                    login_url=login_url,
+                    gstin=new_shop.gstin,
+                    license_no=new_shop.fertilizer_license_no,
+                    role_name="Store Owner"
+                )
+            except Exception as exc:
+                logger.warning("Could not dispatch welcome email to new Google user %s: %s", clean_email, exc)
     else:
         # User exists: if they provided a new password, update it so they can use hybrid email+pwd
         clean_pwd = (payload.password or "").strip()
@@ -551,9 +682,29 @@ def create_user(
         phone=payload.phone,
         password_hash=hash_password(payload.password),
         role=payload.role,
+        shop_id=current_user.shop_id,
+        is_active=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Dispatch Welcome Email to newly created sub-user
+    if user.email and user.email.strip():
+        try:
+            login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+            shop_title = current_user.shop.shop_name if current_user.shop else "NockBill Solutions"
+            role_label = "Store Owner" if user.role == UserRole.OWNER else "Staff / Cashier"
+            send_welcome_account_email(
+                to_email=user.email.strip(),
+                recipient_name=user.name,
+                username=user.username,
+                shop_name=shop_title,
+                login_url=login_url,
+                role_name=role_label
+            )
+        except Exception as exc:
+            logger.warning("Could not dispatch welcome email to user %s: %s", user.email, exc)
+
     return user
 

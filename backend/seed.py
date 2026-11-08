@@ -79,6 +79,7 @@ def seed():
                 username="admin",
                 password_hash=hash_password("admin123"),
                 role=UserRole.OWNER,
+                shop_id=shop.id,
             )
             db.add(owner)
             db.flush()

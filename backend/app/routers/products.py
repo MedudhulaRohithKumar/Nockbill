@@ -388,17 +388,23 @@ def get_barcode_label_pdf(
     current_user: User = Depends(get_current_user),
 ):
     """Generate exact label-sized barcode PDF or A4 multi-label sheet."""
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.shop_id == current_user.shop_id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    shop = db.query(ShopSettings).first()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     shop_name = shop.shop_name if shop else "NockBill Solutions"
 
     batch_number = None
     expiry_date = None
     if batch_id:
-        batch = db.query(ProductBatch).filter(ProductBatch.id == batch_id).first()
+        batch = db.query(ProductBatch).filter(
+            ProductBatch.id == batch_id,
+            ProductBatch.product_id == product.id
+        ).first()
         if batch:
             batch_number = batch.batch_number
             expiry_date = batch.expiry_date

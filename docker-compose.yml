@@ -32,14 +32,15 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/fertilizer_shop
-      SECRET_KEY: fertilizer-shop-production-secret-key-change-in-prod
+      SECRET_KEY: ${SECRET_KEY:-}
+      GOOGLE_BRIDGE_SECRET: ${GOOGLE_BRIDGE_SECRET:-}
       TESSERACT_CMD: tesseract
       HOST: 0.0.0.0
       PORT: 8000
       SES_ENABLED: "True"
       SES_SENDER_EMAIL: admin@nockbill.com
       GOOGLE_CLIENT_ID: 995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com
-      GOOGLE_CLIENT_SECRET: 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
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports:
       - "8000:8000"
     volumes:

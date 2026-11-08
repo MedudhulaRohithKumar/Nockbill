@@ -68,6 +68,7 @@ async def extract_from_image(
         candidates = (
             db.query(Product)
             .filter(
+                Product.shop_id == current_user.shop_id,
                 or_(
                     Product.product_name.ilike(search),
                     Product.company_name.ilike(search)
