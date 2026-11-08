@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     azure_vision_key: str = ""
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
+    aws_session_token: str = ""
     # AWS & S3 Storage
     aws_region: str = "ap-south-1"
     s3_enabled: bool = False

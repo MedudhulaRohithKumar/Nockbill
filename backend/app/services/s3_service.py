@@ -5,6 +5,7 @@ Organizes files into dedicated buckets per report type with date-wise folders:
 Provides presigned URLs for secure browser downloads.
 """
 import logging
+import os
 from datetime import datetime, date
 from typing import Optional, Tuple
 import io
@@ -23,9 +24,21 @@ def get_s3_client():
         try:
             import boto3
             client_kwargs = {"region_name": settings.aws_region}
-            if settings.aws_access_key_id and settings.aws_secret_access_key:
-                client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
-                client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+            access_key = (settings.aws_access_key_id or "").strip()
+            secret_key = (settings.aws_secret_access_key or "").strip()
+            session_token = (
+                getattr(settings, "aws_session_token", "")
+                or os.environ.get("AWS_SESSION_TOKEN")
+                or os.environ.get("AWS_SECURITY_TOKEN")
+                or ""
+            ).strip()
+            if access_key and secret_key:
+                client_kwargs["aws_access_key_id"] = access_key
+                client_kwargs["aws_secret_access_key"] = secret_key
+                if session_token:
+                    client_kwargs["aws_session_token"] = session_token
+            elif session_token:
+                client_kwargs["aws_session_token"] = session_token
             _s3_client = boto3.client("s3", **client_kwargs)
         except Exception as e:
             logger.warning(f"Could not initialize boto3 S3 client: {e}")

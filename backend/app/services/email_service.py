@@ -7,6 +7,7 @@ Covers:
 3. Welcome & Shop Account Provisioning (credentials, onboarding checklist & dashboard link)
 """
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 import boto3
@@ -17,12 +18,33 @@ logger = logging.getLogger(__name__)
 
 
 def get_ses_client():
-    """Create and return a boto3 SES client using environment/IAM role credentials."""
+    """
+    Create and return a boto3 SES client using environment/IAM role credentials.
+    In AWS Lambda / ECS / EC2, boto3 automatically uses the IAM execution role via
+    the ambient AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN.
+    We preserve the full credential tuple (including aws_session_token) to avoid
+    stripping STS security tokens on temporary credentials.
+    """
     region = settings.ses_region or settings.aws_region or "ap-south-1"
     kwargs = {"region_name": region}
-    if settings.aws_access_key_id and settings.aws_secret_access_key:
-        kwargs["aws_access_key_id"] = settings.aws_access_key_id
-        kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+    
+    access_key = (settings.aws_access_key_id or "").strip()
+    secret_key = (settings.aws_secret_access_key or "").strip()
+    session_token = (
+        getattr(settings, "aws_session_token", "")
+        or os.environ.get("AWS_SESSION_TOKEN")
+        or os.environ.get("AWS_SECURITY_TOKEN")
+        or ""
+    ).strip()
+
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+        if session_token:
+            kwargs["aws_session_token"] = session_token
+    elif session_token:
+        kwargs["aws_session_token"] = session_token
+
     return boto3.client("ses", **kwargs)
 
 

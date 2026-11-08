@@ -428,6 +428,29 @@ class SalesReturnItem(Base):
     sale_item = relationship("SaleItem")
 
 
+class PasswordResetCode(Base):
+    """
+    Persistent store for multi-worker serverless password resets.
+    Ensures OTP verification survives across Lambda container recycles and cold starts.
+    """
+    __tablename__ = "password_reset_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    username = Column(String(50), nullable=False, index=True)
+    code_hash = Column(String(128), nullable=False)
+    reset_secret = Column(String(128), nullable=True)
+    verified_token = Column(String(128), nullable=True, index=True)
+    verified = Column(Boolean, default=False)
+    verified_at = Column(DateTime, nullable=True)
+    attempts = Column(Integer, default=0)
+    reset_attempts = Column(Integer, default=0)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+
 def _ensure_schema_columns():
     """Ensure new tables and columns exist even when legacy seed.py runs before main.py."""
     try:

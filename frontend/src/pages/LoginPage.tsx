@@ -40,6 +40,16 @@ export const LoginPage: React.FC = () => {
   const [maskedTarget, setMaskedTarget] = useState<string | null>(null);
   const [emailSentStatus, setEmailSentStatus] = useState<boolean>(true);
   const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Cooldown timer for OTP Resend
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   // Google OAuth Guide Modal State
   const [showGoogleGuide, setShowGoogleGuide] = useState(false);
@@ -241,9 +251,30 @@ export const LoginPage: React.FC = () => {
       setEmailSentStatus(res.email_sent !== false);
       setDevOtpCode(res.dev_otp || null);
       setResetOtp('');
+      setResendCooldown(30);
       setForgotStep(2);
     } catch (err: any) {
       setForgotError(getErrorMessage(err, 'Failed to send verification code.'));
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || forgotLoading) return;
+    setForgotError(null);
+    setForgotSuccess(null);
+    setForgotLoading(true);
+    try {
+      const res = await authApi.requestPasswordReset(forgotIdentifier.trim());
+      setMaskedTarget(res.masked_target || null);
+      setEmailSentStatus(res.email_sent !== false);
+      setDevOtpCode(res.dev_otp || null);
+      setResetOtp('');
+      setResendCooldown(30);
+      setForgotSuccess('A fresh 6-digit verification code has been dispatched to your email.');
+    } catch (err: any) {
+      setForgotError(getErrorMessage(err, 'Failed to resend verification code. Please try again.'));
     } finally {
       setForgotLoading(false);
     }
@@ -837,6 +868,19 @@ export const LoginPage: React.FC = () => {
                     placeholder="000000"
                     className="clay-input w-full px-4 py-3.5 text-center tracking-[0.5em] font-mono text-xl text-slate-900 font-black"
                   />
+                </div>
+
+                <div className="flex items-center justify-between text-xs py-1 px-1">
+                  <span className="text-slate-500">Didn't receive the code?</span>
+                  <button
+                    type="button"
+                    disabled={resendCooldown > 0 || forgotLoading}
+                    onClick={handleResendOtp}
+                    className="font-bold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${forgotLoading ? 'animate-spin' : ''}`} />
+                    <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-between pt-2">

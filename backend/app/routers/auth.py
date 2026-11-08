@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 import secrets
 import hmac
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from app.database.base import get_db
-from app.models.models import User, UserRole, AuditAction, AuditLog, ShopSettings
+from app.models.models import User, UserRole, AuditAction, AuditLog, ShopSettings, PasswordResetCode
 from app.schemas.schemas import (
     LoginRequest, TokenResponse, UserCreate, UserResponse,
     ShopRegistrationRequest, RegistrationResponse,
@@ -289,6 +290,28 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
     reset_secret = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=15)
 
+    # 1. Persist to PostgreSQL database for reliable multi-worker serverless delivery
+    try:
+        db.query(PasswordResetCode).filter(PasswordResetCode.user_id == user.id).delete()
+        code_entry = PasswordResetCode(
+            user_id=user.id,
+            username=user.username,
+            code_hash=hashlib.sha256(otp.encode("utf-8")).hexdigest(),
+            reset_secret=reset_secret,
+            verified=False,
+            verified_token=None,
+            verified_at=None,
+            attempts=0,
+            reset_attempts=0,
+            expires_at=expires_at,
+        )
+        db.add(code_entry)
+        db.commit()
+    except Exception as exc:
+        logger.warning("Could not persist reset code to database: %s", exc)
+        db.rollback()
+
+    # 2. In-memory dictionary mirror for test environments
     RESET_TOKENS[user.username] = {
         "code": otp,
         "token": reset_secret,
@@ -358,15 +381,36 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=400, detail="Invalid verification code or account not found.")
 
-    entry = RESET_TOKENS.get(user.username)
-    if not entry or datetime.utcnow() > entry["expires_at"]:
+    # Check PostgreSQL database first (primary serverless store), fallback to in-memory dictionary
+    db_entry = db.query(PasswordResetCode).filter(PasswordResetCode.user_id == user.id).first()
+    mem_entry = RESET_TOKENS.get(user.username)
+
+    if not db_entry and not mem_entry:
         raise HTTPException(
             status_code=400,
             detail="Verification code has expired (valid for 15 minutes). Please request a new code."
         )
 
-    if entry.get("attempts", 0) >= 5:
-        del RESET_TOKENS[user.username]
+    now = datetime.utcnow()
+    expires_at = db_entry.expires_at if db_entry else mem_entry["expires_at"]
+    if now > expires_at:
+        if db_entry:
+            db.delete(db_entry)
+            db.commit()
+        if user.username in RESET_TOKENS:
+            del RESET_TOKENS[user.username]
+        raise HTTPException(
+            status_code=400,
+            detail="Verification code has expired (valid for 15 minutes). Please request a new code."
+        )
+
+    attempts = db_entry.attempts if db_entry else mem_entry.get("attempts", 0)
+    if attempts >= 5:
+        if db_entry:
+            db.delete(db_entry)
+            db.commit()
+        if user.username in RESET_TOKENS:
+            del RESET_TOKENS[user.username]
         raise HTTPException(
             status_code=429,
             detail="Too many incorrect attempts. Please request a new 6-digit verification code."
@@ -376,19 +420,35 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
     if len(provided_code) == 6 and not provided_code.isdigit():
         raise HTTPException(status_code=400, detail="Verification code must be a 6-digit number.")
 
-    valid_code = entry.get("code")
-    valid_token = entry.get("token")
+    # Match check (against sha256 hash or token secret)
     is_match = False
-    if valid_code and hmac.compare_digest(provided_code, valid_code):
-        is_match = True
-    elif valid_token and hmac.compare_digest(provided_code, valid_token):
-        is_match = True
+    provided_hash = hashlib.sha256(provided_code.encode("utf-8")).hexdigest()
+    if db_entry:
+        if hmac.compare_digest(provided_hash, db_entry.code_hash) or (db_entry.reset_secret and hmac.compare_digest(provided_code, db_entry.reset_secret)):
+            is_match = True
+    elif mem_entry:
+        valid_code = mem_entry.get("code")
+        valid_token = mem_entry.get("token")
+        if valid_code and hmac.compare_digest(provided_code, valid_code):
+            is_match = True
+        elif valid_token and hmac.compare_digest(provided_code, valid_token):
+            is_match = True
 
     if not is_match:
-        entry["attempts"] = entry.get("attempts", 0) + 1
-        remaining = max(0, 5 - entry["attempts"])
+        remaining = 4
+        if db_entry:
+            db_entry.attempts += 1
+            remaining = max(0, 5 - db_entry.attempts)
+            if remaining == 0:
+                db.delete(db_entry)
+            db.commit()
+        if mem_entry:
+            mem_entry["attempts"] = mem_entry.get("attempts", 0) + 1
+            remaining = max(0, 5 - mem_entry["attempts"])
+            if remaining == 0 and user.username in RESET_TOKENS:
+                del RESET_TOKENS[user.username]
+
         if remaining == 0:
-            del RESET_TOKENS[user.username]
             raise HTTPException(
                 status_code=429,
                 detail="Too many incorrect attempts. Please request a new 6-digit verification code."
@@ -398,13 +458,20 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
             detail=f"Incorrect 6-digit verification code ({remaining} attempts remaining)."
         )
 
-    # Burn OTP so it cannot be reused
-    entry["code"] = None
-    # Issue high-entropy single-use verified token for the reset step
+    # Issue verified single-use token
     verified_token = secrets.token_urlsafe(32)
-    entry["verified_token"] = verified_token
-    entry["verified"] = True
-    entry["verified_at"] = datetime.utcnow()
+    if db_entry:
+        db_entry.code_hash = "VERIFIED"
+        db_entry.verified = True
+        db_entry.verified_token = verified_token
+        db_entry.verified_at = now
+        db.commit()
+
+    if mem_entry:
+        mem_entry["code"] = None
+        mem_entry["verified_token"] = verified_token
+        mem_entry["verified"] = True
+        mem_entry["verified_at"] = now
 
     return {
         "success": True,
@@ -431,40 +498,67 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     if not user:
         raise HTTPException(status_code=400, detail="Invalid verification session or user not found.")
 
-    entry = RESET_TOKENS.get(user.username)
-    if not entry or not entry.get("verified") or not entry.get("verified_token"):
+    db_entry = db.query(PasswordResetCode).filter(PasswordResetCode.user_id == user.id).first()
+    mem_entry = RESET_TOKENS.get(user.username)
+
+    if not db_entry and not mem_entry:
         raise HTTPException(
             status_code=400,
             detail="The verification session is invalid. You must verify your 6-digit code first."
         )
 
-    if datetime.utcnow() > entry["expires_at"]:
-        del RESET_TOKENS[user.username]
+    entry_verified = db_entry.verified if db_entry else mem_entry.get("verified")
+    entry_verified_token = db_entry.verified_token if db_entry else mem_entry.get("verified_token")
+    if not entry_verified or not entry_verified_token:
+        raise HTTPException(
+            status_code=400,
+            detail="The verification session is invalid. You must verify your 6-digit code first."
+        )
+
+    now = datetime.utcnow()
+    expires_at = db_entry.expires_at if db_entry else mem_entry["expires_at"]
+    if now > expires_at:
+        if db_entry:
+            db.delete(db_entry)
+            db.commit()
+        if user.username in RESET_TOKENS:
+            del RESET_TOKENS[user.username]
         raise HTTPException(
             status_code=400,
             detail="The verification session has expired. Please request a new code."
         )
 
-    # Check verification freshness (must complete reset within 10 minutes of OTP verification)
-    verified_at = entry.get("verified_at")
-    if verified_at and (datetime.utcnow() - verified_at).total_seconds() > 600:
-        del RESET_TOKENS[user.username]
+    verified_at = db_entry.verified_at if db_entry else mem_entry.get("verified_at")
+    if verified_at and (now - verified_at).total_seconds() > 600:
+        if db_entry:
+            db.delete(db_entry)
+            db.commit()
+        if user.username in RESET_TOKENS:
+            del RESET_TOKENS[user.username]
         raise HTTPException(
             status_code=400,
             detail="The verification session has expired. Please verify your code again."
         )
 
-    if entry.get("reset_attempts", 0) >= 3:
-        del RESET_TOKENS[user.username]
+    reset_attempts = db_entry.reset_attempts if db_entry else mem_entry.get("reset_attempts", 0)
+    if reset_attempts >= 3:
+        if db_entry:
+            db.delete(db_entry)
+            db.commit()
+        if user.username in RESET_TOKENS:
+            del RESET_TOKENS[user.username]
         raise HTTPException(
             status_code=429,
             detail="Too many failed reset attempts. Please request a new verification code."
         )
 
     provided_token = (payload.reset_token or "").strip()
-    expected_token = entry["verified_token"]
-    if not hmac.compare_digest(provided_token, expected_token):
-        entry["reset_attempts"] = entry.get("reset_attempts", 0) + 1
+    if not hmac.compare_digest(provided_token, entry_verified_token):
+        if db_entry:
+            db_entry.reset_attempts += 1
+            db.commit()
+        if mem_entry:
+            mem_entry["reset_attempts"] = mem_entry.get("reset_attempts", 0) + 1
         raise HTTPException(
             status_code=400,
             detail="Invalid reset verification token. Please verify your code again."
@@ -482,7 +576,14 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         description=f"Password reset completed for user {user.username}"
     )
     db.add(audit)
+
+    # Clean up DB and memory session
+    if db_entry:
+        db.delete(db_entry)
     db.commit()
+
+    if user.username in RESET_TOKENS:
+        del RESET_TOKENS[user.username]
 
     # Dispatch password reset confirmation email
     target_email = user.email
@@ -499,10 +600,6 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
             )
         except Exception as exc:
             logger.warning("Could not dispatch password reset confirmation email to %s: %s", target_email, exc)
-
-    # Clear single-use token immediately
-    if user.username in RESET_TOKENS:
-        del RESET_TOKENS[user.username]
 
     return {"success": True, "message": "Password updated successfully! You can now sign in with your new password."}
 
