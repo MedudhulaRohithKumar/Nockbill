@@ -84,6 +84,8 @@ jobs:
           ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'KisanSecurePass2026!' }}
           NOTIFY_EMAIL: ${{ secrets.REPORT_NOTIFICATION_EMAIL || 'admin@nockbill.local' }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY || 'nockbill-jwt-secure-signing-prod-key-2026-c98f82a1b94d7e03' }}
+          GOOGLE_BRIDGE_SECRET: ${{ secrets.GOOGLE_BRIDGE_SECRET || 'nockbill-google-bridge-hmac-prod-secret-2026-f4a8b1c9d2e703' }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
         run: |
           sam deploy \
@@ -101,7 +103,9 @@ jobs:
               DbPassword="${DB_PASSWORD}" \
               DbAllocatedStorage="20" \
               VpcCidr="10.0.0.0/16" \
-              ReportNotificationEmail="${NOTIFY_EMAIL}"
+              ReportNotificationEmail="${NOTIFY_EMAIL}" \
+              JwtSecretKey="${JWT_SECRET_KEY}" \
+              GoogleBridgeSecret="${GOOGLE_BRIDGE_SECRET}"
 
       - name: Diagnose CloudFormation Failure Events
         if: failure()

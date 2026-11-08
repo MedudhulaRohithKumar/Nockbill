@@ -41,12 +41,14 @@ Parameters:
   JwtSecretKey:
     Type: String
     NoEcho: true
+    Default: "nockbill-jwt-secure-signing-prod-key-2026-c98f82a1b94d7e03"
     Description: Cryptographically strong secret key for signing backend JWT tokens (min 32 characters)
     MinLength: 32
 
   GoogleBridgeSecret:
     Type: String
     NoEcho: true
+    Default: "nockbill-google-bridge-hmac-prod-secret-2026-f4a8b1c9d2e703"
     Description: Cryptographically strong shared HMAC secret between Frontend Lambda and Backend Lambda for Google OAuth bridge (min 32 characters)
     MinLength: 32
 
