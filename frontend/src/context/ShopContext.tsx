@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 
 const defaultSettings: ShopSettings = {
   id: 1,
-  shop_name: 'My Agro & Fertilizer Shop',
+  shop_name: 'My Shop',
   proprietor_name: '',
   gstin: '',
   fertilizer_license_no: '',

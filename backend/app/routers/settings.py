@@ -28,7 +28,7 @@ def _serialize_settings(shop: ShopSettings) -> dict:
 
     return {
         "id": shop.id,
-        "shop_name": shop.shop_name or "My Fertilizer Shop",
+        "shop_name": shop.shop_name or "My Shop",
         "proprietor_name": _g("proprietor_name"),
         "address": _g("address"),
         "address_line1": _g("address_line1"),

@@ -393,7 +393,7 @@ def get_barcode_label_pdf(
         raise HTTPException(status_code=404, detail="Product not found")
 
     shop = db.query(ShopSettings).first()
-    shop_name = shop.shop_name if shop else "Kisan Seva Kendra"
+    shop_name = shop.shop_name if shop else "NockBill Solutions"
 
     batch_number = None
     expiry_date = None

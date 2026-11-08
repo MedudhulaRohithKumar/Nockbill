@@ -59,6 +59,7 @@ export const AnalyticsPage: React.FC = () => {
   // Category & Product Search Explorer states
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
   const [selectedCategoryPill, setSelectedCategoryPill] = useState<string>('All Categories');
+  const [categoryChartMetric, setCategoryChartMetric] = useState<'all' | 'revenue' | 'profit' | 'stock_value'>('all');
 
   const fetchAnalytics = async (p = preset, s = customStart, e = customEnd) => {
     setLoading(true);
@@ -95,9 +96,33 @@ export const AnalyticsPage: React.FC = () => {
     }).format(val || 0);
   };
 
+  const formatCompactCurrency = (val: number) => {
+    const n = Number(val || 0);
+    if (Math.abs(n) >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
+    if (Math.abs(n) >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
+    if (Math.abs(n) >= 1000) return `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+    return `₹${Math.round(n)}`;
+  };
+
   const categoryBreakdown: CategoryAnalyticsItem[] = useMemo(() => {
     return data?.category_breakdown || [];
   }, [data]);
+
+  const categoryTotals = useMemo(() => {
+    return categoryBreakdown.reduce(
+      (acc, c) => {
+        acc.revenue += Number(c.revenue || 0);
+        acc.profit += Number(c.profit || 0);
+        acc.stock_value += Number(c.stock_value || 0);
+        acc.products += Number(c.product_count || 0);
+        return acc;
+      },
+      { revenue: 0, profit: 0, stock_value: 0, products: 0 }
+    );
+  }, [categoryBreakdown]);
+
+  const hasCategoryActivity =
+    categoryTotals.revenue > 0 || categoryTotals.profit > 0 || categoryTotals.stock_value > 0;
 
   // Flatten all products across categories & filter by category search or selected category pill
   const filteredCategoryProducts = useMemo(() => {
@@ -140,21 +165,18 @@ export const AnalyticsPage: React.FC = () => {
     });
   }, [categoryBreakdown, categorySearchQuery, selectedCategoryPill]);
 
-  // Also filter category breakdown cards if user searches a category
+  // Keep all categories visible in the summary table unless narrowed by search query
   const matchingCategoriesSummary = useMemo(() => {
     const q = categorySearchQuery.trim().toLowerCase();
+    if (!q) return categoryBreakdown;
     return categoryBreakdown.filter((c) => {
-      const matchesPill =
-        selectedCategoryPill === 'All Categories' ||
-        c.category.toLowerCase() === selectedCategoryPill.toLowerCase();
-      if (!q) return matchesPill;
       const catMatches = c.category.toLowerCase().includes(q);
       const anyProdMatches = (c.products || []).some(
         (p) => (p.product_name || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)
       );
-      return matchesPill && (catMatches || anyProdMatches);
+      return catMatches || anyProdMatches;
     });
-  }, [categoryBreakdown, categorySearchQuery, selectedCategoryPill]);
+  }, [categoryBreakdown, categorySearchQuery]);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
@@ -386,33 +408,202 @@ export const AnalyticsPage: React.FC = () => {
             {/* Category Bar Chart + Category Breakdown Table */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Category Chart */}
-              <div className="lg:col-span-5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
-                  Category Revenue &amp; Stock Value Comparison
-                </h3>
-                <div className="h-64 w-full">
+              <div className="lg:col-span-5 bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Category Revenue &amp; Stock Value Comparison
+                  </h3>
+                  <div className="inline-flex items-center bg-white border border-slate-200 p-0.5 rounded-lg text-[11px] font-semibold">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'revenue', label: 'Revenue' },
+                      { id: 'profit', label: 'Profit' },
+                      { id: 'stock_value', label: 'Stock' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setCategoryChartMetric(m.id as any)}
+                        className={`px-2 py-1 rounded-md transition ${
+                          categoryChartMetric === m.id
+                            ? 'bg-emerald-700 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Legend Strip (never collides with axis labels) */}
+                <div className="grid grid-cols-3 gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryChartMetric(categoryChartMetric === 'revenue' ? 'all' : 'revenue')
+                    }
+                    className={`flex flex-col p-2 rounded-lg border text-left transition ${
+                      categoryChartMetric === 'all' || categoryChartMetric === 'revenue'
+                        ? 'bg-white border-emerald-200 shadow-2xs'
+                        : 'bg-slate-100/70 border-slate-200/60 opacity-60'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-xs bg-emerald-500 shrink-0" />
+                      Sales Revenue
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 mt-0.5 truncate">
+                      {formatCurrency(categoryTotals.revenue)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryChartMetric(categoryChartMetric === 'profit' ? 'all' : 'profit')
+                    }
+                    className={`flex flex-col p-2 rounded-lg border text-left transition ${
+                      categoryChartMetric === 'all' || categoryChartMetric === 'profit'
+                        ? 'bg-white border-blue-200 shadow-2xs'
+                        : 'bg-slate-100/70 border-slate-200/60 opacity-60'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-xs bg-blue-500 shrink-0" />
+                      Gross Profit
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 mt-0.5 truncate">
+                      {formatCurrency(categoryTotals.profit)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCategoryChartMetric(categoryChartMetric === 'stock_value' ? 'all' : 'stock_value')
+                    }
+                    className={`flex flex-col p-2 rounded-lg border text-left transition ${
+                      categoryChartMetric === 'all' || categoryChartMetric === 'stock_value'
+                        ? 'bg-white border-amber-200 shadow-2xs'
+                        : 'bg-slate-100/70 border-slate-200/60 opacity-60'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                      <span className="w-2 h-2 rounded-xs bg-amber-500 shrink-0" />
+                      Stock Value
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 mt-0.5 truncate">
+                      {formatCurrency(categoryTotals.stock_value)}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Horizontal Bar Chart — zero tilted text, zero label overlap */}
+                <div className="h-72 w-full bg-white rounded-xl border border-slate-200/80 p-2.5">
                   {categoryBreakdown.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={categoryBreakdown} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                      <BarChart
+                        data={categoryBreakdown}
+                        layout="vertical"
+                        margin={{ top: 6, right: 16, left: 4, bottom: 4 }}
+                        barCategoryGap="22%"
+                        barGap={2}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                         <XAxis
-                          dataKey="category"
-                          tick={{ fontSize: 10, fill: '#475569' }}
-                          interval={0}
-                          angle={-20}
-                          textAnchor="end"
-                        />
-                        <YAxis tick={{ fontSize: 10, fill: '#64748B' }} tickFormatter={(v) => `₹${v}`} />
-                        <Tooltip
-                          formatter={(val: any, name: string) => [
-                            formatCurrency(Number(val)),
-                            name,
+                          type="number"
+                          domain={[
+                            0,
+                            (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 1000),
                           ]}
+                          tick={{ fontSize: 10, fill: '#64748B' }}
+                          tickFormatter={(v) => formatCompactCurrency(Number(v))}
+                          axisLine={{ stroke: '#CBD5E1' }}
+                          tickLine={false}
                         />
-                        <Legend wrapperStyle={{ fontSize: '11px' }} />
-                        <Bar dataKey="revenue" name="Sales Revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="profit" name="Gross Profit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="stock_value" name="Stock Value" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                        <YAxis
+                          type="category"
+                          dataKey="category"
+                          width={94}
+                          tick={{ fontSize: 11, fontWeight: 600, fill: '#334155' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          cursor={{ fill: '#F8FAFC' }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const row = payload[0]?.payload as CategoryAnalyticsItem | undefined;
+                            return (
+                              <div className="bg-white/95 backdrop-blur-xs border border-slate-200 rounded-xl shadow-lg p-3 text-xs space-y-1.5 min-w-[180px]">
+                                <div className="font-bold text-slate-900 border-b border-slate-100 pb-1 flex items-center justify-between">
+                                  <span>{label}</span>
+                                  {row && (
+                                    <span className="text-[10px] font-semibold text-slate-500">
+                                      {row.product_count} items ({row.stock_units} in stock)
+                                    </span>
+                                  )}
+                                </div>
+                                {payload.map((entry: any) => (
+                                  <div
+                                    key={entry.dataKey}
+                                    className="flex items-center justify-between gap-4"
+                                  >
+                                    <span className="flex items-center gap-1.5 text-slate-600">
+                                      <span
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: entry.color }}
+                                      />
+                                      {entry.name}
+                                    </span>
+                                    <span className="font-bold text-slate-900">
+                                      {formatCurrency(Number(entry.value || 0))}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
+                        {(categoryChartMetric === 'all' || categoryChartMetric === 'revenue') && (
+                          <Bar
+                            dataKey="revenue"
+                            name="Sales Revenue"
+                            fill="#10B981"
+                            radius={[0, 5, 5, 0]}
+                            barSize={categoryChartMetric === 'all' ? 7 : 14}
+                            background={
+                              categoryChartMetric === 'revenue'
+                                ? { fill: '#F1F5F9', radius: 5 }
+                                : undefined
+                            }
+                          />
+                        )}
+                        {(categoryChartMetric === 'all' || categoryChartMetric === 'profit') && (
+                          <Bar
+                            dataKey="profit"
+                            name="Gross Profit"
+                            fill="#3B82F6"
+                            radius={[0, 5, 5, 0]}
+                            barSize={categoryChartMetric === 'all' ? 7 : 14}
+                            background={
+                              categoryChartMetric === 'profit'
+                                ? { fill: '#F1F5F9', radius: 5 }
+                                : undefined
+                            }
+                          />
+                        )}
+                        {(categoryChartMetric === 'all' || categoryChartMetric === 'stock_value') && (
+                          <Bar
+                            dataKey="stock_value"
+                            name="Stock Value"
+                            fill="#F59E0B"
+                            radius={[0, 5, 5, 0]}
+                            barSize={categoryChartMetric === 'all' ? 7 : 14}
+                            background={{ fill: '#F1F5F9', radius: 5 }}
+                          />
+                        )}
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -421,6 +612,12 @@ export const AnalyticsPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {!hasCategoryActivity && (
+                  <p className="text-[11px] text-slate-500 text-center bg-white/80 py-1.5 px-3 rounded-lg border border-slate-200/70">
+                    All categories are currently at ₹0 — add products in <strong>Stock</strong> or complete a <strong>Bill</strong> to see live comparison bars.
+                  </p>
+                )}
               </div>
 
               {/* Category Summary Table */}
@@ -661,14 +858,17 @@ export const AnalyticsPage: React.FC = () => {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748B' }} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `₹${v}`} />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        tickFormatter={(v) => formatCompactCurrency(Number(v))}
+                      />
                       <Tooltip
                         formatter={(val: any, name: string) => [
                           formatCurrency(Number(val)),
                           name === 'revenue' ? 'Sales Revenue' : 'Gross Profit',
                         ]}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
                       <Area
                         type="monotone"
                         dataKey="revenue"
@@ -702,9 +902,12 @@ export const AnalyticsPage: React.FC = () => {
                     <BarChart data={data.monthly}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748B' }} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `₹${v}`} />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        tickFormatter={(v) => formatCompactCurrency(Number(v))}
+                      />
                       <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
-                      <Legend />
+                      <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
                       <Bar dataKey="revenue" name="Total Revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="profit" name="Gross Profit" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -722,14 +925,17 @@ export const AnalyticsPage: React.FC = () => {
                     <BarChart data={data.hourly}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                       <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748B' }} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: '#64748B' }}
+                        tickFormatter={(v) => formatCompactCurrency(Number(v))}
+                      />
                       <Tooltip
                         formatter={(val: any, name: string) => [
                           name === 'revenue' ? formatCurrency(Number(val)) : `${val} bills`,
                           name === 'revenue' ? 'Revenue' : 'Orders Placed',
                         ]}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
                       <Bar dataKey="orders" name="Bills / Orders" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="revenue" name="Revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
                     </BarChart>

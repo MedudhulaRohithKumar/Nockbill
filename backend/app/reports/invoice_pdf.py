@@ -54,7 +54,7 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "Kisan Seva Kendra", _header_style(18)))
+    elements.append(Paragraph(shop.shop_name or "NockBill Solutions", _header_style(18)))
     if shop.address:
         elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
     contact_parts = []
@@ -161,8 +161,8 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     # ── Terms & Authorized Signatory ──────────────────────────
     footer_data = [
         [
-            Paragraph("<b>Terms & Conditions:</b><br/>1. Certified Agro & Fertilizer products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
-            Paragraph(f"For <b>{shop.shop_name or 'Kisan Seva Kendra'}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            Paragraph("<b>Terms & Conditions:</b><br/>1. Certified quality products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+            Paragraph(f"For <b>{shop.shop_name or 'NockBill Solutions'}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
         ]
     ]
     footer_table = Table(footer_data, colWidths=["60%", "40%"])
@@ -294,7 +294,7 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
     elements.append(Spacer(1, 14))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     elements.append(Paragraph(
-        "Stock verified and entered into Kisan Seva Kendra inventory.",
+        f"Stock verified and entered into {shop.shop_name or 'NockBill Solutions'} inventory.",
         _header_style(9, bold=False, color=colors.grey),
     ))
 

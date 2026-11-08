@@ -82,65 +82,71 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/register", response_model=RegistrationResponse, status_code=201)
 def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db)):
+    clean_username = (payload.username or "").strip()[:50]
+    clean_email = (payload.email or "").strip()[:150] if payload.email else None
+    clean_phone = (payload.phone or "").strip()[:20] if payload.phone else None
+    clean_owner = (payload.owner_name or "").strip()[:100] or clean_username
+    clean_shop_name = (payload.shop_name or "").strip()[:200] or f"{clean_owner}'s Shop"
+
     # 1. Check if username or email already exists
-    existing_user = db.query(User).filter(User.username == payload.username.strip()).first()
+    existing_user = db.query(User).filter(func.lower(User.username) == clean_username.lower()).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username is already taken. Please choose another.")
     
-    if payload.email:
-        existing_email = db.query(User).filter(User.email == payload.email.strip()).first()
+    if clean_email:
+        existing_email = db.query(User).filter(func.lower(User.email) == clean_email.lower()).first()
         if existing_email:
             raise HTTPException(status_code=400, detail="An account with this email already exists.")
 
-    # 2. Create Owner User (Pending subscription until payment)
+    # 2. Create ShopSettings FIRST so foreign key users.shop_id -> shop_settings.id
+    #    always points to a valid row even on a fresh, unseeded RDS database.
+    shop_record = ShopSettings(
+        shop_name=clean_shop_name,
+        proprietor_name=(payload.proprietor_name.strip()[:200] if payload.proprietor_name else clean_owner[:200]),
+        subscription_status="PENDING",
+        phone=clean_phone,
+        email=clean_email,
+        address_line1=payload.address_line1.strip()[:500] if payload.address_line1 else None,
+        address_line2=payload.address_line2.strip()[:500] if payload.address_line2 else None,
+        city=payload.city.strip()[:100] if payload.city else None,
+        state=payload.state.strip()[:100] if payload.state else None,
+        pincode=payload.pincode.strip()[:10] if payload.pincode else None,
+        gstin=payload.gstin.strip().upper()[:20] if payload.gstin else None,
+        fertilizer_license_no=payload.fertilizer_license_no.strip()[:100] if payload.fertilizer_license_no else None,
+        pesticide_license_no=payload.pesticide_license_no.strip()[:100] if payload.pesticide_license_no else None,
+        seed_license_no=payload.seed_license_no.strip()[:100] if payload.seed_license_no else None,
+        bank_name=payload.bank_name.strip()[:200] if payload.bank_name else None,
+        bank_account_no=payload.bank_account_no.strip()[:50] if payload.bank_account_no else None,
+        bank_ifsc=payload.bank_ifsc.strip().upper()[:20] if payload.bank_ifsc else None,
+        bank_branch=payload.bank_branch.strip()[:200] if payload.bank_branch else None,
+        upi_id=payload.upi_id.strip()[:100] if payload.upi_id else None,
+        default_gst_rate=payload.default_gst_rate if payload.default_gst_rate is not None else 18,
+        invoice_prefix=payload.invoice_prefix.strip().upper()[:10] if payload.invoice_prefix else "INV",
+        invoice_counter=1,
+    )
+    db.add(shop_record)
+    db.flush()
+
+    # 3. Create Owner User linked to shop_record.id
     new_user = User(
-        name=payload.owner_name.strip(),
-        username=payload.username.strip(),
-        email=payload.email.strip() if payload.email else None,
-        phone=payload.phone.strip() if payload.phone else None,
+        name=clean_owner,
+        username=clean_username,
+        email=clean_email,
+        phone=clean_phone,
         password_hash=hash_password(payload.password),
         role=UserRole.OWNER,
+        shop_id=shop_record.id,
         subscription_status="PENDING",
         is_active=True,
     )
     db.add(new_user)
     db.flush()
 
-    # 3. Create a dedicated new ShopSettings record for the new shop
-    settings = ShopSettings(
-        shop_name=payload.shop_name.strip(),
-        proprietor_name=payload.proprietor_name.strip() if payload.proprietor_name else payload.owner_name.strip(),
-        subscription_status="PENDING",
-        phone=payload.phone.strip() if payload.phone else None,
-        email=payload.email.strip() if payload.email else None,
-        address_line1=payload.address_line1.strip() if payload.address_line1 else None,
-        address_line2=payload.address_line2.strip() if payload.address_line2 else None,
-        city=payload.city.strip() if payload.city else None,
-        state=payload.state.strip() if payload.state else None,
-        pincode=payload.pincode.strip() if payload.pincode else None,
-        gstin=payload.gstin.strip().upper() if payload.gstin else None,
-        fertilizer_license_no=payload.fertilizer_license_no.strip() if payload.fertilizer_license_no else None,
-        pesticide_license_no=payload.pesticide_license_no.strip() if payload.pesticide_license_no else None,
-        seed_license_no=payload.seed_license_no.strip() if payload.seed_license_no else None,
-        bank_name=payload.bank_name.strip() if payload.bank_name else None,
-        bank_account_no=payload.bank_account_no.strip() if payload.bank_account_no else None,
-        bank_ifsc=payload.bank_ifsc.strip().upper() if payload.bank_ifsc else None,
-        bank_branch=payload.bank_branch.strip() if payload.bank_branch else None,
-        upi_id=payload.upi_id.strip() if payload.upi_id else None,
-        default_gst_rate=payload.default_gst_rate if payload.default_gst_rate is not None else 18,
-        invoice_prefix=payload.invoice_prefix.strip().upper() if payload.invoice_prefix else "INV",
-        invoice_counter=1,
-    )
-    db.add(settings)
-    db.flush()
-
-    new_user.shop_id = settings.id
-
     # Audit log
     audit = AuditLog(
         user_id=new_user.id,
         action=AuditAction.LOGIN,
-        description=f"New shop registered: {settings.shop_name} by {new_user.name} (Shop ID: {settings.id})"
+        description=f"New shop registered: {shop_record.shop_name} by {new_user.name} (Shop ID: {shop_record.id})"
     )
     db.add(audit)
     db.commit()
@@ -150,18 +156,19 @@ def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db
     token = create_access_token({"sub": str(new_user.id)})
 
     # 5. Business credential export payload
+    base_login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
     credentials = {
-        "account_id": f"SHOP-{settings.id:05d}",
-        "shop_name": settings.shop_name,
+        "account_id": f"SHOP-{shop_record.id:05d}",
+        "shop_name": shop_record.shop_name,
         "owner_name": new_user.name,
         "username": new_user.username,
         "email": new_user.email or "",
         "phone": new_user.phone or "",
         "role": new_user.role.value,
         "initial_password": payload.password,
-        "console_login_url": "http://localhost:5173/login",
-        "gstin": settings.gstin or "UNREGISTERED",
-        "fertilizer_license": settings.fertilizer_license_no or "N/A",
+        "console_login_url": base_login_url,
+        "gstin": shop_record.gstin or "UNREGISTERED",
+        "fertilizer_license": shop_record.fertilizer_license_no or "N/A",
         "created_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         "security_warning": "CONFIDENTIAL: Official Business Master Access Key. Keep secure and do not share.",
     }
@@ -175,7 +182,7 @@ def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db
         email=new_user.email,
         phone=new_user.phone,
         role=new_user.role,
-        shop_name=settings.shop_name,
+        shop_name=shop_record.shop_name,
         subscription_status="PENDING",
         credentials=credentials,
     )
@@ -480,7 +487,7 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
             suffix += 1
 
         # Determine shop name
-        shop_title = (payload.shop_name or "").strip()[:200] or f"{full_name[:150]}'s Agro Store"
+        shop_title = (payload.shop_name or "").strip()[:200] or f"{full_name[:150]}'s Shop"
 
         # Create new Shop Settings
         new_shop = ShopSettings(

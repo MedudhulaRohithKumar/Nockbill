@@ -403,7 +403,7 @@ def download_sales_return_pdf(
 
     shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
     if not shop:
-        shop = ShopSettings(shop_name="Kisan Seva Kendra")
+        shop = ShopSettings(shop_name="NockBill Solutions")
 
     pdf_bytes = generate_sales_return_pdf(sales_return, shop)
     filename = f"CreditNote_{sales_return.return_number}.pdf"

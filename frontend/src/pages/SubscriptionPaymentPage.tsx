@@ -36,7 +36,7 @@ export const SubscriptionPaymentPage: React.FC = () => {
   const plans = {
     monthly: {
       id: 'plan_starter_monthly',
-      name: 'Agro Retailer Starter (Monthly)',
+      name: 'NockBill Starter (Monthly)',
       basePrice: 999,
       gst: 179.82,
       total: 1178.82,
@@ -51,7 +51,7 @@ export const SubscriptionPaymentPage: React.FC = () => {
     },
     annual: {
       id: 'plan_pro_annual',
-      name: 'Agro Retailer Pro (Annual)',
+      name: 'NockBill Pro (Annual)',
       basePrice: 7999,
       gst: 1439.82,
       total: 9438.82,

@@ -326,7 +326,7 @@ export const LoginPage: React.FC = () => {
             to="/" 
             className="inline-flex items-center gap-2 text-emerald-300 hover:text-white text-xs font-semibold px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md transition-all hover:bg-white/10 active:scale-95"
           >
-            <span>← Back to NockBill Solutions Home</span>
+            <span>← Back to NockBill Solutions</span>
           </Link>
           <div className="hidden sm:flex items-center gap-2 text-[11px] text-emerald-300/80 bg-emerald-900/40 px-3 py-1.5 rounded-full border border-emerald-500/20">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -342,16 +342,16 @@ export const LoginPage: React.FC = () => {
             {/* Header Badge */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-semibold w-fit">
               <Sprout className="w-4 h-4 text-emerald-400" />
-              <span>Next-Generation Agri-Commerce ERP</span>
+              <span>NockBill Solutions • Retail &amp; Inventory ERP</span>
             </div>
 
             {/* Title & Description */}
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                Empowering Agri-Dealers with <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Intelligent Automation</span>
+                Empowering Retailers with <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Fast Billing &amp; Stock Control</span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-                All-in-one GST billing, barcode scanning, fertilizer batch ledger, and stock analytics engineered specifically for seeds, pesticides, and chemical retailers.
+                All-in-one GST billing, barcode scanning, batch ledger, price lists, and stock analytics built for high-speed retail counters.
               </p>
             </div>
 
@@ -436,11 +436,16 @@ export const LoginPage: React.FC = () => {
                 <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-gradient-to-tr from-brand-700 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-lg shadow-brand-700/30">
                   <Sprout className="w-8 h-8 sm:w-9 sm:h-9" />
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  NockBill Solutions
-                </h2>
+                <div className="flex items-baseline justify-center gap-1.5">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                    Nock<span className="text-emerald-700">Bill</span>
+                  </h2>
+                  <span className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
+                    Solutions
+                  </span>
+                </div>
                 <p className="text-xs text-slate-500 font-medium">
-                  Sign in to your Agro Dealer ERP Portal
+                  Sign in to your Shop Dashboard
                 </p>
               </div>
 
@@ -646,7 +651,7 @@ export const LoginPage: React.FC = () => {
               {/* Registration CTA */}
               <div className="mt-5 pt-4 border-t border-slate-200/80 text-center space-y-2.5">
                 <p className="text-xs text-slate-600">
-                  New Agro Dealer or Need Multi-Shop Setup?
+                  New Store Owner or Need Multi-Shop Setup?
                 </p>
                 <Link
                   to="/register"

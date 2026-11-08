@@ -33,7 +33,7 @@ def generate_barcode_label_pdf(
     barcode: str,
     price: Decimal,
     gst_rate: Optional[Decimal] = Decimal("0"),
-    shop_name: Optional[str] = "Kisan Seva Kendra",
+    shop_name: Optional[str] = "NockBill Solutions",
     company_name: Optional[str] = None,
     net_content: Optional[str] = None,
     batch_number: Optional[str] = None,

@@ -54,7 +54,7 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "Kisan Seva Kendra", _header_style(18, color=GREEN)))
+    elements.append(Paragraph(shop.shop_name or "NockBill Solutions", _header_style(18, color=GREEN)))
     if shop.address:
         elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
     
@@ -159,7 +159,7 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     footer_data = [
         [
             Paragraph("<b>Stock Verification & Refund Note:</b><br/>1. Goods received back in verified, seal/usable condition.<br/>2. Physical inventory updated in store godown.<br/>3. Payment refunded as recorded above.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
-            Paragraph(f"For <b>{shop.shop_name or 'Kisan Seva Kendra'}</b><br/><br/><br/><b>Receiver / Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            Paragraph(f"For <b>{shop.shop_name or 'NockBill Solutions'}</b><br/><br/><br/><b>Receiver / Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
         ]
     ]
     footer_table = Table(footer_data, colWidths=["60%", "40%"])

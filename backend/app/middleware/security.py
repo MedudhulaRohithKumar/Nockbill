@@ -28,11 +28,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+            "script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net",
             "font-src 'self' https://fonts.gstatic.com data:",
             "img-src 'self' data: blob: https:",
-            f"connect-src {csp_connect}",
+            f"connect-src {csp_connect} https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com",
+            "frame-src 'self' https://accounts.google.com",
             "frame-ancestors 'none'",
             "object-src 'none'",
             "base-uri 'self'",
@@ -46,6 +47,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Embedder-Policy"] = "unsafe-none"
 
         # ── 3. Strip Sensitive Server Fingerprint Headers ─────────────────────
         if "server" in response.headers:

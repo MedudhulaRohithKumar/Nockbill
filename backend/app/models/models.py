@@ -437,6 +437,23 @@ def _ensure_schema_columns():
         inspector = inspect(engine)
         existing_tables = set(inspector.get_table_names())
         column_migrations = [
+            ("users", "email", "VARCHAR(150)"),
+            ("users", "phone", "VARCHAR(20)"),
+            ("users", "shop_id", "INTEGER"),
+            ("users", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
+            ("shop_settings", "proprietor_name", "VARCHAR(200)"),
+            ("shop_settings", "address_line1", "VARCHAR(500)"),
+            ("shop_settings", "address_line2", "VARCHAR(500)"),
+            ("shop_settings", "fertilizer_license_no", "VARCHAR(100)"),
+            ("shop_settings", "pesticide_license_no", "VARCHAR(100)"),
+            ("shop_settings", "seed_license_no", "VARCHAR(100)"),
+            ("shop_settings", "bank_name", "VARCHAR(200)"),
+            ("shop_settings", "bank_account_no", "VARCHAR(50)"),
+            ("shop_settings", "bank_ifsc", "VARCHAR(20)"),
+            ("shop_settings", "bank_branch", "VARCHAR(200)"),
+            ("shop_settings", "upi_id", "VARCHAR(100)"),
+            ("shop_settings", "terms_conditions", "TEXT"),
+            ("shop_settings", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
             ("products", "trade_name", "VARCHAR(200)"),
             ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
             ("products", "batch_number", "VARCHAR(100)"),

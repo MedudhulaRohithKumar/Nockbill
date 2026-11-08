@@ -49,7 +49,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   const previewSvgRef = useRef<SVGSVGElement | null>(null);
 
   const barcodeValue = product.barcode || String(10000 + product.id);
-  const shopName = shopSettings?.shop_name || 'Kisan Seva Kendra';
+  const shopName = shopSettings?.shop_name || 'NockBill Solutions';
   const selectedBatch = product.batches?.find(b => b.id === selectedBatchId);
 
   // Generate crisp Code-128 SVG preview using JsBarcode

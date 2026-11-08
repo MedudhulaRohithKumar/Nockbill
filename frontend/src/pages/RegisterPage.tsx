@@ -97,9 +97,41 @@ export const RegisterPage: React.FC = () => {
     }));
   };
 
-  const handleGoogleRegister = () => {
+  const ensureGoogleIdentityScript = (): Promise<any> => {
+    return new Promise((resolve) => {
+      const existingGoogle = (window as any).google;
+      if (existingGoogle?.accounts?.oauth2) {
+        resolve(existingGoogle);
+        return;
+      }
+
+      let script = document.querySelector('script[src*="accounts.google.com/gsi/client"]') as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts += 1;
+        const g = (window as any).google;
+        if (g?.accounts?.oauth2) {
+          clearInterval(poll);
+          resolve(g);
+        } else if (attempts >= 20) {
+          clearInterval(poll);
+          resolve(null);
+        }
+      }, 200);
+    });
+  };
+
+  const handleGoogleRegister = async () => {
     setError(null);
-    const google = (window as any).google;
+    const google = await ensureGoogleIdentityScript();
     if (google?.accounts?.oauth2) {
       try {
         const client = google.accounts.oauth2.initTokenClient({
@@ -134,7 +166,7 @@ export const RegisterPage: React.FC = () => {
                   token: tokenResponse.access_token,
                   email: userEmail,
                   name: userName,
-                  shop_name: userName ? `${userName}'s Agro Store` : 'My Agro Store',
+                  shop_name: userName ? `${userName}'s Shop` : 'My Shop',
                   phone: '',
                   password: '',
                   confirm_password: '',
@@ -154,7 +186,7 @@ export const RegisterPage: React.FC = () => {
         console.warn('OAuth2 error:', err);
       }
     }
-    setError('Google Identity service is not available. Please fill out the registration form below.');
+    setError('Google Identity service is blocked by browser or CSP. Please deploy the updated CSP or fill out the registration form below.');
   };
 
   const handleConfirmGoogleRegistration = async (e: React.FormEvent) => {
@@ -221,7 +253,7 @@ export const RegisterPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (!formData.shop_name.trim() || formData.shop_name.trim().length < 2) {
-      setError('Please enter your Shop or Agro Agency Name (min 2 characters)');
+      setError('Please enter your Shop or Business Name (min 2 characters)');
       return;
     }
     if (formData.gstin.trim() && !isValidGstin(formData.gstin)) {
@@ -380,19 +412,26 @@ passwords across unencrypted emails or chat messages.
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-green-100 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
       {/* Top Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl mb-6 text-center">
-        <Link to="/" className="inline-flex items-center gap-2 mb-3 group">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-700 to-emerald-400 text-white flex items-center justify-center shadow-lg shadow-brand-900/20 group-hover:scale-105 transition-transform">
-            <Sprout className="w-7 h-7" />
+        <Link to="/" className="inline-flex items-center gap-2.5 mb-3 group">
+          <div className="w-11 h-11 rounded-xl bg-slate-950 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg">
+            <Sprout className="w-6 h-6" />
           </div>
-          <span className="text-2xl font-black text-slate-900 tracking-tight">NockBill Solutions</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-slate-900 tracking-tight">
+              Nock<span className="text-emerald-700">Bill</span>
+            </span>
+            <span className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
+              Solutions
+            </span>
+          </div>
         </Link>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-          {step === 4 ? 'Shop Registration Complete' : 'Register Your Agro & Fertilizer Shop'}
+          {step === 4 ? 'Shop Registration Complete' : 'Register Your Shop'}
         </h2>
         <p className="mt-1 text-xs sm:text-sm text-slate-600">
           {step === 4 
             ? 'Download your secure master credentials and start billing.' 
-            : 'Get ready for GST-compliant fertilizer billing, batch tracking, and scannable barcodes in minutes.'}
+            : 'Set up your shop name, GST billing, batch tracking, and scannable barcodes in minutes.'}
         </p>
 
         {/* Step Indicator */}
@@ -447,7 +486,7 @@ passwords across unencrypted emails or chat messages.
                   </span>
                 </div>
                 <p className="text-xs text-emerald-800 leading-relaxed">
-                  Register your agro shop in one step. You can set a master password to sign in with either <strong>Google</strong> OR <strong>Email + Password</strong> anytime (hybrid login).
+                  Register your shop in one step. You can set a master password to sign in with either <strong>Google</strong> OR <strong>Email + Password</strong> anytime (hybrid login).
                 </p>
                 <button
                   type="button"
@@ -509,7 +548,7 @@ passwords across unencrypted emails or chat messages.
                       type="text"
                       name="username"
                       required
-                      placeholder="e.g. ramesh_agro"
+                      placeholder="e.g. ramesh_store"
                       value={formData.username}
                       onChange={handleChange}
                       className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
@@ -549,7 +588,7 @@ passwords across unencrypted emails or chat messages.
                     type="email"
                     name="email"
                     required
-                    placeholder="e.g. ramesh.agro@gmail.com"
+                    placeholder="e.g. ramesh@gmail.com"
                     value={formData.email}
                     onChange={handleChange}
                     className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
@@ -640,7 +679,7 @@ passwords across unencrypted emails or chat messages.
                   type="text"
                   name="shop_name"
                   required
-                  placeholder="e.g. Kisan Seva Kendra & Fertilizer Mart"
+                  placeholder="e.g. Sri Lakshmi Enterprises"
                   value={formData.shop_name}
                   onChange={handleChange}
                   className="clay-input w-full px-4 py-3 text-sm text-slate-900"
@@ -1065,14 +1104,14 @@ passwords across unencrypted emails or chat messages.
             <form onSubmit={handleConfirmGoogleRegistration} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Agro Shop / Business Name <span className="text-red-500">*</span>
+                  Shop / Business Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={googleRegData.shop_name}
                   onChange={(e) => setGoogleRegData({ ...googleRegData, shop_name: e.target.value })}
-                  placeholder="e.g. Kisan Seva Agro Agencies"
+                  placeholder="e.g. Sri Lakshmi Enterprises"
                   className="clay-input w-full px-4 py-3 text-sm text-slate-900"
                 />
               </div>

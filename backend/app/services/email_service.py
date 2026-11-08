@@ -63,7 +63,7 @@ def send_password_reset_email(to_email: str, recipient_name: str, otp_code: str,
                     <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
                       NockBill <span style="color: #34d399;">Solutions</span>
                     </h1>
-                    <p style="color: #cbd5e1; margin: 4px 0 0; font-size: 12px;">Smart Agro &amp; Fertilizer ERP</p>
+                    <p style="color: #cbd5e1; margin: 4px 0 0; font-size: 12px;">NockBill Solutions — Retail &amp; GST Billing Platform</p>
                   </td>
                 </tr>
 

@@ -38,16 +38,21 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(self), microphone=(), geolocation=()",
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Cross-Origin-Embedder-Policy": "unsafe-none",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
-        "connect-src 'self' https:; "
+        "connect-src 'self' https: https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; "
+        "frame-src 'self' https://accounts.google.com; "
         "frame-ancestors 'none'; "
         "object-src 'none'; "
-        "base-uri 'self';"
+        "base-uri 'self'; "
+        "form-action 'self';"
     )
 }
 

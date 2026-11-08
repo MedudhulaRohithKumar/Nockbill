@@ -65,7 +65,7 @@ export const AppLayout: React.FC = () => {
           </div>
           <div className="overflow-hidden">
             <h1 className="font-bold text-sm tracking-tight truncate text-brand-50" title={settings.shop_name}>
-              {settings.shop_name || 'My Agro Store'}
+              {settings.shop_name || 'My Shop'}
             </h1>
             <p className="text-[11px] font-semibold text-emerald-300 truncate tracking-wide">
               NockBill Solutions
@@ -137,7 +137,7 @@ export const AppLayout: React.FC = () => {
             <Sprout className="w-5 h-5" />
           </div>
           <div className="truncate">
-            <h2 className="text-sm font-bold truncate leading-tight">{settings.shop_name || 'My Agro Store'}</h2>
+            <h2 className="text-sm font-bold truncate leading-tight">{settings.shop_name || 'My Shop'}</h2>
             <p className="text-[10px] font-semibold text-emerald-300 truncate">NockBill Solutions</p>
           </div>
         </div>
