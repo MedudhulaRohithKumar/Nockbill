@@ -18,13 +18,33 @@ router = APIRouter(prefix="/api/sales", tags=["Sales"])
 
 
 def _calculate_item(item_data, product: Optional[Product] = None):
-    """Compute gst_amount and total for a sale item."""
+    """
+    Compute taxable, gst_amount, and total for a sale item.
+    Retail selling prices (item_data.price / unit_price) are TAX-INCLUSIVE.
+    The product selling price (e.g. 500) ALREADY INCLUDES the GST (e.g. 18%).
+    GST is extracted from the price for tax ledgering/reporting, and is NOT added on top.
+    """
     qty = Decimal(str(item_data.quantity))
-    price = Decimal(str(item_data.price))
-    gst_rate = Decimal(str(item_data.gst_rate))
-    taxable = qty * price
-    gst_amount = (taxable * gst_rate / 100).quantize(Decimal("0.01"))
-    total = taxable + gst_amount
+    price = Decimal(str(item_data.price if item_data.price is not None else (getattr(item_data, "unit_price", None) or Decimal("0"))))
+    discount_percent = Decimal(str(getattr(item_data, "discount_percent", 0) or 0))
+    gst_rate = Decimal(str(item_data.gst_rate or 0))
+
+    gross = (qty * price).quantize(Decimal("0.01"))
+    if discount_percent > Decimal("0"):
+        discount_amt = (gross * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+    else:
+        discount_amt = Decimal(str(getattr(item_data, "discount_amount", 0) or 0)).quantize(Decimal("0.01"))
+
+    total = max(Decimal("0.00"), gross - discount_amt)
+
+    if gst_rate > Decimal("0"):
+        divisor = Decimal("1") + (gst_rate / Decimal("100"))
+        taxable = (total / divisor).quantize(Decimal("0.01"))
+        gst_amount = total - taxable
+    else:
+        taxable = total
+        gst_amount = Decimal("0.00")
+
     return taxable, gst_amount, total
 
 
@@ -230,7 +250,10 @@ def create_sale(
         # ── Update sale totals ─────────────────────────────────
         sale.subtotal = subtotal.quantize(Decimal("0.01"))
         sale.gst_amount = total_gst.quantize(Decimal("0.01"))
-        sale.grand_total = grand_total.quantize(Decimal("0.01"))
+        if payload.grand_total is not None and abs(Decimal(str(payload.grand_total)) - grand_total) <= Decimal("1.00"):
+            sale.grand_total = Decimal(str(payload.grand_total)).quantize(Decimal("0.01"))
+        else:
+            sale.grand_total = grand_total.quantize(Decimal("0.01"))
 
         # ── Create GST transactions ────────────────────────────
         for rate, bucket in gst_buckets.items():

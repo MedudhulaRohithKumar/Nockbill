@@ -20,8 +20,8 @@ Parameters:
   DbPassword:
     Type: String
     NoEcho: true
-    Default: KisanSecurePass2026!
-    Description: Master password for RDS PostgreSQL (Min 8 chars)
+    MinLength: 8
+    Description: Master password for RDS PostgreSQL (Min 8 chars, required)
 
   DbAllocatedStorage:
     Type: Number

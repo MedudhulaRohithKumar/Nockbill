@@ -30,6 +30,7 @@ def download_invoice_pdf(
     sale_id: int,
     redirect_s3: bool = Query(False, description="Redirect to S3 presigned URL if S3 is enabled"),
     inline: bool = Query(True, description="Display inline in browser if true, or download if false"),
+    regenerate: bool = Query(False, description="Force regenerate PDF to apply updated tax-inclusive calculations"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -47,7 +48,7 @@ def download_invoice_pdf(
     # If S3 is enabled, upload to scoped customer folder and optionally redirect to presigned URL
     if settings.s3_enabled:
         key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
-        if not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
+        if regenerate or not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
             pdf_bytes = generate_invoice_pdf(sale, shop)
             upload_report_to_s3(
                 file_bytes=pdf_bytes,
@@ -85,6 +86,7 @@ def download_invoice_pdf(
 @router.get("/{sale_id}/s3-url")
 def get_invoice_s3_url(
     sale_id: int,
+    regenerate: bool = Query(False, description="Force regenerate PDF in S3"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -100,7 +102,7 @@ def get_invoice_s3_url(
     file_date = sale.sale_date or datetime.utcnow()
     key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
 
-    if not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
+    if regenerate or not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
         pdf_bytes = generate_invoice_pdf(sale, shop)
         upload_report_to_s3(
             file_bytes=pdf_bytes,

@@ -79,22 +79,16 @@ export const LoginPage: React.FC = () => {
     fetchCaptcha();
   }, []);
 
-  // Handle URL deep links for password reset
+  // Handle URL deep links for password reset. The emailed link only identifies the
+  // account; the 6-digit code is typed from the email body (never carried in a URL).
   useEffect(() => {
     const action = searchParams.get('action');
     const user = searchParams.get('user');
-    const code = searchParams.get('code');
-    const token = searchParams.get('token');
 
-    if (action === 'reset' || code || token) {
+    if (action === 'reset') {
       if (user) setForgotIdentifier(user);
-      if (token) {
-        setVerifiedResetToken(token);
-        setForgotStep(3);
-      } else if (code) {
-        setResetOtp(code.replace(/\D/g, '').slice(0, 6));
-        setForgotStep(2);
-      }
+      setResetOtp('');
+      setForgotStep(user ? 2 : 1);
       setShowForgotModal(true);
     }
   }, [searchParams]);

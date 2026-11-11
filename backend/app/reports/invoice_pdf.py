@@ -101,17 +101,42 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     # ── Line Items ───────────────────────────────────────────
     headers = ["#", "Product Description", "Net Content", "Qty", "Price ₹", "GST%", "GST ₹", "Total ₹"]
     rows = [headers]
+    computed_subtotal = Decimal("0")
+    computed_gst = Decimal("0")
+    computed_grand_total = Decimal("0")
+
     for i, item in enumerate(sale.items, 1):
         comp = f"\n<font color='#616161'>{item.company_name}</font>" if item.company_name else ""
+        qty = Decimal(str(item.quantity or 0))
+        unit_p = Decimal(str(item.price or 0))
+        gst_r = Decimal(str(item.gst_rate or 0))
+
+        # Selling price is tax-inclusive. Ensure line total does not add GST on top.
+        nominal_gross = (qty * unit_p).quantize(Decimal("0.01"))
+        raw_total = Decimal(str(item.total or 0)).quantize(Decimal("0.01")) if item.total else nominal_gross
+        line_total = min(raw_total, nominal_gross) if raw_total > nominal_gross else raw_total
+
+        if gst_r > Decimal("0"):
+            divisor = Decimal("1") + (gst_r / Decimal("100"))
+            line_taxable = (line_total / divisor).quantize(Decimal("0.01"))
+            line_gst = line_total - line_taxable
+        else:
+            line_taxable = line_total
+            line_gst = Decimal("0.00")
+
+        computed_subtotal += line_taxable
+        computed_gst += line_gst
+        computed_grand_total += line_total
+
         rows.append([
             str(i),
             f"{item.product_name}{comp}",
             item.net_content or "-",
             str(item.quantity),
-            f"₹{item.price:,.2f}",
-            f"{item.gst_rate}%",
-            f"₹{item.gst_amount:,.2f}",
-            f"₹{item.total:,.2f}",
+            f"₹{unit_p:,.2f}",
+            f"{gst_r}%",
+            f"₹{line_gst:,.2f}",
+            f"₹{line_total:,.2f}",
         ])
 
     item_table = Table(
@@ -131,16 +156,27 @@ def generate_invoice_pdf(sale, shop) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     elements.append(item_table)
-    elements.append(Spacer(1, 6))
+    elements.append(Spacer(1, 3))
+    elements.append(Paragraph(
+        "<font size='7' color='#555555'><i>* All product prices are inclusive of GST. GST amount indicates the statutory tax component included in the price.</i></font>",
+        styles["Normal"]
+    ))
+    elements.append(Spacer(1, 4))
 
     # ── Totals & Tax Split ────────────────────────────────────
-    half_gst = (sale.gst_amount or Decimal("0")) / Decimal("2")
+    effective_subtotal = computed_subtotal if computed_subtotal > Decimal("0") else (sale.subtotal or Decimal("0"))
+    effective_gst = computed_gst if computed_gst > Decimal("0") else (sale.gst_amount or Decimal("0"))
+    effective_grand_total = computed_grand_total if computed_grand_total > Decimal("0") else (sale.grand_total or Decimal("0"))
+
+    cgst = (effective_gst / Decimal("2")).quantize(Decimal("0.01"))
+    sgst = effective_gst - cgst
+
     totals = [
-        ["", "", "", "", "", "", "Taxable Amount:", f"₹{sale.subtotal:,.2f}"],
-        ["", "", "", "", "", "", "CGST (50%):", f"₹{half_gst:,.2f}"],
-        ["", "", "", "", "", "", "SGST (50%):", f"₹{half_gst:,.2f}"],
-        ["", "", "", "", "", "", "Total GST:", f"₹{sale.gst_amount:,.2f}"],
-        ["", "", "", "", "", "", "GRAND TOTAL:", f"₹{sale.grand_total:,.2f}"],
+        ["", "", "", "", "", "", "Taxable Amount:", f"₹{effective_subtotal:,.2f}"],
+        ["", "", "", "", "", "", "CGST (50%):", f"₹{cgst:,.2f}"],
+        ["", "", "", "", "", "", "SGST (50%):", f"₹{sgst:,.2f}"],
+        ["", "", "", "", "", "", "Total GST:", f"₹{effective_gst:,.2f}"],
+        ["", "", "", "", "", "", "GRAND TOTAL:", f"₹{effective_grand_total:,.2f}"],
     ]
     totals_table = Table(
         totals,

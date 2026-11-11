@@ -102,18 +102,42 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     # ── Returned Items Table ─────────────────────────────────
     headers = ["#", "Returned Product", "Net Content", "Qty Ret", "Rate ₹", "GST%", "GST ₹", "Refund ₹"]
     rows = [headers]
+    computed_subtotal = Decimal("0")
+    computed_gst = Decimal("0")
+    computed_grand_total = Decimal("0")
+
     for i, item in enumerate(sales_return.items, 1):
         comp = f"\n<font color='#616161'>{item.company_name}</font>" if item.company_name else ""
         batch = f"\n<font color='#757575'>Batch: {item.batch_number}</font>" if item.batch_number else ""
+        qty = Decimal(str(item.returned_quantity or 0))
+        unit_p = Decimal(str(item.unit_price or 0))
+        gst_r = Decimal(str(item.gst_rate or 0))
+
+        nominal_gross = (qty * unit_p).quantize(Decimal("0.01"))
+        raw_total = Decimal(str(item.refund_total or 0)).quantize(Decimal("0.01")) if item.refund_total else nominal_gross
+        line_total = min(raw_total, nominal_gross) if raw_total > nominal_gross else raw_total
+
+        if gst_r > Decimal("0"):
+            divisor = Decimal("1") + (gst_r / Decimal("100"))
+            line_taxable = (line_total / divisor).quantize(Decimal("0.01"))
+            line_gst = line_total - line_taxable
+        else:
+            line_taxable = line_total
+            line_gst = Decimal("0.00")
+
+        computed_subtotal += line_taxable
+        computed_gst += line_gst
+        computed_grand_total += line_total
+
         rows.append([
             str(i),
             f"{item.product_name}{comp}{batch}",
             item.net_content or "-",
             str(item.returned_quantity),
-            f"₹{item.unit_price:,.2f}",
-            f"{item.gst_rate}%",
-            f"₹{item.refund_gst:,.2f}",
-            f"₹{item.refund_total:,.2f}",
+            f"₹{unit_p:,.2f}",
+            f"{gst_r}%",
+            f"₹{line_gst:,.2f}",
+            f"₹{line_total:,.2f}",
         ])
 
     col_widths = [8 * mm, 58 * mm, 22 * mm, 16 * mm, 22 * mm, 14 * mm, 20 * mm, 20 * mm]
@@ -131,16 +155,27 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]))
     elements.append(item_table)
-    elements.append(Spacer(1, 6))
+    elements.append(Spacer(1, 3))
+    elements.append(Paragraph(
+        "<font size='7' color='#555555'><i>* Return refund values are calculated on tax-inclusive unit prices.</i></font>",
+        styles["Normal"]
+    ))
+    elements.append(Spacer(1, 4))
 
     # ── Totals & Tax Refund Breakdown ─────────────────────────
-    half_gst = (sales_return.refund_gst_amount or Decimal("0")) / Decimal("2")
+    effective_subtotal = computed_subtotal if computed_subtotal > Decimal("0") else (sales_return.refund_subtotal or Decimal("0"))
+    effective_gst = computed_gst if computed_gst > Decimal("0") else (sales_return.refund_gst_amount or Decimal("0"))
+    effective_grand_total = computed_grand_total if computed_grand_total > Decimal("0") else (sales_return.refund_grand_total or Decimal("0"))
+
+    cgst = (effective_gst / Decimal("2")).quantize(Decimal("0.01"))
+    sgst = effective_gst - cgst
+
     totals = [
-        ["", "", "", "", "", "", "Taxable Value Returned:", f"₹{sales_return.refund_subtotal:,.2f}"],
-        ["", "", "", "", "", "", "CGST Reversal (50%):", f"₹{half_gst:,.2f}"],
-        ["", "", "", "", "", "", "SGST Reversal (50%):", f"₹{half_gst:,.2f}"],
-        ["", "", "", "", "", "", "Total GST Credit:", f"₹{sales_return.refund_gst_amount:,.2f}"],
-        ["", "", "", "", "", "", "TOTAL REFUND PAID:", f"₹{sales_return.refund_grand_total:,.2f}"],
+        ["", "", "", "", "", "", "Taxable Value Returned:", f"₹{effective_subtotal:,.2f}"],
+        ["", "", "", "", "", "", "CGST Reversal (50%):", f"₹{cgst:,.2f}"],
+        ["", "", "", "", "", "", "SGST Reversal (50%):", f"₹{sgst:,.2f}"],
+        ["", "", "", "", "", "", "Total GST Credit:", f"₹{effective_gst:,.2f}"],
+        ["", "", "", "", "", "", "TOTAL REFUND PAID:", f"₹{effective_grand_total:,.2f}"],
     ]
     totals_table = Table(totals, colWidths=col_widths)
     totals_table.setStyle(TableStyle([

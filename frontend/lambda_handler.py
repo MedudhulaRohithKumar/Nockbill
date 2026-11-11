@@ -7,9 +7,13 @@ Serves the Vite React single-page application (SPA):
 - Supports gzip compression and binary base64 encoding
 """
 import os
+import logging
 import mimetypes
 import base64
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 DIST_DIR = os.path.join(os.path.dirname(__file__), "dist")
 
@@ -165,7 +169,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
         except Exception as exc:
             logger.error("Tokeninfo lookup exception: %s", exc)
-            google_data = None
+            return {
+                "statusCode": 503,
+                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "body": json.dumps({
+                    "detail": "Google sign-in is temporarily unavailable (network error). Please try again or sign in with your password."
+                }),
+                "isBase64Encoded": False,
+            }
 
         if google_data and param_key == "access_token":
             try:
@@ -212,10 +223,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "body": json.dumps({"detail": "Google OAuth bridge secret is not configured on this server."}),
                 "isBase64Encoded": False,
             }
+
+        raw_verified = google_data.get("email_verified")
+        if raw_verified is None:
+            raw_verified = google_data.get("verified_email")
+        email_verified = (
+            raw_verified is True
+            or (isinstance(raw_verified, str) and raw_verified.strip().lower() in ("true", "1", "yes"))
+        )
+
         bridge_secret = bridge_secret_str.encode("utf-8")
         claims = {
             "email": google_data.get("email"),
-            "email_verified": google_data.get("email_verified") or google_data.get("verified_email"),
+            "email_verified": email_verified,
             "sub": google_data.get("sub"),
             "name": google_data.get("name") or google_data.get("given_name"),
             "aud": token_aud,

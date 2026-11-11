@@ -243,12 +243,19 @@ def process_sales_return(
                     )
                 )
 
-            # Financial calculations for this item
-            unit_price = sale_item.price
-            gst_rate = sale_item.gst_rate
-            item_taxable = (ret_qty * unit_price).quantize(Decimal("0.01"))
-            item_gst = (item_taxable * gst_rate / Decimal("100")).quantize(Decimal("0.01"))
-            item_total = item_taxable + item_gst
+            # Financial calculations for this item (prices are tax-inclusive)
+            unit_price = Decimal(str(sale_item.price or 0))
+            gst_rate = Decimal(str(sale_item.gst_rate or 0))
+            gross = (ret_qty * unit_price).quantize(Decimal("0.01"))
+            item_total = gross
+
+            if gst_rate > Decimal("0"):
+                divisor = Decimal("1") + (gst_rate / Decimal("100"))
+                item_taxable = (item_total / divisor).quantize(Decimal("0.01"))
+                item_gst = item_total - item_taxable
+            else:
+                item_taxable = item_total
+                item_gst = Decimal("0.00")
 
             refund_subtotal += item_taxable
             refund_gst_amount += item_gst

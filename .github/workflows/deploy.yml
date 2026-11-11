@@ -82,10 +82,14 @@ jobs:
       - name: Deploy to AWS SAM
         env:
           ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD || 'KisanSecurePass2026!' }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           NOTIFY_EMAIL: ${{ secrets.REPORT_NOTIFICATION_EMAIL || 'admin@nockbill.local' }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
         run: |
+          if [ -z "${DB_PASSWORD}" ]; then
+            echo "ERROR: DB_PASSWORD secret must be configured in GitHub repository secrets." >&2
+            exit 1
+          fi
           sam deploy \
             --config-file infrastructure/samconfig.toml \
             --stack-name ks-serverless-${ENV_NAME} \
