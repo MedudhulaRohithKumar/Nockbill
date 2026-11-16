@@ -93,7 +93,7 @@ export const PriceListsPage: React.FC = () => {
 
   useEffect(() => {
     if (isOwner) {
-      fetchData();
+      void fetchData();
     } else {
       setLoading(false);
     }
@@ -149,12 +149,12 @@ export const PriceListsPage: React.FC = () => {
 
   const handleSavePriceList = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numVal = parseFloat(formAdjustmentValue);
+    const numVal = Number.parseFloat(formAdjustmentValue);
     if (!formName.trim()) {
       showNotification('error', 'Please enter a Price List name.');
       return;
     }
-    if (isNaN(numVal) || numVal <= 0) {
+    if (Number.isNaN(numVal) || numVal <= 0) {
       showNotification('error', 'Please enter a valid positive adjustment value.');
       return;
     }
@@ -477,7 +477,9 @@ export const PriceListsPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={fetchData}
+            onClick={() => {
+              void fetchData();
+            }}
             disabled={loading || actionLoading}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
           >
@@ -606,7 +608,9 @@ export const PriceListsPage: React.FC = () => {
                     <button
                       type="button"
                       disabled={actionLoading}
-                      onClick={() => handleApplyToAllEligible(pl)}
+                      onClick={() => {
+                        void handleApplyToAllEligible(pl);
+                      }}
                       className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold transition"
                     >
                       <Layers className="w-3.5 h-3.5" />
@@ -616,7 +620,9 @@ export const PriceListsPage: React.FC = () => {
                     <button
                       type="button"
                       disabled={actionLoading}
-                      onClick={() => handleToggleActive(pl)}
+                      onClick={() => {
+                        void handleToggleActive(pl);
+                      }}
                       className="flex items-center gap-1 px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
                       title={pl.is_active ? 'Pause price list' : 'Activate price list'}
                     >
@@ -637,7 +643,9 @@ export const PriceListsPage: React.FC = () => {
                     <button
                       type="button"
                       disabled={actionLoading}
-                      onClick={() => handleDeletePriceList(pl)}
+                      onClick={() => {
+                        void handleDeletePriceList(pl);
+                      }}
                       className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition"
                       title="Delete Price List"
                     >
@@ -656,7 +664,9 @@ export const PriceListsPage: React.FC = () => {
                         </span>
                         <button
                           type="button"
-                          onClick={() => handleUnassignAllFromList(pl)}
+                          onClick={() => {
+                            void handleUnassignAllFromList(pl);
+                          }}
                           className="text-xs font-semibold text-red-600 hover:text-red-700"
                         >
                           Remove All Products
@@ -698,9 +708,9 @@ export const PriceListsPage: React.FC = () => {
                                 <td className="py-2 px-3 text-right">
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      handleUnassignProduct(pl, prod.id, prod.product_name)
-                                    }
+                                    onClick={() => {
+                                      void handleUnassignProduct(pl, prod.id, prod.product_name);
+                                    }}
                                     className="text-red-600 hover:text-red-800 font-semibold text-[11px]"
                                   >
                                     Remove
@@ -754,13 +764,14 @@ export const PriceListsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSavePriceList} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={(e) => { void handleSavePriceList(e); }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="pricelist-name" className="block text-xs font-bold text-slate-700 mb-1">
                     Price List Name *
                   </label>
                   <input
+                    id="pricelist-name"
                     type="text"
                     required
                     value={formName}
@@ -771,10 +782,11 @@ export const PriceListsPage: React.FC = () => {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="pricelist-description" className="block text-xs font-bold text-slate-700 mb-1">
                     Description (Optional)
                   </label>
                   <input
+                    id="pricelist-description"
                     type="text"
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
@@ -785,10 +797,10 @@ export const PriceListsPage: React.FC = () => {
 
                 {/* Adjustment Type: Discount vs Increment */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <span id="pricelist-adj-type" className="block text-xs font-bold text-slate-700 mb-1">
                     Adjustment Type *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  </span>
+                  <div role="radiogroup" aria-labelledby="pricelist-adj-type" className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setFormAdjustmentType('DISCOUNT')}
@@ -818,10 +830,10 @@ export const PriceListsPage: React.FC = () => {
 
                 {/* Calculation Mode: Percentage vs Fixed */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <span id="pricelist-calc-mode" className="block text-xs font-bold text-slate-700 mb-1">
                     Calculation Mode *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  </span>
+                  <div role="radiogroup" aria-labelledby="pricelist-calc-mode" className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setFormCalculationMode('PERCENTAGE')}
@@ -851,11 +863,12 @@ export const PriceListsPage: React.FC = () => {
 
                 {/* Adjustment Value */}
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="pricelist-adj-value" className="block text-xs font-bold text-slate-700 mb-1">
                     {formAdjustmentType === 'DISCOUNT' ? 'Discount' : 'Price Increment'} Value (
                     {formCalculationMode === 'PERCENTAGE' ? '%' : '₹'}) *
                   </label>
                   <input
+                    id="pricelist-adj-value"
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -875,10 +888,10 @@ export const PriceListsPage: React.FC = () => {
               {/* Product Application Scope (Only on Create) */}
               {!editingPriceList && (
                 <div className="pt-3 border-t border-slate-100 space-y-3">
-                  <label className="block text-xs font-bold text-slate-700">
+                  <span id="pricelist-scope-label" className="block text-xs font-bold text-slate-700">
                     Initial Product Assignment
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  </span>
+                  <div role="radiogroup" aria-labelledby="pricelist-scope-label" className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setFormScope('NONE')}
@@ -941,7 +954,7 @@ export const PriceListsPage: React.FC = () => {
                             basePrice,
                             formAdjustmentType,
                             formCalculationMode,
-                            parseFloat(formAdjustmentValue) || 0
+                            Number.parseFloat(formAdjustmentValue) || 0
                           );
 
                           return (
@@ -1048,7 +1061,7 @@ export const PriceListsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleConfirmAssignProducts} className="p-5 space-y-4">
+            <form onSubmit={(e) => { void handleConfirmAssignProducts(e); }} className="p-5 space-y-4">
               {/* Search & Category Filter */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">

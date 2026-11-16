@@ -46,7 +46,7 @@ export const SalesReturnPage: React.FC = () => {
     const inv = params.get('invoice');
     if (inv) {
       setInvoiceQuery(inv);
-      handleLookup(inv);
+      void handleLookup(inv);
     }
   }, []);
 
@@ -93,7 +93,7 @@ export const SalesReturnPage: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'history') {
-      loadHistory();
+      void loadHistory();
     }
   }, [activeTab, historySearch]);
 
@@ -143,7 +143,7 @@ export const SalesReturnPage: React.FC = () => {
 
     const itemsPayload = Object.entries(returnItems)
       .map(([saleItemIdStr, qty]) => ({
-        sale_item_id: parseInt(saleItemIdStr),
+        sale_item_id: Number.parseInt(saleItemIdStr, 10),
         returned_quantity: qty,
       }))
       .filter(item => item.returned_quantity > 0);
@@ -220,19 +220,20 @@ export const SalesReturnPage: React.FC = () => {
         <div className="space-y-5">
           {/* Invoice Search Bar */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-            <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2">
+            <label htmlFor="return-invoice-search" className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-2">
               Step 1: Enter Customer Bill / Invoice Number
             </label>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleLookup();
+                void handleLookup();
               }}
               className="flex flex-col sm:flex-row items-stretch gap-3"
             >
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
+                  id="return-invoice-search"
                   type="text"
                   value={invoiceQuery}
                   onChange={(e) => setInvoiceQuery(e.target.value)}
@@ -456,7 +457,7 @@ export const SalesReturnPage: React.FC = () => {
                                       min="0"
                                       max={maxQty}
                                       value={returnQty === 0 ? '' : returnQty}
-                                      onChange={(e) => updateQuantity(item.sale_item_id, parseFloat(e.target.value) || 0, maxQty)}
+                                      onChange={(e) => updateQuantity(item.sale_item_id, Number.parseFloat(e.target.value) || 0, maxQty)}
                                       placeholder="0"
                                       className="w-16 px-2 py-1 text-center font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                                     />
@@ -528,44 +529,45 @@ export const SalesReturnPage: React.FC = () => {
 
                   {/* Refund Payment Mode */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Refund Payment Mode
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      <span className="block mb-1">Refund Payment Mode</span>
+                      <CustomSelect
+                        value={refundPaymentMethod}
+                        onChange={(val) => setRefundPaymentMethod(val)}
+                        options={[
+                          { value: 'Cash', label: 'Cash Refund' },
+                          { value: 'UPI', label: 'UPI / Online Transfer' },
+                          { value: 'Bank Transfer', label: 'Bank RTGS / NEFT' },
+                          { value: 'Credit', label: 'Store Credit / Adjust with next bill' },
+                        ]}
+                      />
                     </label>
-                    <CustomSelect
-                      value={refundPaymentMethod}
-                      onChange={(val) => setRefundPaymentMethod(val)}
-                      options={[
-                        { value: 'Cash', label: 'Cash Refund' },
-                        { value: 'UPI', label: 'UPI / Online Transfer' },
-                        { value: 'Bank Transfer', label: 'Bank RTGS / NEFT' },
-                        { value: 'Credit', label: 'Store Credit / Adjust with next bill' },
-                      ]}
-                    />
                   </div>
 
                   {/* Reason for Return */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Return Reason
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      <span className="block mb-1">Return Reason</span>
+                      <CustomSelect
+                        value={returnReason}
+                        onChange={(val) => setReturnReason(val)}
+                        options={[
+                          { value: 'Customer returned unused quantity', label: 'Unused fertilizer bags' },
+                          { value: 'Excess bags bought for harvest season', label: 'Excess purchase returned' },
+                          { value: 'Customer requested exchange or credit', label: 'Exchange / Store credit' },
+                          { value: 'Damaged or defective package', label: 'Damaged packaging' },
+                        ]}
+                      />
                     </label>
-                    <CustomSelect
-                      value={returnReason}
-                      onChange={(val) => setReturnReason(val)}
-                      options={[
-                        { value: 'Customer returned unused quantity', label: 'Unused fertilizer bags' },
-                        { value: 'Excess bags bought for harvest season', label: 'Excess purchase returned' },
-                        { value: 'Customer requested exchange or credit', label: 'Exchange / Store credit' },
-                        { value: 'Damaged or defective package', label: 'Damaged packaging' },
-                      ]}
-                    />
                   </div>
 
                   {/* Additional Notes */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label htmlFor="return-notes" className="block text-[11px] font-bold text-slate-700 mb-1">
                       Notes / Remarks (Optional)
                     </label>
                     <input
+                      id="return-notes"
                       type="text"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -584,7 +586,9 @@ export const SalesReturnPage: React.FC = () => {
                   {/* Submit Button */}
                   <button
                     type="button"
-                    onClick={handleSubmitReturn}
+                    onClick={() => {
+                      void handleSubmitReturn();
+                    }}
                     disabled={isSubmitting || totalUnitsToReturn <= 0}
                     className="w-full bg-emerald-800 hover:bg-emerald-700 text-white font-black py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >

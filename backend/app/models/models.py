@@ -1,11 +1,15 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, Boolean, DateTime, Date,
     Text, ForeignKey, Enum as SAEnum, Numeric, BigInteger, Index
 )
 from sqlalchemy.orm import relationship
 from app.database.base import Base
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # ─── Enumerations ────────────────────────────────────────────────────────────
@@ -84,8 +88,8 @@ class User(Base):
     shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     subscription_status = Column(String(20), default="ACTIVE")
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     audit_logs = relationship("AuditLog", back_populates="user")
     shop = relationship("ShopSettings")
@@ -122,7 +126,7 @@ class ShopSettings(Base):
     thermal_print = Column(Boolean, default=False)
     terms_conditions = Column(Text)
     subscription_status = Column(String(20), default="ACTIVE")
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
 
 class PriceList(Base):
@@ -136,8 +140,8 @@ class PriceList(Base):
     calculation_mode = Column(String(20), nullable=False, default="PERCENTAGE") # "PERCENTAGE" or "FIXED"
     adjustment_value = Column(Numeric(12, 2), nullable=False, default=0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     products = relationship("Product", back_populates="price_list")
 
@@ -167,8 +171,8 @@ class Product(Base):
     barcode = Column(String(100), unique=True, index=True, nullable=True)
     hsn_code = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
+    updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
     price_list = relationship("PriceList", back_populates="products")
     sale_items = relationship("SaleItem", back_populates="product")
@@ -199,7 +203,7 @@ class ProductBatch(Base):
     mrp = Column(Numeric(12, 2), nullable=True)
     current_stock = Column(Numeric(12, 3), default=0)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     product = relationship("Product", back_populates="batches")
     sale_items = relationship("SaleItem", back_populates="batch")
@@ -219,7 +223,7 @@ class ProductVariant(Base):
     stock = Column(Numeric(12, 3), default=0)
     barcode = Column(String(100), index=True, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     product = relationship("Product", back_populates="variants")
 
@@ -238,8 +242,8 @@ class Sale(Base):
     grand_total = Column(Numeric(14, 2), default=0)
     payment_method = Column(SAEnum(PaymentMethod), default=PaymentMethod.CASH)
     notes = Column(Text)
-    sale_date = Column(DateTime, default=datetime.utcnow, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    sale_date = Column(DateTime, default=_utc_now, index=True)
+    created_at = Column(DateTime, default=_utc_now)
     created_by = Column(Integer, ForeignKey("users.id"))
 
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
@@ -284,12 +288,12 @@ class Purchase(Base):
     shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
     supplier_name = Column(String(200))
     invoice_number = Column(String(100))
-    purchase_date = Column(DateTime, default=datetime.utcnow, index=True)
+    purchase_date = Column(DateTime, default=_utc_now, index=True)
     subtotal = Column(Numeric(14, 2), default=0)
     gst_amount = Column(Numeric(14, 2), default=0)
     grand_total = Column(Numeric(14, 2), default=0)
     notes = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
     created_by = Column(Integer, ForeignKey("users.id"))
 
     items = relationship("PurchaseItem", back_populates="purchase", cascade="all, delete-orphan")
@@ -328,7 +332,7 @@ class InventoryTransaction(Base):
     new_stock = Column(Numeric(12, 3), default=0)
     reference_id = Column(Integer)          # sale_id or purchase_id
     reference_type = Column(String(20))     # SALE | PURCHASE | MANUAL
-    transaction_date = Column(DateTime, default=datetime.utcnow, index=True)
+    transaction_date = Column(DateTime, default=_utc_now, index=True)
     notes = Column(Text)
 
     product = relationship("Product", back_populates="inventory_transactions")
@@ -344,7 +348,7 @@ class GstTransaction(Base):
     taxable_amount = Column(Numeric(14, 2), default=0)
     gst_rate = Column(Numeric(5, 2), default=0)
     gst_amount = Column(Numeric(14, 2), default=0)
-    transaction_date = Column(DateTime, default=datetime.utcnow, index=True)
+    transaction_date = Column(DateTime, default=_utc_now, index=True)
 
     sale = relationship("Sale", back_populates="gst_transactions")
 
@@ -359,7 +363,7 @@ class Expense(Base):
     amount = Column(Numeric(12, 2), nullable=False)
     expense_date = Column(Date, nullable=False, index=True)
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
     created_by = Column(Integer, ForeignKey("users.id"))
 
 
@@ -373,7 +377,7 @@ class AuditLog(Base):
     reference_type = Column(String(50))
     description = Column(Text)
     ip_address = Column(String(45))
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=_utc_now, index=True)
 
     user = relationship("User", back_populates="audit_logs")
 
@@ -394,8 +398,8 @@ class SalesReturn(Base):
     refund_payment_method = Column(SAEnum(PaymentMethod), default=PaymentMethod.CASH)
     reason = Column(String(500))
     notes = Column(Text)
-    return_date = Column(DateTime, default=datetime.utcnow, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    return_date = Column(DateTime, default=_utc_now, index=True)
+    created_at = Column(DateTime, default=_utc_now)
     created_by = Column(Integer, ForeignKey("users.id"))
 
     sale = relationship("Sale", back_populates="returns")
@@ -446,7 +450,7 @@ class PasswordResetCode(Base):
     attempts = Column(Integer, default=0)
     reset_attempts = Column(Integer, default=0)
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utc_now)
 
     user = relationship("User")
 

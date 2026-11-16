@@ -44,7 +44,7 @@ export const ExpensesPage: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadExpenses(); }, []);
+  useEffect(() => { void loadExpenses(); }, []);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +52,7 @@ export const ExpensesPage: React.FC = () => {
     try {
       await expensesApi.create(payload);
       setIsModalOpen(false);
-      loadExpenses();
+      void loadExpenses();
     } catch {
       setExpenses([{ id: Date.now(), ...payload } as Expense, ...expenses]);
       setIsModalOpen(false);
@@ -154,7 +154,9 @@ export const ExpensesPage: React.FC = () => {
                       <div className="text-right shrink-0 flex flex-col items-end gap-2">
                         <span className="font-black text-base text-red-600">-₹{formatCurrency(item.amount)}</span>
                         <button
-                          onClick={() => handleDeleteExpense(item.id)}
+                          onClick={() => {
+                            void handleDeleteExpense(item.id);
+                          }}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -197,7 +199,9 @@ export const ExpensesPage: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
-                            onClick={() => handleDeleteExpense(item.id)}
+                            onClick={() => {
+                              void handleDeleteExpense(item.id);
+                            }}
                             className="p-1 text-slate-400 hover:text-red-600 transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -224,39 +228,43 @@ export const ExpensesPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleAddExpense} className="p-5 space-y-3 text-xs">
+            <form onSubmit={(e) => { void handleAddExpense(e); }} className="p-5 space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Expense Category</label>
-                <CustomSelect
-                  value={category}
-                  onChange={(val) => setCategory(val as any)}
-                  options={[
-                    { value: 'Transport', label: 'Transport / Freight' },
-                    { value: 'Labor', label: 'Labor / Handling' },
-                    { value: 'Rent', label: 'Shop / Godown Rent' },
-                    { value: 'Electricity', label: 'Electricity / Power' },
-                    { value: 'Packaging', label: 'Packaging Material' },
-                    { value: 'Office', label: 'Office & Stationary' },
-                    { value: 'Misc', label: 'Miscellaneous' },
-                  ]}
-                />
+                <label className="block font-semibold text-slate-700">
+                  <span className="block mb-1">Expense Category</span>
+                  <CustomSelect
+                    value={category}
+                    onChange={(val) => setCategory(val as any)}
+                    options={[
+                      { value: 'Transport', label: 'Transport / Freight' },
+                      { value: 'Labor', label: 'Labor / Handling' },
+                      { value: 'Rent', label: 'Shop / Godown Rent' },
+                      { value: 'Electricity', label: 'Electricity / Power' },
+                      { value: 'Packaging', label: 'Packaging Material' },
+                      { value: 'Office', label: 'Office & Stationary' },
+                      { value: 'Misc', label: 'Miscellaneous' },
+                    ]}
+                  />
+                </label>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Amount (₹) *</label>
+                  <label htmlFor="expense-amount" className="block font-semibold text-slate-700 mb-1">Amount (₹) *</label>
                   <input
+                    id="expense-amount"
                     type="number"
                     step="1"
                     required
                     value={amount}
-                    onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setAmount(Number.parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Date</label>
+                  <label htmlFor="expense-date" className="block font-semibold text-slate-700 mb-1">Date</label>
                   <input
+                    id="expense-date"
                     type="date"
                     required
                     value={expenseDate}
@@ -267,8 +275,9 @@ export const ExpensesPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Description / Note *</label>
+                <label htmlFor="expense-description" className="block font-semibold text-slate-700 mb-1">Description / Note *</label>
                 <input
+                  id="expense-description"
                   type="text"
                   required
                   value={description}
@@ -279,17 +288,19 @@ export const ExpensesPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Payment Mode</label>
-                <CustomSelect
-                  value={paymentMode}
-                  onChange={(val) => setPaymentMode(val)}
-                  options={[
-                    { value: 'Cash', label: 'Cash' },
-                    { value: 'UPI', label: 'UPI' },
-                    { value: 'Bank Transfer', label: 'Bank Transfer' },
-                    { value: 'Card', label: 'Card' },
-                  ]}
-                />
+                <label className="block font-semibold text-slate-700">
+                  <span className="block mb-1">Payment Mode</span>
+                  <CustomSelect
+                    value={paymentMode}
+                    onChange={(val) => setPaymentMode(val)}
+                    options={[
+                      { value: 'Cash', label: 'Cash' },
+                      { value: 'UPI', label: 'UPI' },
+                      { value: 'Bank Transfer', label: 'Bank Transfer' },
+                      { value: 'Card', label: 'Card' },
+                    ]}
+                  />
+                </label>
               </div>
 
               <div className="pt-2 border-t border-slate-200 flex gap-2">

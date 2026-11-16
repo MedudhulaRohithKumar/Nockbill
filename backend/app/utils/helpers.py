@@ -48,7 +48,7 @@ def normalize_date(raw: str) -> Optional[str]:
         return f"{m.group(2)}-{m.group(1).zfill(2)}"
 
     # Month Year  e.g.  "May 2026"
-    m = re.match(r"([a-zA-Z]+)\s+(\d{4})$", raw)
+    m = re.match(r"^([a-zA-Z]{3,15})\s{1,5}(\d{4})$", raw)
     if m:
         mon = month_map.get(m.group(1).lower()[:3])
         if mon:
@@ -69,11 +69,10 @@ def normalize_price(raw: str) -> Optional[Decimal]:
     """
     if not raw:
         return None
-    # Remove currency symbols, alphabets except decimal point
-    cleaned = re.sub(r"[^\d.]", "", raw)
-    if cleaned:
+    m = re.search(r"\d+(?:\.\d+)?", raw.replace(",", ""))
+    if m:
         try:
-            return Decimal(cleaned)
+            return Decimal(m.group(0))
         except Exception:
             pass
     return None
@@ -95,15 +94,15 @@ def normalize_net_content(raw: str) -> Tuple[Optional[Decimal], Optional[str]]:
     raw = raw.strip().upper()
 
     patterns = [
-        (r"(\d+(?:\.\d+)?)\s*ML", "ml"),
-        (r"(\d+(?:\.\d+)?)\s*LITRE[S]?", "liter"),
-        (r"(\d+(?:\.\d+)?)\s*LITER[S]?", "liter"),
-        (r"(\d+(?:\.\d+)?)\s*LTR[S]?", "liter"),
-        (r"(\d+(?:\.\d+)?)L\b", "liter"),
-        (r"(\d+(?:\.\d+)?)\s*KG", "kg"),
-        (r"(\d+(?:\.\d+)?)\s*GRAM[S]?", "gram"),
-        (r"(\d+(?:\.\d+)?)\s*GM[S]?", "gram"),
-        (r"(\d+(?:\.\d+)?)\s*G\b", "gram"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}ML\b", "ml"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}LITRES?\b", "liter"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}LITERS?\b", "liter"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}LTRS?\b", "liter"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)L\b", "liter"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}KG\b", "kg"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}GRAMS?\b", "gram"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}GMS?\b", "gram"),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}G\b", "gram"),
     ]
 
     for pattern, unit in patterns:

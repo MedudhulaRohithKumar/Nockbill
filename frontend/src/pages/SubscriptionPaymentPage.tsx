@@ -367,10 +367,11 @@ export const SubscriptionPaymentPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sub-upi-vpa" className="block text-xs font-bold text-slate-700 mb-1">
                         Or Pay using UPI Virtual Payment Address (VPA)
                       </label>
                       <input
+                        id="sub-upi-vpa"
                         type="text"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
@@ -385,10 +386,11 @@ export const SubscriptionPaymentPage: React.FC = () => {
                 {paymentMethod === 'CARD' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sub-card-number" className="block text-xs font-bold text-slate-700 mb-1">
                         Card Number
                       </label>
                       <input
+                        id="sub-card-number"
                         type="text"
                         value={cardNumber}
                         onChange={(e) => setCardNumber(e.target.value)}
@@ -399,10 +401,11 @@ export const SubscriptionPaymentPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                        <label htmlFor="sub-card-expiry" className="block text-xs font-bold text-slate-700 mb-1">
                           Expiry (MM/YY)
                         </label>
                         <input
+                          id="sub-card-expiry"
                           type="text"
                           value={cardExpiry}
                           onChange={(e) => setCardExpiry(e.target.value)}
@@ -412,10 +415,11 @@ export const SubscriptionPaymentPage: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                        <label htmlFor="sub-card-cvv" className="block text-xs font-bold text-slate-700 mb-1">
                           CVV / CVC
                         </label>
                         <input
+                          id="sub-card-cvv"
                           type="password"
                           maxLength={4}
                           value={cardCvv}
@@ -432,10 +436,10 @@ export const SubscriptionPaymentPage: React.FC = () => {
                 {paymentMethod === 'NETBANKING' && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-2">
+                      <span id="sub-bank-label" className="block text-xs font-bold text-slate-700 mb-2">
                         Select Your Commercial Bank
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
+                      </span>
+                      <div role="radiogroup" aria-labelledby="sub-bank-label" className="grid grid-cols-2 gap-2">
                         {['State Bank of India', 'HDFC Bank', 'ICICI Bank', 'Axis Bank', 'Bank of Baroda', 'Punjab National Bank'].map((b) => (
                           <button
                             key={b}
@@ -460,7 +464,9 @@ export const SubscriptionPaymentPage: React.FC = () => {
                   <button
                     type="button"
                     disabled={isProcessing}
-                    onClick={handleSimulatePayment}
+                    onClick={() => {
+                      void handleSimulatePayment();
+                    }}
                     className="clay-btn-primary w-full py-4 text-sm sm:text-base font-bold flex items-center justify-center gap-2 shadow-xl disabled:opacity-75"
                   >
                     {isProcessing ? (

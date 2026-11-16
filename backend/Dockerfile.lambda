@@ -13,11 +13,18 @@ WORKDIR /var/task
 
 # Install Python dependencies + AWS Lambda Runtime Interface Client
 COPY requirements.txt .
-RUN pip install --no-cache-dir awslambdaric && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --only-binary :all: awslambdaric && \
+    pip install --no-cache-dir --only-binary :all: -r requirements.txt
 
-# Copy application source code
-COPY . /var/task/
+# Copy only necessary application files (resolves docker:S6470)
+COPY app /var/task/app
+COPY seed.py /var/task/seed.py
+COPY alembic.ini /var/task/alembic.ini
+COPY alembic /var/task/alembic
+
+# Run container as non-root user (resolves docker:S6585) while keeping /var/task readable by Lambda runtime
+RUN useradd -m -u 1000 appuser && chmod -R a+rX /var/task
+USER appuser
 
 ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
 CMD ["app.lambda_handler.handler"]

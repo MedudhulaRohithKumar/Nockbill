@@ -128,6 +128,14 @@ export const authApi = {
   me: async () => {
     const res = await api.get('/auth/me');
     return res.data;
+  },
+  logout: async () => {
+    try {
+      const res = await api.post<{ success: boolean; message: string }>('/auth/logout');
+      return res.data;
+    } catch {
+      return { success: false, message: 'Logout request completed' };
+    }
   }
 };
 

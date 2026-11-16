@@ -17,59 +17,35 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const savedToken = localStorage.getItem('token');
-    if (!savedToken || savedToken === 'demo-token') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      return null;
-    }
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    const savedToken = localStorage.getItem('token');
-    if (!savedToken || savedToken === 'demo-token') {
-      localStorage.removeItem('token');
-      return null;
-    }
-    return savedToken;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => {
-      const savedToken = localStorage.getItem('token');
-      if (savedToken && savedToken !== 'demo-token') {
-        try {
-          const res: any = await authApi.me();
-          const userData: User = {
-            id: res.id || 1,
-            username: res.username,
-            full_name: res.name || (res.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
-            role: (res.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
-            subscription_status: res.subscription_status || (res.username === 'admin' ? 'ACTIVE' : 'PENDING'),
-            is_active: res.is_active ?? true,
-          };
-          setUser(userData);
-          localStorage.setItem('user', JSON.stringify(userData));
-        } catch (err: any) {
-          // Token expired or invalid signature - clear local session
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('shop_settings');
-          setToken(null);
-          setUser(null);
-        }
-      } else {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setToken(null);
+      // Clean up legacy tokens and user cache from localStorage to prevent exposure or poisoning
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      try {
+        const res: any = await authApi.me();
+        const userData: User = {
+          id: res.id || 1,
+          username: res.username,
+          full_name: res.name || (res.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
+          role: (res.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
+          subscription_status: res.subscription_status || (res.username === 'admin' ? 'ACTIVE' : 'PENDING'),
+          is_active: res.is_active ?? true,
+        };
+        setUser(userData);
+      } catch {
+        // Session expired or unauthenticated
+        localStorage.removeItem('shop_settings');
         setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
-    initAuth();
+    void initAuth();
   }, []);
 
   const login = async (username: string, password: string, captchaToken: string, captchaCode: string) => {
@@ -80,8 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       captcha_token: captchaToken,
       captcha_code: captchaCode,
     });
-    localStorage.setItem('token', data.access_token);
-    setToken(data.access_token);
+    // Remove token from localStorage: browser automatically stores and sends HttpOnly cookie
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
 
     const userInfo: User = {
       id: data.user_id || 1,
@@ -92,7 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       is_active: true
     };
     setUser(userInfo);
-    localStorage.setItem('user', JSON.stringify(userInfo));
   };
 
   const loginWithGoogle = async (
@@ -101,8 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     localStorage.removeItem('shop_settings');
     const data = await authApi.loginWithGoogle(credential, options);
-    localStorage.setItem('token', data.access_token);
-    setToken(data.access_token);
+    // Remove token from localStorage: browser automatically stores and sends HttpOnly cookie
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
 
     const userInfo: User = {
       id: data.user_id || 1,
@@ -113,14 +92,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       is_active: true
     };
     setUser(userInfo);
-    localStorage.setItem('user', JSON.stringify(userInfo));
   };
 
   const register = async (payload: any) => {
     localStorage.removeItem('shop_settings');
     const data = await authApi.register(payload);
-    localStorage.setItem('token', data.access_token);
-    setToken(data.access_token);
+    // Remove token from localStorage: browser automatically stores and sends HttpOnly cookie
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
 
     const userInfo: User = {
       id: data.user_id,
@@ -131,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       is_active: true
     };
     setUser(userInfo);
-    localStorage.setItem('user', JSON.stringify(userInfo));
     return data;
   };
 
@@ -143,12 +122,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription_status: 'ACTIVE'
       };
       setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
     }
     return res;
   };
 
   const logout = () => {
+    void authApi.logout().catch(() => {});
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('shop_settings');
@@ -157,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!token, isLoading, login, loginWithGoogle, register, activateSubscription, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!user, isLoading, login, loginWithGoogle, register, activateSubscription, logout }}>
       {children}
     </AuthContext.Provider>
   );

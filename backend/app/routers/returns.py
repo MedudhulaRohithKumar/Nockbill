@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, desc
 from typing import List, Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.database.base import get_db
 from app.models.models import (
@@ -179,7 +179,7 @@ def process_sales_return(
                     returned_totals.get(ret_item.sale_item_id, Decimal("0")) + ret_item.returned_quantity
                 )
 
-    return_date = datetime.utcnow()
+    return_date = datetime.now(timezone.utc)
     return_number = _generate_return_number(db, return_date, shop_id)
 
     refund_subtotal = Decimal("0")

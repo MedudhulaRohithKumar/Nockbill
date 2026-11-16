@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 from sqlalchemy import inspect, text
 from app.database.base import SessionLocal, engine, Base
@@ -138,7 +138,7 @@ def seed():
         owner = db.query(User).filter(User.username == "admin").first()
 
         if db.query(Sale).count() == 0:
-            sale_date = datetime.utcnow() - timedelta(days=1)
+            sale_date = datetime.now(timezone.utc) - timedelta(days=1)
             invoice_number = f"GFA-{sale_date.strftime('%Y%m')}-00001"
             shop.invoice_counter = 2
 

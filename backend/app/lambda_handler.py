@@ -6,7 +6,7 @@ Supports dual-mode execution:
 """
 import logging
 from typing import Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from app.main import app
 from app.config.settings import settings
@@ -39,7 +39,7 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
         return {
             "status": "WARMED",
             "message": "Backend Lambda container is warm and ready",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     from app.database.base import SessionLocal
@@ -47,8 +47,8 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
 
     db = SessionLocal()
     try:
-        month = event.get("month", datetime.utcnow().month)
-        year = event.get("year", datetime.utcnow().year)
+        month = event.get("month", datetime.now(timezone.utc).month)
+        year = event.get("year", datetime.now(timezone.utc).year)
         period_str = f"{month:02d}/{year}"
 
         if action == "extract_monthly_summary":
@@ -85,7 +85,7 @@ def handle_step_function_action(event: Dict[str, Any], context: Any) -> Dict[str
             import io
             buf = io.BytesIO()
             buf.write(f"Kisan Seva Kendra - GST Summary Report for Period {period_str}\n".encode("utf-8"))
-            buf.write(f"Generated at: {datetime.utcnow().isoformat()} UTC\n".encode("utf-8"))
+            buf.write(f"Generated at: {datetime.now(timezone.utc).isoformat()} UTC\n".encode("utf-8"))
             pdf_bytes = buf.getvalue()
 
             filename = f"GST_Report_{year}_{month:02d}.pdf"

@@ -160,10 +160,16 @@ export const AppLayout: React.FC = () => {
 
       {/* Mobile Dropdown Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 top-[52px] bg-slate-900/60 backdrop-blur-sm z-40" onClick={() => setMobileMenuOpen(false)}>
-          <div 
-            className="bg-white text-slate-800 w-3/4 max-w-xs h-full p-4 flex flex-col shadow-2xl space-y-2 animate-in slide-in-from-left duration-200"
-            onClick={(e) => e.stopPropagation()}
+        <div className="md:hidden fixed inset-0 top-[52px] z-40 flex">
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            className="fixed inset-0 top-[52px] bg-slate-900/60 backdrop-blur-sm cursor-default"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside 
+            aria-label="Mobile navigation drawer"
+            className="relative z-10 bg-white text-slate-800 w-3/4 max-w-xs h-full p-4 flex flex-col shadow-2xl space-y-2 animate-in slide-in-from-left duration-200"
           >
             <div className="pb-3 border-b border-slate-100">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Signed in as</p>
@@ -202,7 +208,7 @@ export const AppLayout: React.FC = () => {
               <LogOut className="w-5 h-5" />
               <span>Logout</span>
             </button>
-          </div>
+          </aside>
         </div>
       )}
 

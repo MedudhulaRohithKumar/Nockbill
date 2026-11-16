@@ -55,13 +55,12 @@ export const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (user?.id) {
-      fetchDashboard();
+      void fetchDashboard();
     }
   }, [user?.id]);
 
   const handleOcrAddProduct = (item: any) => {
-    sessionStorage.setItem('pending_bill_item', JSON.stringify(item));
-    navigate('/billing');
+    navigate('/billing', { state: { pendingBillItem: item } });
   };
 
   return (
@@ -78,7 +77,9 @@ export const DashboardPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchDashboard}
+            onClick={() => {
+              void fetchDashboard();
+            }}
             className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-brand-700 hover:border-brand-200 transition-all active:scale-95 shadow-sm"
             title="Refresh"
           >
@@ -117,7 +118,9 @@ export const DashboardPage: React.FC = () => {
             </span>
           </div>
           <button
-            onClick={fetchDashboard}
+            onClick={() => {
+              void fetchDashboard();
+            }}
             disabled={isLoading}
             className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
           >

@@ -6,7 +6,7 @@ Provides presigned URLs for secure browser downloads.
 """
 import logging
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, Tuple
 import io
 
@@ -76,7 +76,7 @@ def build_date_wise_key(
     Fallback for general exports (without shop_id and record_id):
       YYYY/MM/DD/<filename>
     """
-    dt = file_date or datetime.utcnow()
+    dt = file_date or datetime.now(timezone.utc)
     year = dt.strftime("%Y")
     month = dt.strftime("%m")
     day = dt.strftime("%d")

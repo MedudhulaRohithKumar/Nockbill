@@ -359,19 +359,21 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           <div className="space-y-3.5 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
             {/* Label Size Selector */}
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Target Label Format
+              <label className="block">
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Target Label Format
+                </span>
+                <CustomSelect
+                  value={labelSize}
+                  onChange={(val) => setLabelSize(val as any)}
+                  options={[
+                    { value: '50x25', label: '50mm × 25mm (Standard 2"×1" Thermal Roll) - Recommended' },
+                    { value: '50x30', label: '50mm × 30mm (Large Thermal Roll with Batch)' },
+                    { value: '38x25', label: '38mm × 25mm (Compact Sticker)' },
+                    { value: 'a4_sheet', label: 'A4 Sticker Sheet (24 Labels - 3×8 Grid)' },
+                  ]}
+                />
               </label>
-              <CustomSelect
-                value={labelSize}
-                onChange={(val) => setLabelSize(val as any)}
-                options={[
-                  { value: '50x25', label: '50mm × 25mm (Standard 2"×1" Thermal Roll) - Recommended' },
-                  { value: '50x30', label: '50mm × 30mm (Large Thermal Roll with Batch)' },
-                  { value: '38x25', label: '38mm × 25mm (Compact Sticker)' },
-                  { value: 'a4_sheet', label: 'A4 Sticker Sheet (24 Labels - 3×8 Grid)' },
-                ]}
-              />
               <p className="text-[10px] text-slate-500 mt-1">
                 {LABEL_DIMENSIONS[labelSize]?.desc}
               </p>
@@ -380,7 +382,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             {/* Copies */}
             {labelSize !== 'a4_sheet' && (
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                <label htmlFor="barcode-copies-input" className="block text-[11px] font-bold text-slate-700 mb-1">
                   Number of Copies (Stickers to Print)
                 </label>
                 <div className="flex items-center gap-2">
@@ -400,11 +402,12 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                   ))}
                   <div className="flex-1 min-w-[70px]">
                     <input
+                      id="barcode-copies-input"
                       type="number"
                       min="1"
                       max="100"
                       value={copies}
-                      onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => setCopies(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
                       className="w-full px-2.5 py-1 text-xs font-bold text-center border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                       placeholder="Custom"
                     />
@@ -449,17 +452,19 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
             {/* Batch Selector if includeBatch is true */}
             {includeBatch && product.batches && product.batches.length > 0 && (
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Select Batch for Label
+                <label className="block">
+                  <span className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Select Batch for Label
+                  </span>
+                  <CustomSelect
+                    value={String(selectedBatchId || '')}
+                    onChange={(val) => setSelectedBatchId(Number.parseInt(val, 10))}
+                    options={product.batches.map(b => ({
+                      value: String(b.id),
+                      label: `Batch ${b.batch_number} (Exp: ${b.expiry_date || 'N/A'}, Stock: ${b.current_stock})`
+                    }))}
+                  />
                 </label>
-                <CustomSelect
-                  value={String(selectedBatchId || '')}
-                  onChange={(val) => setSelectedBatchId(parseInt(val))}
-                  options={product.batches.map(b => ({
-                    value: String(b.id),
-                    label: `Batch ${b.batch_number} (Exp: ${b.expiry_date || 'N/A'}, Stock: ${b.current_stock})`
-                  }))}
-                />
               </div>
             )}
           </div>

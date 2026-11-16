@@ -76,7 +76,7 @@ export const LoginPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchCaptcha();
+    void fetchCaptcha();
   }, []);
 
   // Handle URL deep links for password reset. The emailed link only identifies the
@@ -223,7 +223,7 @@ export const LoginPage: React.FC = () => {
       navigate('/billing');
     } catch (err: any) {
       // Every verification attempt burns the single-use server nonce — always issue a fresh CAPTCHA
-      fetchCaptcha();
+      void fetchCaptcha();
       if (err.response?.status === 401) {
         setError(err.response?.data?.detail || 'Incorrect username, mobile, or password.');
       } else {
@@ -523,9 +523,9 @@ export const LoginPage: React.FC = () => {
               </div>
 
               {/* Login Form */}
-              <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4" autoComplete="off">
+              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-3.5 sm:space-y-4" autoComplete="off">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="login-username" className="block text-xs font-bold text-slate-700 mb-1">
                     Email / Username / Mobile Number
                   </label>
                   <div className="relative">
@@ -533,6 +533,7 @@ export const LoginPage: React.FC = () => {
                       <UserIcon className="w-4 h-4" />
                     </div>
                     <input
+                      id="login-username"
                       type="text"
                       required
                       inputMode="text"
@@ -550,7 +551,7 @@ export const LoginPage: React.FC = () => {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label htmlFor="login-password" className="block text-xs font-bold text-slate-700">
                       Password
                     </label>
                     <button
@@ -569,6 +570,7 @@ export const LoginPage: React.FC = () => {
                       <Lock className="w-4 h-4" />
                     </div>
                     <input
+                      id="login-password"
                       type={showPassword ? 'text' : 'password'}
                       required
                       autoComplete="current-password"
@@ -590,13 +592,15 @@ export const LoginPage: React.FC = () => {
                 {/* Server-Side Cryptographic CAPTCHA Verification */}
                 <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <label htmlFor="login-captcha" className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Security Verification (CAPTCHA)</span>
                     </label>
                     <button
                       type="button"
-                      onClick={fetchCaptcha}
+                      onClick={() => {
+                        void fetchCaptcha();
+                      }}
                       disabled={captchaLoading}
                       title="Generate new security challenge"
                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-50 transition-colors"
@@ -629,6 +633,7 @@ export const LoginPage: React.FC = () => {
                     {/* Strictly Sanitized 6-Character Code Input */}
                     <div className="col-span-5 relative">
                       <input
+                        id="login-captcha"
                         type="text"
                         required
                         maxLength={6}
@@ -769,12 +774,13 @@ export const LoginPage: React.FC = () => {
 
             {/* STEP 1: IDENTIFY ACCOUNT */}
             {forgotStep === 1 && (
-              <form onSubmit={handleRequestOtp} className="space-y-4">
+              <form onSubmit={(e) => { void handleRequestOtp(e); }} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="forgot-identifier" className="block text-xs font-bold text-slate-700 mb-1">
                     Registered Email / Username / Mobile
                   </label>
                   <input
+                    id="forgot-identifier"
                     type="text"
                     required
                     value={forgotIdentifier}
@@ -803,7 +809,7 @@ export const LoginPage: React.FC = () => {
 
             {/* STEP 2: VERIFY 6-DIGIT OTP ONLY */}
             {forgotStep === 2 && (
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <form onSubmit={(e) => { void handleVerifyOtp(e); }} className="space-y-4">
                 {emailSentStatus ? (
                   <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800 space-y-1">
                     <p className="font-semibold flex items-center gap-1.5">
@@ -839,7 +845,7 @@ export const LoginPage: React.FC = () => {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-700">
+                    <label htmlFor="forgot-otp" className="block text-xs font-bold text-slate-700">
                       6-Digit Verification Code
                     </label>
                     <span className="text-[11px] font-mono text-slate-400">
@@ -847,6 +853,7 @@ export const LoginPage: React.FC = () => {
                     </span>
                   </div>
                   <input
+                    id="forgot-otp"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]{6}"
@@ -869,7 +876,9 @@ export const LoginPage: React.FC = () => {
                   <button
                     type="button"
                     disabled={resendCooldown > 0 || forgotLoading}
-                    onClick={handleResendOtp}
+                    onClick={() => {
+                      void handleResendOtp();
+                    }}
                     className="font-bold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${forgotLoading ? 'animate-spin' : ''}`} />
@@ -911,18 +920,19 @@ export const LoginPage: React.FC = () => {
 
             {/* STEP 3: SET NEW PASSWORD (ONLY AFTER OTP IS VERIFIED) */}
             {forgotStep === 3 && (
-              <form onSubmit={handleResetPassword} className="space-y-4">
+              <form onSubmit={(e) => { void handleResetPassword(e); }} className="space-y-4">
                 <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Code verified for <strong>{maskedTarget || forgotIdentifier}</strong></span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="forgot-new-password" className="block text-xs font-bold text-slate-700 mb-1">
                     New Master Password
                   </label>
                   <div className="relative">
                     <input
+                      id="forgot-new-password"
                       type={showNewPassword ? 'text' : 'password'}
                       required
                       minLength={6}
@@ -943,10 +953,11 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="forgot-confirm-password" className="block text-xs font-bold text-slate-700 mb-1">
                     Confirm New Password
                   </label>
                   <input
+                    id="forgot-confirm-password"
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     minLength={6}

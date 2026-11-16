@@ -8,7 +8,7 @@ Covers:
 """
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
@@ -164,7 +164,7 @@ def _render_email_wrapper(content_html: str, preview_text: str = "") -> str:
             <td style="background-color: #f8fafc; padding: 20px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="color: #94a3b8; font-size: 11px; line-height: 1.6; margin: 0;">
                 This is an automated system notification from <strong>{sender}</strong>.<br>
-                &copy; {datetime.utcnow().year} NockBill Solutions. All rights reserved.<br>
+                &copy; {datetime.now(timezone.utc).year} NockBill Solutions. All rights reserved.<br>
                 Secure Cloud Infrastructure powered by Amazon Web Services.
               </p>
             </td>
@@ -296,7 +296,7 @@ def send_password_reset_confirmation_email(
     """
     subject = f"🛡️ Security Notice: Password changed for your NockBill account ({username})"
     login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
-    timestamp_str = datetime.utcnow().strftime("%d %b %Y, %H:%M UTC")
+    timestamp_str = datetime.now(timezone.utc).strftime("%d %b %Y, %H:%M UTC")
 
     text_body = (
         f"Hello {recipient_name},\n\n"

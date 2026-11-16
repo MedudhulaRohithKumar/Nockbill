@@ -2,7 +2,7 @@
 Invoice & Report download routes with AWS S3 date-wise storage and presigned URLs.
 """
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, RedirectResponse
@@ -42,7 +42,7 @@ def download_invoice_pdf(
         shop = ShopSettings(shop_name="NockBill Solutions")
 
     filename = f"Invoice_{sale.invoice_number}.pdf"
-    file_date = sale.sale_date or datetime.utcnow()
+    file_date = sale.sale_date or datetime.now(timezone.utc)
     disposition = "inline" if inline else "attachment"
 
     # If S3 is enabled, upload to scoped customer folder and optionally redirect to presigned URL
@@ -99,7 +99,7 @@ def get_invoice_s3_url(
         shop = ShopSettings(shop_name="NockBill Solutions")
 
     filename = f"Invoice_{sale.invoice_number}.pdf"
-    file_date = sale.sale_date or datetime.utcnow()
+    file_date = sale.sale_date or datetime.now(timezone.utc)
     key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
 
     if regenerate or not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
@@ -149,7 +149,7 @@ def download_purchase_pdf(
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"
-    file_date = purchase.purchase_date or datetime.utcnow()
+    file_date = purchase.purchase_date or datetime.now(timezone.utc)
 
     if settings.s3_enabled:
         key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
@@ -203,7 +203,7 @@ def get_purchase_s3_url(
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
     filename = f"Purchase_{inv_name}.pdf"
-    file_date = purchase.purchase_date or datetime.utcnow()
+    file_date = purchase.purchase_date or datetime.now(timezone.utc)
     key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
 
     if not check_report_exists_in_s3(key, ReportCategory.PURCHASE_BILL):

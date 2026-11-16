@@ -63,7 +63,7 @@ export const PurchasesPage: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { void loadData(); }, []);
 
   const handleAddItemRow = () => {
     const firstProd = products[0];
@@ -118,7 +118,7 @@ export const PurchasesPage: React.FC = () => {
     try {
       await purchasesApi.create(payload);
       setIsModalOpen(false);
-      loadData();
+      void loadData();
     } catch {
       setPurchases([{ id: Date.now(), supplier_name: supplierName, supplier_gstin: supplierGstin, bill_number: billNumber, bill_date: billDate, total_amount: total, total_tax: Math.round(total * 0.05), status: 'Received', items: items as PurchaseItem[] }, ...purchases]);
       setIsModalOpen(false);
@@ -281,20 +281,22 @@ export const PurchasesPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSavePurchase} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1">
+            <form onSubmit={(e) => { void handleSavePurchase(e); }} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1">
               {/* Supplier Info — stacked on mobile, 2-col on sm */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name *</label>
+                  <label htmlFor="purchase-supplier-name" className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name *</label>
                   <input
+                    id="purchase-supplier-name"
                     type="text" required value={supplierName}
                     onChange={(e) => setSupplierName(e.target.value)}
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Supplier GSTIN</label>
+                  <label htmlFor="purchase-supplier-gstin" className="block font-semibold text-slate-700 mb-1">Supplier GSTIN</label>
                   <input
+                    id="purchase-supplier-gstin"
                     type="text" value={supplierGstin}
                     onChange={(e) => setSupplierGstin(e.target.value)}
                     className="w-full px-3 py-2.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
@@ -304,16 +306,18 @@ export const PurchasesPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Invoice Number *</label>
+                  <label htmlFor="purchase-bill-number" className="block font-semibold text-slate-700 mb-1">Invoice Number *</label>
                   <input
+                    id="purchase-bill-number"
                     type="text" required value={billNumber}
                     onChange={(e) => setBillNumber(e.target.value)}
                     className="w-full px-3 py-2.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Invoice Date</label>
+                  <label htmlFor="purchase-bill-date" className="block font-semibold text-slate-700 mb-1">Invoice Date</label>
                   <input
+                    id="purchase-bill-date"
                     type="date" required value={billDate}
                     onChange={(e) => setBillDate(e.target.value)}
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm"
@@ -338,8 +342,9 @@ export const PurchasesPage: React.FC = () => {
                   <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Product / Technical Name *</label>
+                        <label htmlFor={`purchase-prod-name-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Product / Technical Name *</label>
                         <input
+                          id={`purchase-prod-name-${idx}`}
                           type="text"
                           required
                           maxLength={150}
@@ -355,8 +360,9 @@ export const PurchasesPage: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Company / Brand</label>
+                        <label htmlFor={`purchase-company-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Company / Brand</label>
                         <input
+                          id={`purchase-company-${idx}`}
                           type="text"
                           maxLength={120}
                           value={item.company_name || ''}
@@ -375,10 +381,11 @@ export const PurchasesPage: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] font-bold text-emerald-800 mb-0.5">
+                        <label htmlFor={`purchase-trade-${idx}`} className="block text-[10px] font-bold text-emerald-800 mb-0.5">
                           Trade Name (Product + Brand Combination)
                         </label>
                         <input
+                          id={`purchase-trade-${idx}`}
                           type="text"
                           maxLength={150}
                           value={item.trade_name || ''}
@@ -392,8 +399,9 @@ export const PurchasesPage: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Batch No.</label>
+                        <label htmlFor={`purchase-batch-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Batch No.</label>
                         <input
+                          id={`purchase-batch-${idx}`}
                           type="text"
                           maxLength={60}
                           value={item.batch_number || ''}
@@ -405,24 +413,27 @@ export const PurchasesPage: React.FC = () => {
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Qty (Bags)</label>
+                        <label htmlFor={`purchase-qty-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Qty (Bags)</label>
                         <input
+                          id={`purchase-qty-${idx}`}
                           type="number" value={item.quantity || 1}
-                          onChange={(e) => { const up = [...items]; const q = parseInt(e.target.value) || 1; up[idx].quantity = q; up[idx].total_amount = q * (up[idx].purchase_price || 0); setItems(up); }}
+                          onChange={(e) => { const up = [...items]; const q = Number.parseInt(e.target.value, 10) || 1; up[idx].quantity = q; up[idx].total_amount = q * (up[idx].purchase_price || 0); setItems(up); }}
                           className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-bold"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Cost Price (₹)</label>
+                        <label htmlFor={`purchase-cost-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Cost Price (₹)</label>
                         <input
+                          id={`purchase-cost-${idx}`}
                           type="number" value={item.purchase_price || 0}
-                          onChange={(e) => { const up = [...items]; const p = parseFloat(e.target.value) || 0; up[idx].purchase_price = p; up[idx].total_amount = (up[idx].quantity || 1) * p; setItems(up); }}
+                          onChange={(e) => { const up = [...items]; const p = Number.parseFloat(e.target.value) || 0; up[idx].purchase_price = p; up[idx].total_amount = (up[idx].quantity || 1) * p; setItems(up); }}
                           className="w-full px-2.5 py-2 border border-slate-300 rounded-lg text-xs font-bold"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Line Total (₹)</label>
+                        <label htmlFor={`purchase-total-${idx}`} className="block text-[10px] font-semibold text-slate-600 mb-0.5">Line Total (₹)</label>
                         <input
+                          id={`purchase-total-${idx}`}
                           type="text" readOnly
                           value={`₹${(item.total_amount || 0).toFixed(2)}`}
                           className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-black text-brand-900"

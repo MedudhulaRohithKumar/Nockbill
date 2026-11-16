@@ -3,9 +3,39 @@ OCR service — extracts structured product information from raw OCR text.
 Specially tuned for Indian fertilizer bags, pesticide bottles, and agri invoices.
 """
 import re
+from dataclasses import dataclass, field
 from typing import Optional, Tuple
-from app.schemas.schemas import OcrResult, OcrConfidence
 from app.utils.helpers import normalize_date
+
+try:
+    from app.schemas.schemas import OcrResult, OcrConfidence
+except ImportError:
+    @dataclass
+    class OcrConfidence:  # type: ignore[no-redef]
+        product_name: float = 0.0
+        net_content: float = 0.0
+        unit: float = 0.0
+        price: float = 0.0
+        company_name: float = 0.0
+        manufacture_date: float = 0.0
+        expiry_date: float = 0.0
+        gst_rate: float = 0.0
+
+    @dataclass
+    class OcrResult:  # type: ignore[no-redef]
+        product_name: Optional[str] = None
+        batch_number: Optional[str] = None
+        quantity: int = 1
+        net_content: Optional[str] = None
+        unit: str = "Bags"
+        price: float = 0.0
+        company_name: Optional[str] = None
+        manufacture_date: Optional[str] = None
+        expiry_date: Optional[str] = None
+        hsn_code: Optional[str] = "31021000"
+        gst_rate: float = 5.0
+        raw_text: str = ""
+        confidence: OcrConfidence = field(default_factory=OcrConfidence)
 
 
 # ─── Field extraction helpers ────────────────────────────────────────────────
@@ -80,7 +110,7 @@ def _find_product_name(text: str) -> Tuple[Optional[str], float]:
     # 2. Fallback: First prominent non-numeric string line
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     for line in lines:
-        if len(line) >= 4 and not re.match(r"^[\d\s\.\:\-\/]+$", line):
+        if len(line) >= 4 and not all(c.isdigit() or c in " .:-/" for c in line):
             # Exclude lines that are pure headers like "NET WT" or "BATCH NO"
             if not any(hdr in line.upper() for hdr in ["BATCH", "EXPIRY", "MFG", "PRICE", "NET WT", "HSN"]):
                 return line[:80], 0.60
@@ -91,7 +121,7 @@ def _find_product_name(text: str) -> Tuple[Optional[str], float]:
 def _find_batch_number(text: str) -> Tuple[Optional[str], float]:
     """Find batch or lot number from text."""
     patterns = [
-        (r"(?:BATCH|B\.?\s*NO|LOT|B\/N|B\.N\.?)\s*[:\-]?\s*([A-Z0-9\-\/]{3,25})", 0.95),
+        (r"\b(?:BATCH|LOT|B\/N|B\.?\s{0,3}N(?:O\.?|\.)?)\s{0,5}(?:[:\-]\s{0,5})?([A-Z0-9][A-Z0-9\-\/]{2,24})", 0.95),
         (r"\b([A-Z]{2,4}\-\d{4,8}\-[A-Z0-9]{1,4})\b", 0.85),
         (r"\b([A-Z]{3,5}\-\d{3,8})\b", 0.75),
     ]
@@ -107,11 +137,16 @@ def _find_batch_number(text: str) -> Tuple[Optional[str], float]:
 def _find_price(text: str) -> Tuple[Optional[float], float]:
     """Return (mrp, confidence)."""
     patterns = [
-        (r"M\.?R\.?P\.?\s*[:\-]?\s*(?:INCL\.?\s*ALL\s*TAXES)?\s*[:\-]?\s*(?:RS\.?|₹|INR)?\s*(\d+(?:\.\d{1,2})?)", 0.95),
-        (r"(?:RS\.?|₹|INR)\s*[:\-]?\s*(\d+(?:\.\d{1,2})?)", 0.85),
-        (r"PRICE\s*[:\-]?\s*(\d+(?:\.\d{1,2})?)", 0.75),
-        (r"RATE\s*[:\-]?\s*(\d+(?:\.\d{1,2})?)", 0.65),
-        (r"(\d+(?:\.\d{1,2})?)\s*\/\-", 0.70),
+        (
+            r"M\.?R\.?P\.?\s{0,5}(?:[:\-]\s{0,5})?"
+            r"(?:INCL\.?\s{1,5}ALL\s{1,5}TAXES\s{0,5}(?:[:\-]\s{0,5})?)?"
+            r"(?:(?:RS\.?|₹|INR)\s{0,5})?(\d{1,7}(?:\.\d{1,2})?)",
+            0.95,
+        ),
+        (r"(?:RS\.?|₹|INR)\s{0,5}(?:[:\-]\s{0,5})?(\d{1,7}(?:\.\d{1,2})?)", 0.85),
+        (r"\bPRICE\s{0,5}(?:[:\-]\s{0,5})?(\d{1,7}(?:\.\d{1,2})?)", 0.75),
+        (r"\bRATE\s{0,5}(?:[:\-]\s{0,5})?(\d{1,7}(?:\.\d{1,2})?)", 0.65),
+        (r"(?<!\d)(\d{1,7}(?:\.\d{1,2})?)\s{0,5}\/\-", 0.70),
     ]
     for pattern, conf in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
@@ -128,9 +163,13 @@ def _find_price(text: str) -> Tuple[Optional[float], float]:
 def _find_net_content(text: str) -> Tuple[Optional[str], Optional[str], float]:
     """Return (value_str, unit, confidence)."""
     patterns = [
-        (r"NET\s*(?:CONTENT|WT\.?|WEIGHT|QTY)?\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*(ML|L|LITRE|LITER|LTR|KG|G|GM|GRAM|BAG|BOTTLE|PACKET|PACK|KGS)", 0.95),
-        (r"(\d+(?:\.\d+)?)\s*(KG|KGS|ML|LITRE|LITER|LTR|GRAM|GM|BAG|BOTTLE)\b", 0.85),
-        (r"(\d+(?:\.\d+)?)\s*(G|L)\b", 0.65),
+        (
+            r"\bNET\s{0,5}(?:(?:CONTENT|WEIGHT|WT\.?|QTY)\s{0,5})?(?:[:\-]\s{0,5})?"
+            r"(\d{1,6}(?:\.\d{1,3})?)\s{0,5}(ML|LITRE|LITER|LTR|L|KGS|KG|GRAM|GM|G|BAG|BOTTLE|PACKET|PACK)\b",
+            0.95,
+        ),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}(KGS|KG|ML|LITRE|LITER|LTR|GRAM|GM|BAG|BOTTLE)\b", 0.85),
+        (r"(?<!\d)(\d{1,6}(?:\.\d{1,3})?)\s{0,5}(G|L)\b", 0.65),
     ]
     for pattern, conf in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
@@ -149,11 +188,12 @@ def _find_net_content(text: str) -> Tuple[Optional[str], Optional[str], float]:
 def _find_date(text: str, keywords: list[str]) -> Tuple[Optional[str], float]:
     """Return (YYYY-MM-DD or YYYY-MM, confidence)."""
     kw_pattern = "|".join(re.escape(k) for k in keywords)
+    prefix = rf"\b(?:{kw_pattern})\b\.?(?:\s{{1,5}}DATE)?\s{{0,5}}(?:[:\-]\s{{0,5}})?"
     patterns = [
-        rf"(?:{kw_pattern})(?:\s+DATE)?\s*[:\-]?\s*(\d{{1,2}}[/\-.]\d{{1,2}}[/\-.]\d{{2,4}})",
-        rf"(?:{kw_pattern})(?:\s+DATE)?\s*[:\-]?\s*(\d{{1,2}}[/\-.]\d{{4}})",
-        rf"(?:{kw_pattern})(?:\s+DATE)?\s*[:\-]?\s*(\d{{4}}[/\-.]\d{{1,2}})",
-        rf"(?:{kw_pattern})(?:\s+DATE)?\s*[:\-]?\s*([A-Za-z]{{3,9}}\s+\d{{4}})",
+        rf"{prefix}(\d{{1,2}}[/\-.]\d{{1,2}}[/\-.]\d{{2,4}})",
+        rf"{prefix}(\d{{1,2}}[/\-.]\d{{4}})",
+        rf"{prefix}(\d{{4}}[/\-.]\d{{1,2}})",
+        rf"{prefix}([A-Za-z]{{3,9}}\s{{1,5}}\d{{4}})",
     ]
     for pattern in patterns:
         m = re.search(pattern, text, re.IGNORECASE)
@@ -182,7 +222,7 @@ def _find_company(text: str) -> Tuple[Optional[str], float]:
 
 def _find_hsn(text: str) -> Tuple[Optional[str], float]:
     """Find HSN code from text."""
-    m = re.search(r"(?:HSN|SAC)\s*(?:CODE)?\s*[:\-]?\s*(\d{4,8})", text, re.IGNORECASE)
+    m = re.search(r"\b(?:HSN|SAC)\s{0,5}(?:CODE\s{0,5})?(?:[:\-]\s{0,5})?(\d{4,8})\b", text, re.IGNORECASE)
     if m:
         return m.group(1), 0.90
     
@@ -204,9 +244,9 @@ def _find_hsn(text: str) -> Tuple[Optional[str], float]:
 
 def _find_gst(text: str) -> Tuple[Optional[float], float]:
     patterns = [
-        r"GST\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*%",
-        r"IGST\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*%",
-        r"TAX\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\bGST\s{0,5}(?:[:\-]\s{0,5})?(\d{1,2}(?:\.\d{1,2})?)\s{0,3}%",
+        r"\bIGST\s{0,5}(?:[:\-]\s{0,5})?(\d{1,2}(?:\.\d{1,2})?)\s{0,3}%",
+        r"\bTAX\s{0,5}(?:[:\-]\s{0,5})?(\d{1,2}(?:\.\d{1,2})?)\s{0,3}%",
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
@@ -242,10 +282,10 @@ def extract_product_details(raw_text: str) -> OcrResult:
     price, price_conf = _find_price(text)
     net_val, net_unit, content_conf = _find_net_content(text)
     mfg_date, mfg_conf = _find_date(
-        text, ["MFG", "MFD", "MANUFACTURED", "DATE OF MFG", "DOM", "MFG."]
+        text, ["MANUFACTURED", "DATE OF MFG", "MFG", "MFD", "DOM"]
     )
     exp_date, exp_conf = _find_date(
-        text, ["EXP", "EXPIRY", "BEST BEFORE", "USE BY", "BB", "VALID UPTO", "EXP."]
+        text, ["BEST BEFORE", "VALID UPTO", "EXPIRY", "USE BY", "EXP", "BB"]
     )
     company, company_conf = _find_company(text)
     hsn, hsn_conf = _find_hsn(text)

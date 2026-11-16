@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, desc
 from typing import List, Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from app.routers.products import serialize_product
 from app.database.base import get_db
 from app.models.models import (
@@ -118,7 +118,7 @@ def create_sale(
         current_user.shop_id = shop.id
 
     # ── Generate guaranteed unique invoice number for this shop ─
-    sale_date = datetime.utcnow()
+    sale_date = datetime.now(timezone.utc)
     while True:
         invoice_number = generate_invoice_number(
             shop.invoice_prefix, shop.invoice_counter, sale_date
@@ -290,7 +290,7 @@ def serialize_sale(s: Sale) -> dict:
     sub = float(s.subtotal or 0)
     gst = float(s.gst_amount or 0)
     half_gst = round(gst / 2.0, 2)
-    s_date = s.sale_date.isoformat() if s.sale_date else datetime.utcnow().isoformat()
+    s_date = s.sale_date.isoformat() if s.sale_date else datetime.now(timezone.utc).isoformat()
     p_mode = s.payment_method.value if hasattr(s.payment_method, "value") else str(s.payment_method or "Cash")
     return {
         "id": s.id,

@@ -61,7 +61,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
   useEffect(() => {
     if (isOpen && activeTab === 'camera') {
-      startCamera();
+      void startCamera();
     } else {
       stopCamera();
     }
@@ -81,7 +81,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
         setIsStreamActive(true);
       }
     } catch (err: any) {
@@ -116,7 +116,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       canvas.toBlob((blob) => {
         if (blob) {
           const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
-          processImageFile(file);
+          void processImageFile(file);
         }
       }, 'image/jpeg', 0.85);
     }
@@ -132,7 +132,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     };
     reader.readAsDataURL(file);
 
-    processImageFile(file);
+    void processImageFile(file);
   };
 
   const processImageFile = async (file: File) => {
@@ -141,7 +141,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
     try {
       const result: any = await ocrApi.scanImage(file);
       setCandidate(result);
-      applyCandidateToForm(result);
+      await applyCandidateToForm(result);
     } catch (err: any) {
       console.error('OCR scan failed:', err);
       const errorMsg = err.response?.data?.detail || err.message || 'Unable to read photo. Retake photo with clear lighting.';
@@ -237,7 +237,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       setCapturedImage('https://images.unsplash.com/photo-1585314062340-f1a5a7c9328d?w=500&auto=format&fit=crop&q=60');
     }
     setCandidate(sample);
-    applyCandidateToForm(sample);
+    void applyCandidateToForm(sample);
   };
 
   const handleConfirmAdd = () => {
@@ -316,7 +316,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
         {/* Tab selection */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-4 pt-2">
           <button
-            onClick={() => { setActiveTab('camera'); startCamera(); }}
+            onClick={() => { setActiveTab('camera'); void startCamera(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${
               activeTab === 'camera'
                 ? 'border-brand-700 text-brand-800 bg-white rounded-t-lg shadow-sm'
@@ -527,7 +527,7 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   onClick={() => {
                     setCandidate(null);
                     setCapturedImage(null);
-                    if (activeTab === 'camera') startCamera();
+                    if (activeTab === 'camera') void startCamera();
                   }}
                   className="text-emerald-700 underline hover:text-emerald-900 font-semibold"
                 >
@@ -558,10 +558,11 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                 <div className={`${capturedImage ? 'sm:col-span-8' : 'sm:col-span-12'} space-y-3`}>
                   {/* Product Name */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="ocr-product-name" className="block text-xs font-semibold text-slate-700 mb-1">
                       Product Name *
                     </label>
                     <input
+                      id="ocr-product-name"
                       type="text"
                       value={formName}
                       onChange={(e) => setFormName(e.target.value)}
@@ -572,10 +573,11 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   <div className="grid grid-cols-2 gap-2.5">
                     {/* Batch Number */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-batch-no" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Batch No.
                       </label>
                       <input
+                        id="ocr-batch-no"
                         type="text"
                         value={formBatch}
                         onChange={(e) => setFormBatch(e.target.value)}
@@ -585,10 +587,11 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
                     {/* Expiry Date */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-expiry-date" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Expiry Date
                       </label>
                       <input
+                        id="ocr-expiry-date"
                         type="date"
                         value={formExpiry}
                         onChange={(e) => setFormExpiry(e.target.value)}
@@ -600,43 +603,46 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   <div className="grid grid-cols-3 gap-2.5">
                     {/* MRP */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-mrp" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         MRP (₹)
                       </label>
                       <input
+                        id="ocr-mrp"
                         type="number"
                         step="0.5"
                         value={formMrp}
-                        onChange={(e) => setFormMrp(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setFormMrp(Number.parseFloat(e.target.value) || 0)}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
                       />
                     </div>
 
                     {/* Selling Price */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-selling-rate" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Selling Rate (₹) *
                       </label>
                       <input
+                        id="ocr-selling-rate"
                         type="number"
                         step="0.5"
                         value={formPrice}
-                        onChange={(e) => setFormPrice(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setFormPrice(Number.parseFloat(e.target.value) || 0)}
                         className="w-full px-2.5 py-1.5 text-xs font-bold text-brand-800 border border-brand-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none bg-brand-50/40"
                       />
                     </div>
 
                     {/* Quantity */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-quantity" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         Quantity
                       </label>
                       <div className="flex items-center">
                         <input
+                          id="ocr-quantity"
                           type="number"
                           min="1"
                           value={formQty}
-                          onChange={(e) => setFormQty(parseInt(e.target.value) || 1)}
+                          onChange={(e) => setFormQty(Number.parseInt(e.target.value, 10) || 1)}
                           className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none"
                         />
                       </div>
@@ -646,10 +652,11 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
                   <div className="grid grid-cols-3 gap-2.5">
                     {/* HSN */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      <label htmlFor="ocr-hsn-code" className="block text-[11px] font-semibold text-slate-700 mb-0.5">
                         HSN Code
                       </label>
                       <input
+                        id="ocr-hsn-code"
                         type="text"
                         value={formHsn}
                         onChange={(e) => setFormHsn(e.target.value)}
@@ -659,40 +666,44 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
 
                     {/* GST Rate */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        GST Rate %
+                      <label className="block">
+                        <span className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          GST Rate %
+                        </span>
+                        <CustomSelect
+                          value={String(formGst)}
+                          onChange={(val) => setFormGst(Number.parseInt(val, 10))}
+                          size="sm"
+                          options={[
+                            { value: "0", label: "0% (Exempt)" },
+                            { value: "5", label: "5% (Fertilizers)" },
+                            { value: "12", label: "12%" },
+                            { value: "18", label: "18% (Pesticides)" },
+                            { value: "28", label: "28%" },
+                          ]}
+                        />
                       </label>
-                      <CustomSelect
-                        value={String(formGst)}
-                        onChange={(val) => setFormGst(parseInt(val))}
-                        size="sm"
-                        options={[
-                          { value: "0", label: "0% (Exempt)" },
-                          { value: "5", label: "5% (Fertilizers)" },
-                          { value: "12", label: "12%" },
-                          { value: "18", label: "18% (Pesticides)" },
-                          { value: "28", label: "28%" },
-                        ]}
-                      />
                     </div>
 
                     {/* Unit */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                        Unit
+                      <label className="block">
+                        <span className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                          Unit
+                        </span>
+                        <CustomSelect
+                          value={formUnit}
+                          onChange={(val) => setFormUnit(val)}
+                          size="sm"
+                          options={[
+                            { value: "Bags", label: "Bags" },
+                            { value: "Kg", label: "Kg" },
+                            { value: "Litres", label: "Litres" },
+                            { value: "Bottles", label: "Bottles" },
+                            { value: "Packets", label: "Packets" },
+                          ]}
+                        />
                       </label>
-                      <CustomSelect
-                        value={formUnit}
-                        onChange={(val) => setFormUnit(val)}
-                        size="sm"
-                        options={[
-                          { value: "Bags", label: "Bags" },
-                          { value: "Kg", label: "Kg" },
-                          { value: "Litres", label: "Litres" },
-                          { value: "Bottles", label: "Bottles" },
-                          { value: "Packets", label: "Packets" },
-                        ]}
-                      />
                     </div>
                   </div>
                 </div>

@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 from jwt.exceptions import PyJWTError, InvalidTokenError
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Depends, HTTPException, status, Query, Cookie, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.config.settings import settings
@@ -25,7 +25,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
     to_encode.update({"exp": expire})
@@ -69,13 +69,24 @@ def _get_user_from_token_str(token: str, db: Session) -> Optional[User]:
 
 
 def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    access_token: Optional[str] = Cookie(None),
     token: Optional[str] = Query(None, description="Auth token via query parameter"),
     db: Session = Depends(get_db),
 ) -> User:
-    """Strict authentication: checks Authorization Bearer header or ?token= query parameter."""
+    """
+    Hybrid authentication:
+    1. Checks HttpOnly 'access_token' cookie (primary for secure web browsers, immune to XSS).
+    2. Checks Authorization Bearer header (for mobile apps, CLI, API integrations).
+    3. Checks ?token= query parameter (for direct file/PDF preview downloads).
+    """
     token_str = None
-    if credentials and credentials.credentials:
+    if access_token:
+        token_str = access_token
+    elif request and request.cookies.get("access_token"):
+        token_str = request.cookies.get("access_token")
+    elif credentials and credentials.credentials:
         token_str = credentials.credentials
     elif token:
         token_str = token
@@ -94,13 +105,19 @@ def get_current_user(
 
 
 def get_current_user_optional(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    access_token: Optional[str] = Cookie(None),
     token: Optional[str] = Query(None, description="Auth token via query parameter"),
     db: Session = Depends(get_db),
 ) -> Optional[User]:
     """Optional authentication: returns active User if authenticated, else None without 401 error."""
     token_str = None
-    if credentials and credentials.credentials:
+    if access_token:
+        token_str = access_token
+    elif request and request.cookies.get("access_token"):
+        token_str = request.cookies.get("access_token")
+    elif credentials and credentials.credentials:
         token_str = credentials.credentials
     elif token:
         token_str = token

@@ -84,7 +84,7 @@ async def extract_from_image(
     if matched:
         from app.schemas.schemas import ProductResponse
         result.matched_product = ProductResponse.model_validate(matched)
-        if not result.price or result.price == 0.0:
+        if not result.price or result.price <= 0:
             result.price = float(matched.selling_price) if matched.selling_price else 0.0
         if not result.selling_price:
             result.selling_price = float(matched.selling_price) if matched.selling_price else 0.0

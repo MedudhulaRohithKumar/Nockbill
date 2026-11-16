@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Scan, 
   Search, 
@@ -55,14 +55,15 @@ const getSellableBatches = (product: Product): ProductBatch[] => {
   if (batches.length === 0) return [];
   const sellable = batches.length === 1 ? batches : batches.filter(b => b.current_stock > 0);
   const expiryTime = (b: ProductBatch) => {
-    const t = b.expiry_date ? new Date(b.expiry_date).getTime() : NaN;
-    return isNaN(t) ? Number.POSITIVE_INFINITY : t;
+    const t = b.expiry_date ? new Date(b.expiry_date).getTime() : Number.NaN;
+    return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
   };
   return [...sellable].sort((a, b) => expiryTime(a) - expiryTime(b));
 };
 
 export const BillingPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { settings } = useShop();
 
@@ -125,19 +126,15 @@ export const BillingPage: React.FC = () => {
 
   useEffect(() => {
     if (user?.id) {
-      loadData();
+      void loadData();
     }
 
-    // Check if there is an OCR-scanned item passed from Dashboard
-    const pendingItemStr = sessionStorage.getItem('pending_bill_item');
-    if (pendingItemStr) {
-      try {
-        const item = JSON.parse(pendingItemStr);
-        addItemToCart(item);
-        sessionStorage.removeItem('pending_bill_item');
-      } catch {}
+    // Check if there is an OCR-scanned item passed from Dashboard via router state
+    const pendingItem = (location.state as any)?.pendingBillItem;
+    if (pendingItem) {
+      addItemToCart(pendingItem);
     }
-  }, [user?.id]);
+  }, [user?.id, location.state]);
 
   // Search filter
   useEffect(() => {
@@ -208,7 +205,9 @@ export const BillingPage: React.FC = () => {
   useEffect(() => {
     const code = barcodeInput.trim();
     if (!/^\d{5}$/.test(code)) return;
-    const timer = setTimeout(() => handleBarcodeLookup(code), 400);
+    const timer = setTimeout(() => {
+      void handleBarcodeLookup(code);
+    }, 400);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barcodeInput]);
@@ -507,7 +506,7 @@ export const BillingPage: React.FC = () => {
 
     // Build and validate payment details for split payment
     let splitsToSave = [...paymentSplits];
-    if (splitsToSave.length === 1 && (splitsToSave[0].amount <= 0 || isNaN(splitsToSave[0].amount))) {
+    if (splitsToSave.length === 1 && (splitsToSave[0].amount <= 0 || Number.isNaN(splitsToSave[0].amount))) {
       splitsToSave = [{ method: splitsToSave[0].method, amount: roundedGrandTotal }];
     } else if (splitsToSave.length > 1) {
       const splitSum = splitsToSave.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
@@ -692,7 +691,7 @@ export const BillingPage: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleBarcodeLookup();
+                      void handleBarcodeLookup();
                     }
                   }}
                   inputMode="numeric"
@@ -701,7 +700,9 @@ export const BillingPage: React.FC = () => {
                 />
                 <button
                   type="button"
-                  onClick={() => handleBarcodeLookup()}
+                  onClick={() => {
+                    void handleBarcodeLookup();
+                  }}
                   className="absolute right-1.5 top-1.5 bottom-1.5 px-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[11px] font-bold"
                 >
                   Lookup
@@ -883,7 +884,7 @@ export const BillingPage: React.FC = () => {
                               type="number"
                               min="1"
                               value={item.quantity}
-                              onChange={(e) => updateCartItemQty(idx, parseInt(e.target.value) || 1)}
+                              onChange={(e) => updateCartItemQty(idx, Number.parseInt(e.target.value, 10) || 1)}
                               className="w-12 h-9 text-center font-bold text-sm text-slate-900 focus:outline-none bg-transparent"
                             />
                             <button
@@ -903,7 +904,7 @@ export const BillingPage: React.FC = () => {
                               type="number"
                               step="0.5"
                               value={item.unit_price}
-                              onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
+                              onChange={(e) => updateCartItemPrice(idx, Number.parseFloat(e.target.value) || 0)}
                               className="w-20 text-right px-2 py-1.5 border border-slate-300 rounded-lg font-bold text-xs bg-white text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                             />
                           </div>
@@ -971,7 +972,7 @@ export const BillingPage: React.FC = () => {
                                   type="number"
                                   min="1"
                                   value={item.quantity}
-                                  onChange={(e) => updateCartItemQty(idx, parseInt(e.target.value) || 1)}
+                                  onChange={(e) => updateCartItemQty(idx, Number.parseInt(e.target.value, 10) || 1)}
                                   className="w-10 text-center font-bold text-xs focus:outline-none"
                                 />
                                 <button
@@ -988,7 +989,7 @@ export const BillingPage: React.FC = () => {
                                 type="number"
                                 step="0.5"
                                 value={item.unit_price}
-                                onChange={(e) => updateCartItemPrice(idx, parseFloat(e.target.value) || 0)}
+                                onChange={(e) => updateCartItemPrice(idx, Number.parseFloat(e.target.value) || 0)}
                                 className="w-20 text-right px-1.5 py-1 border border-slate-200 rounded font-semibold text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                               />
                             </td>
@@ -1166,7 +1167,7 @@ export const BillingPage: React.FC = () => {
                           step="1"
                           min="0"
                           value={split.amount || ''}
-                          onChange={(e) => updateSplitAmount(idx, parseFloat(e.target.value) || 0)}
+                          onChange={(e) => updateSplitAmount(idx, Number.parseFloat(e.target.value) || 0)}
                           placeholder={paymentSplits.length === 1 ? String(roundedGrandTotal) : '0'}
                           className="w-full pl-7 pr-2.5 py-1.5 text-xs font-black text-emerald-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                         />
@@ -1262,7 +1263,9 @@ export const BillingPage: React.FC = () => {
 
             {/* Final Save & Print Invoice Button */}
             <button
-              onClick={handleSaveAndPrint}
+              onClick={() => {
+                void handleSaveAndPrint();
+              }}
               disabled={cart.length === 0 || isSaving}
               className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 active:scale-95 transition-all text-sm disabled:opacity-50 disabled:pointer-events-none"
             >
@@ -1286,7 +1289,9 @@ export const BillingPage: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={handleSaveAndPrint}
+            onClick={() => {
+              void handleSaveAndPrint();
+            }}
             disabled={isSaving}
             className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-1.5 text-xs shadow-lg shadow-emerald-950/40 active:scale-95 transition-all shrink-0"
           >

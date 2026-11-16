@@ -273,12 +273,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Fast preflight response
         if method == "OPTIONS":
+            req_origin = event.get("headers", {}).get("origin") or event.get("headers", {}).get("Origin") or "*"
             return {
                 "statusCode": 204,
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": req_origin,
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, X-Requested-With",
+                    "Access-Control-Allow-Credentials": "true",
                 },
                 "body": "",
                 "isBase64Encoded": False,
@@ -294,39 +296,59 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             out = {}
             for k, v in header_items:
                 kl = k.lower()
-                # Lambda Function URLs reserve x-amzn-* and reject responses returning them
-                if kl in HOP_BY_HOP or kl.startswith("x-amzn-") or kl.startswith("x-amz-"):
+                # Lambda Function URLs reserve x-amzn-* and reject responses returning them.
+                # Set-Cookie headers are returned via Lambda payload format 2.0 top-level 'cookies' key.
+                if kl in HOP_BY_HOP or kl.startswith("x-amzn-") or kl.startswith("x-amz-") or kl == "set-cookie":
                     continue
                 out[k] = v
-            out["access-control-allow-origin"] = "*"
+            req_origin = event.get("headers", {}).get("origin") or event.get("headers", {}).get("Origin") or "*"
+            out["access-control-allow-origin"] = req_origin
             out["access-control-allow-credentials"] = "true"
             return out
+
+        def get_response_cookies(header_obj):
+            if hasattr(header_obj, "get_all"):
+                return header_obj.get_all("Set-Cookie") or []
+            return []
 
         req_headers = {
             k: v for k, v in event.get("headers", {}).items()
             if k.lower() not in ("host", "content-length", "x-forwarded-for", "x-forwarded-proto")
         }
 
+        # Forward incoming cookies from Lambda payload format 2.0 event['cookies'] if missing from headers
+        has_cookie = any(k.lower() == "cookie" for k in req_headers.keys())
+        if not has_cookie and event.get("cookies"):
+            req_headers["Cookie"] = "; ".join(event.get("cookies", []))
+
         try:
             req = urllib.request.Request(target_url, data=body_data, headers=req_headers, method=method)
             with urllib.request.urlopen(req, timeout=25) as resp:
                 resp_bytes = resp.read()
                 resp_headers = clean_headers(resp.getheaders())
-                return {
+                cookie_list = get_response_cookies(resp.headers)
+                out_resp = {
                     "statusCode": resp.status,
                     "headers": resp_headers,
                     "body": base64.b64encode(resp_bytes).decode("ascii"),
                     "isBase64Encoded": True,
                 }
+                if cookie_list:
+                    out_resp["cookies"] = cookie_list
+                return out_resp
         except urllib.error.HTTPError as err:
             err_bytes = err.read()
             err_headers = clean_headers(err.headers.items())
-            return {
+            cookie_list = get_response_cookies(err.headers)
+            out_resp = {
                 "statusCode": err.code,
                 "headers": err_headers,
                 "body": base64.b64encode(err_bytes).decode("ascii"),
                 "isBase64Encoded": True,
             }
+            if cookie_list:
+                out_resp["cookies"] = cookie_list
+            return out_resp
         except Exception as err:
             return {
                 "statusCode": 502,

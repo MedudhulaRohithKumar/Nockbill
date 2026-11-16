@@ -38,22 +38,7 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const storageKey = user?.id ? `shop_settings_${user.id}` : 'shop_settings_guest';
-
-  const [settings, setSettings] = useState<ShopSettings>(() => {
-    const key = user?.id ? `shop_settings_${user.id}` : null;
-    if (key) {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          // ignore parse error
-        }
-      }
-    }
-    return defaultSettings;
-  });
+  const [settings, setSettings] = useState<ShopSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = async () => {
@@ -64,19 +49,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     try {
       const data = await settingsApi.get();
-      if (data && data.shop_name) {
+      if (data?.shop_name) {
         setSettings(data);
-        localStorage.setItem(`shop_settings_${user.id}`, JSON.stringify(data));
       }
     } catch {
-      const saved = localStorage.getItem(`shop_settings_${user.id}`);
-      if (saved) {
-        try {
-          setSettings(JSON.parse(saved));
-        } catch {
-          setSettings(defaultSettings);
-        }
-      }
+      setSettings(defaultSettings);
     } finally {
       setIsLoading(false);
     }
@@ -84,15 +61,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (user?.id) {
-      const saved = localStorage.getItem(`shop_settings_${user.id}`);
-      if (saved) {
-        try {
-          setSettings(JSON.parse(saved));
-        } catch {
-          // ignore
-        }
-      }
-      fetchSettings();
+      void fetchSettings();
     } else {
       setSettings(defaultSettings);
       setIsLoading(false);
@@ -103,12 +72,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await settingsApi.update(newSettings);
       setSettings(updated);
-      localStorage.setItem(storageKey, JSON.stringify(updated));
     } catch {
-      // Local fallback
       const merged = { ...settings, ...newSettings };
       setSettings(merged);
-      localStorage.setItem(storageKey, JSON.stringify(merged));
     }
   };
 

@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version: 22
           cache: 'npm'
@@ -30,7 +30,7 @@ jobs:
       - name: Install Frontend Dependencies & Build SPA
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npm run build
           cd ..
 
@@ -40,17 +40,17 @@ jobs:
           echo "Frontend SPA bundle successfully verified."
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.11'
 
       - name: Set up AWS SAM CLI
-        uses: aws-actions/setup-sam@v2
+        uses: aws-actions/setup-sam@341eee1d120197779d721327c5b4d707b6651848 # v3.0.0
         with:
           use-installer: true
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -88,6 +88,15 @@ jobs:
         run: |
           if [ -z "${DB_PASSWORD}" ]; then
             echo "ERROR: DB_PASSWORD secret must be configured in GitHub repository secrets." >&2
+            exit 1
+          fi
+          if [ ${#DB_PASSWORD} -lt 8 ]; then
+            echo "ERROR: DB_PASSWORD must be at least 8 characters long." >&2
+            exit 1
+          fi
+          if echo "${DB_PASSWORD}" | grep -qE '[/@" ]'; then
+            echo "ERROR: DB_PASSWORD contains forbidden characters ('/', '@', '\"', or spaces). AWS RDS rejects these characters." >&2
+            echo "Please update DB_PASSWORD in GitHub Secrets with a password containing only letters, numbers, and allowed symbols (e.g. KisanSecure2026_Prod!)." >&2
             exit 1
           fi
           sam deploy \

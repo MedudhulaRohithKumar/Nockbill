@@ -403,7 +403,7 @@ passwords across unencrypted emails or chat messages.
   const copyCredentialsText = () => {
     if (!generatedCreds) return;
     const text = `Shop: ${generatedCreds.shop_name}\nUsername: ${generatedCreds.username}\nPassword: ${generatedCreds.initial_password}\nLogin URL: ${generatedCreds.console_login_url}`;
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -490,7 +490,9 @@ passwords across unencrypted emails or chat messages.
                 </p>
                 <button
                   type="button"
-                  onClick={handleGoogleRegister}
+                  onClick={() => {
+                    void handleGoogleRegister();
+                  }}
                   disabled={isLoading}
                   className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 shadow-sm hover:shadow transition-all active:scale-[0.99] disabled:opacity-70 group"
                 >
@@ -523,10 +525,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="reg-owner-name" className="block text-xs font-bold text-slate-700 mb-1">
                   Full Name of Owner / Proprietor <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="reg-owner-name"
                   type="text"
                   name="owner_name"
                   required
@@ -539,12 +542,13 @@ passwords across unencrypted emails or chat messages.
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-username" className="block text-xs font-bold text-slate-700 mb-1">
                     Master Username <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                     <input
+                      id="reg-username"
                       type="text"
                       name="username"
                       required
@@ -558,12 +562,13 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-phone" className="block text-xs font-bold text-slate-700 mb-1">
                     Mobile Number <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                     <input
+                      id="reg-phone"
                       type="tel"
                       name="phone"
                       required
@@ -579,12 +584,13 @@ passwords across unencrypted emails or chat messages.
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="reg-email" className="block text-xs font-bold text-slate-700 mb-1">
                   Email Address <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
+                    id="reg-email"
                     type="email"
                     name="email"
                     required
@@ -599,12 +605,13 @@ passwords across unencrypted emails or chat messages.
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-password" className="block text-xs font-bold text-slate-700 mb-1">
                     Master Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                     <input
+                      id="reg-password"
                       type={showPassword ? 'text' : 'password'}
                       name="password"
                       required
@@ -624,12 +631,13 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-confirm-password" className="block text-xs font-bold text-slate-700 mb-1">
                     Confirm Password <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                     <input
+                      id="reg-confirm-password"
                       type={showPassword ? 'text' : 'password'}
                       name="confirm_password"
                       required
@@ -672,10 +680,11 @@ passwords across unencrypted emails or chat messages.
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="reg-shop-name" className="block text-xs font-bold text-slate-700 mb-1">
                   Shop / Agency Name <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="reg-shop-name"
                   type="text"
                   name="shop_name"
                   required
@@ -688,10 +697,11 @@ passwords across unencrypted emails or chat messages.
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-gstin" className="block text-xs font-bold text-slate-700 mb-1">
                     GSTIN Number (Optional)
                   </label>
                   <input
+                    id="reg-gstin"
                     type="text"
                     name="gstin"
                     maxLength={15}
@@ -704,10 +714,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-invoice-prefix" className="block text-xs font-bold text-slate-700 mb-1">
                     Invoice Number Prefix
                   </label>
                   <input
+                    id="reg-invoice-prefix"
                     type="text"
                     name="invoice_prefix"
                     maxLength={6}
@@ -721,12 +732,13 @@ passwords across unencrypted emails or chat messages.
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="reg-address-line1" className="block text-xs font-bold text-slate-700 mb-1">
                   Address Line 1 <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
+                    id="reg-address-line1"
                     type="text"
                     name="address_line1"
                     required
@@ -740,10 +752,11 @@ passwords across unencrypted emails or chat messages.
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-city" className="block text-xs font-bold text-slate-700 mb-1">
                     City / Town <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="reg-city"
                     type="text"
                     name="city"
                     required
@@ -755,10 +768,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-state" className="block text-xs font-bold text-slate-700 mb-1">
                     State <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="reg-state"
                     type="text"
                     name="state"
                     required
@@ -770,10 +784,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-pincode" className="block text-xs font-bold text-slate-700 mb-1">
                     Pincode <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="reg-pincode"
                     type="text"
                     name="pincode"
                     required
@@ -808,7 +823,7 @@ passwords across unencrypted emails or chat messages.
 
           {/* STEP 3: LICENSES & BANKING */}
           {step === 3 && (
-            <form onSubmit={handleFinalSubmit} className="space-y-4">
+            <form onSubmit={(e) => { void handleFinalSubmit(e); }} className="space-y-4">
               <div className="border-b border-slate-200/80 pb-3 mb-2">
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-brand-700" />
@@ -821,10 +836,11 @@ passwords across unencrypted emails or chat messages.
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-fertilizer-license" className="block text-xs font-bold text-slate-700 mb-1">
                     Fertilizer License No.
                   </label>
                   <input
+                    id="reg-fertilizer-license"
                     type="text"
                     name="fertilizer_license_no"
                     placeholder="e.g. FL/2026/8941"
@@ -835,10 +851,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-pesticide-license" className="block text-xs font-bold text-slate-700 mb-1">
                     Pesticide License No.
                   </label>
                   <input
+                    id="reg-pesticide-license"
                     type="text"
                     name="pesticide_license_no"
                     placeholder="e.g. PL/2026/3312"
@@ -849,10 +866,11 @@ passwords across unencrypted emails or chat messages.
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-seed-license" className="block text-xs font-bold text-slate-700 mb-1">
                     Seed License No.
                   </label>
                   <input
+                    id="reg-seed-license"
                     type="text"
                     name="seed_license_no"
                     placeholder="e.g. SL/2026/1029"
@@ -871,10 +889,11 @@ passwords across unencrypted emails or chat messages.
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-upi-id" className="block text-xs font-bold text-slate-700 mb-1">
                       Shop UPI ID (for QR Billing)
                     </label>
                     <input
+                      id="reg-upi-id"
                       type="text"
                       name="upi_id"
                       placeholder="e.g. kisanseva@okhdfcbank"
@@ -885,10 +904,11 @@ passwords across unencrypted emails or chat messages.
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-name" className="block text-xs font-bold text-slate-700 mb-1">
                       Bank Name
                     </label>
                     <input
+                      id="reg-bank-name"
                       type="text"
                       name="bank_name"
                       placeholder="e.g. State Bank of India"
@@ -899,10 +919,11 @@ passwords across unencrypted emails or chat messages.
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-account" className="block text-xs font-bold text-slate-700 mb-1">
                       Account Number
                     </label>
                     <input
+                      id="reg-bank-account"
                       type="text"
                       name="bank_account_no"
                       placeholder="e.g. 30981290312"
@@ -913,10 +934,11 @@ passwords across unencrypted emails or chat messages.
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-ifsc" className="block text-xs font-bold text-slate-700 mb-1">
                       IFSC Code
                     </label>
                     <input
+                      id="reg-bank-ifsc"
                       type="text"
                       name="bank_ifsc"
                       placeholder="e.g. SBIN0001234"
@@ -1101,12 +1123,13 @@ passwords across unencrypted emails or chat messages.
               </div>
             )}
 
-            <form onSubmit={handleConfirmGoogleRegistration} className="space-y-4">
+            <form onSubmit={(e) => { void handleConfirmGoogleRegistration(e); }} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="google-reg-shop-name" className="block text-xs font-bold text-slate-700 mb-1">
                   Shop / Business Name <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="google-reg-shop-name"
                   type="text"
                   required
                   value={googleRegData.shop_name}
@@ -1117,10 +1140,11 @@ passwords across unencrypted emails or chat messages.
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label htmlFor="google-reg-phone" className="block text-xs font-bold text-slate-700 mb-1">
                   Contact Mobile Number (Optional)
                 </label>
                 <input
+                  id="google-reg-phone"
                   type="tel"
                   maxLength={10}
                   value={googleRegData.phone}
@@ -1132,12 +1156,13 @@ passwords across unencrypted emails or chat messages.
 
               {/* Optional Password Setup */}
               <div className="space-y-2">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <label htmlFor="google-reg-password" className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                   <Lock className="w-3.5 h-3.5 text-slate-500" />
                   Password <span className="font-normal text-slate-400">(optional)</span>
                 </label>
 
                 <input
+                  id="google-reg-password"
                   type="password"
                   minLength={6}
                   maxLength={128}
@@ -1149,6 +1174,7 @@ passwords across unencrypted emails or chat messages.
                 />
 
                 <input
+                  aria-label="Confirm password"
                   type="password"
                   maxLength={128}
                   autoComplete="new-password"

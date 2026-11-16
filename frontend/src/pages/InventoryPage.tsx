@@ -111,7 +111,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadProducts();
+    void loadProducts();
   }, []);
 
   // Fast memoized filter including Trade Name search
@@ -152,7 +152,7 @@ export const InventoryPage: React.FC = () => {
       list = list.filter(p => {
         if (!p.expiry_date) return false;
         const expTime = new Date(p.expiry_date).getTime();
-        return !isNaN(expTime) && expTime <= ninetyDaysFromNow.getTime();
+        return !Number.isNaN(expTime) && expTime <= ninetyDaysFromNow.getTime();
       });
     }
 
@@ -190,16 +190,18 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setCheckingDuplicate(true);
-      try {
-        const res = await productsApi.checkDuplicate(name, editingProduct?.company_name, undefined, editingProduct?.trade_name);
-        setDuplicateAlert(res.exists ? res : null);
-      } catch (err) {
-        console.error('Duplicate check error', err);
-      } finally {
-        setCheckingDuplicate(false);
-      }
+    const timer = setTimeout(() => {
+      void (async () => {
+        setCheckingDuplicate(true);
+        try {
+          const res = await productsApi.checkDuplicate(name, editingProduct?.company_name, undefined, editingProduct?.trade_name);
+          setDuplicateAlert(res.exists ? res : null);
+        } catch (err) {
+          console.error('Duplicate check error', err);
+        } finally {
+          setCheckingDuplicate(false);
+        }
+      })();
     }, 400);
 
     return () => clearTimeout(timer);
@@ -296,7 +298,7 @@ export const InventoryPage: React.FC = () => {
       setEditingProduct(null);
       setProductVariants([]);
       setTradeNameManuallyEdited(false);
-      loadProducts();
+      void loadProducts();
     } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to save product'));
     }
@@ -337,7 +339,7 @@ export const InventoryPage: React.FC = () => {
         notes: sanitizeTextInput(refillNotes, 400),
       });
       setIsRefillModalOpen(false);
-      loadProducts();
+      void loadProducts();
       alert('Stock successfully refilled and purchase inward recorded!');
     } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to refill stock'));
@@ -363,7 +365,7 @@ export const InventoryPage: React.FC = () => {
       });
       setIsAdjustModalOpen(false);
       setAdjustingProduct(null);
-      loadProducts();
+      void loadProducts();
     } catch (err: any) {
       alert(getErrorMessage(err, 'Failed to adjust stock'));
     }
@@ -936,10 +938,10 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleRefillSubmit} className="p-5 space-y-4 text-xs">
+            <form onSubmit={(e) => { void handleRefillSubmit(e); }} className="p-5 space-y-4 text-xs">
               {/* Product Selector - Searchable Typeahead for 1000+ products */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="refill-product-search" className="block font-semibold text-slate-700 mb-1">
                   Product to Refill *
                 </label>
                 {refillProductId ? (
@@ -985,6 +987,7 @@ export const InventoryPage: React.FC = () => {
                     <div className="relative">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                       <input
+                        id="refill-product-search"
                         type="text"
                         value={refillProductSearch}
                         onChange={(e) => setRefillProductSearch(e.target.value)}
@@ -1050,10 +1053,11 @@ export const InventoryPage: React.FC = () => {
               <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 space-y-2.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
+                    <label htmlFor="refill-company-name" className="block font-semibold text-slate-700 mb-1">
                       Company / Brand Name
                     </label>
                     <input
+                      id="refill-company-name"
                       type="text"
                       maxLength={120}
                       value={refillCompanyName}
@@ -1072,10 +1076,11 @@ export const InventoryPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-emerald-900 mb-1">
+                    <label htmlFor="refill-trade-name" className="block font-semibold text-emerald-900 mb-1">
                       Trade Name (Product + Brand)
                     </label>
                     <input
+                      id="refill-trade-name"
                       type="text"
                       maxLength={150}
                       value={refillTradeName}
@@ -1112,40 +1117,44 @@ export const InventoryPage: React.FC = () => {
               {/* Quantity and Unit */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Inward Quantity to Add *</label>
+                  <label htmlFor="refill-qty" className="block font-semibold text-slate-700 mb-1">Inward Quantity to Add *</label>
                   <input
+                    id="refill-qty"
                     type="number"
                     step="0.01"
                     min="0.1"
                     required
                     value={refillQty}
-                    onChange={(e) => setRefillQty(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setRefillQty(Number.parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 font-black text-sm text-emerald-800 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Unit of Measure</label>
-                  <CustomSelect
-                    value={refillUnit}
-                    onChange={(val) => setRefillUnit(val)}
-                    options={[
-                      { value: 'Bags', label: 'Bags' },
-                      { value: 'Kg', label: 'Kg (Kilograms)' },
-                      { value: 'Grams', label: 'Grams' },
-                      { value: 'Litres', label: 'Litres' },
-                      { value: 'ml', label: 'ml (Millilitres)' },
-                      { value: 'Bottles', label: 'Bottles' },
-                      { value: 'Packets', label: 'Packets' },
-                    ]}
-                  />
+                  <label className="block font-semibold text-slate-700">
+                    <span className="block mb-1">Unit of Measure</span>
+                    <CustomSelect
+                      value={refillUnit}
+                      onChange={(val) => setRefillUnit(val)}
+                      options={[
+                        { value: 'Bags', label: 'Bags' },
+                        { value: 'Kg', label: 'Kg (Kilograms)' },
+                        { value: 'Grams', label: 'Grams' },
+                        { value: 'Litres', label: 'Litres' },
+                        { value: 'ml', label: 'ml (Millilitres)' },
+                        { value: 'Bottles', label: 'Bottles' },
+                        { value: 'Packets', label: 'Packets' },
+                      ]}
+                    />
+                  </label>
                 </div>
               </div>
 
               {/* Batch & Expiry */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">New / Current Batch No.</label>
+                  <label htmlFor="refill-batch" className="block font-semibold text-slate-700 mb-1">New / Current Batch No.</label>
                   <input
+                    id="refill-batch"
                     type="text"
                     value={refillBatch}
                     onChange={(e) => setRefillBatch(e.target.value)}
@@ -1154,8 +1163,9 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
+                  <label htmlFor="refill-expiry" className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
                   <input
+                    id="refill-expiry"
                     type="date"
                     value={refillExpiry}
                     onChange={(e) => setRefillExpiry(e.target.value)}
@@ -1167,32 +1177,35 @@ export const InventoryPage: React.FC = () => {
               {/* Pricing */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Inward Cost Price (₹)</label>
+                  <label htmlFor="refill-purchase-price" className="block font-semibold text-slate-700 mb-1">Inward Cost Price (₹)</label>
                   <input
+                    id="refill-purchase-price"
                     type="number"
                     step="0.5"
                     value={refillPurchasePrice}
-                    onChange={(e) => setRefillPurchasePrice(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setRefillPurchasePrice(Number.parseFloat(e.target.value) || 0)}
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Selling Price (₹)</label>
+                  <label htmlFor="refill-selling-price" className="block font-semibold text-slate-700 mb-1">Selling Price (₹)</label>
                   <input
+                    id="refill-selling-price"
                     type="number"
                     step="0.5"
                     value={refillSellingPrice}
-                    onChange={(e) => setRefillSellingPrice(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setRefillSellingPrice(Number.parseFloat(e.target.value) || 0)}
                     className="w-full px-2.5 py-1.5 font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">MRP (₹)</label>
+                  <label htmlFor="refill-mrp" className="block font-semibold text-slate-700 mb-1">MRP (₹)</label>
                   <input
+                    id="refill-mrp"
                     type="number"
                     step="0.5"
                     value={refillMrp}
-                    onChange={(e) => setRefillMrp(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setRefillMrp(Number.parseFloat(e.target.value) || 0)}
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -1201,8 +1214,9 @@ export const InventoryPage: React.FC = () => {
               {/* Supplier & Inward Bill No */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name</label>
+                  <label htmlFor="refill-supplier" className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name</label>
                   <input
+                    id="refill-supplier"
                     type="text"
                     value={refillSupplier}
                     onChange={(e) => setRefillSupplier(e.target.value)}
@@ -1211,8 +1225,9 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Supplier Invoice / Bill No.</label>
+                  <label htmlFor="refill-invoice" className="block font-semibold text-slate-700 mb-1">Supplier Invoice / Bill No.</label>
                   <input
+                    id="refill-invoice"
                     type="text"
                     value={refillInvoice}
                     onChange={(e) => setRefillInvoice(e.target.value)}
@@ -1223,8 +1238,9 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Inward Notes</label>
+                <label htmlFor="refill-notes" className="block font-semibold text-slate-700 mb-1">Inward Notes</label>
                 <input
+                  id="refill-notes"
                   type="text"
                   value={refillNotes}
                   onChange={(e) => setRefillNotes(e.target.value)}
@@ -1270,7 +1286,7 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
+            <form onSubmit={(e) => { void handleSaveProduct(e); }} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
               {/* Duplicate Prevention Alert */}
               {duplicateAlert?.exists && !editingProduct.id && (
                 <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2">
@@ -1311,8 +1327,9 @@ export const InventoryPage: React.FC = () => {
               {/* Product Basic Info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Product / Technical Name *</label>
+                  <label htmlFor="edit-prod-name" className="block font-semibold text-slate-700 mb-1">Product / Technical Name *</label>
                   <input
+                    id="edit-prod-name"
                     type="text"
                     required
                     maxLength={150}
@@ -1337,8 +1354,9 @@ export const InventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Company / Brand</label>
+                  <label htmlFor="edit-prod-company" className="block font-semibold text-slate-700 mb-1">Company / Brand</label>
                   <input
+                    id="edit-prod-company"
                     type="text"
                     maxLength={120}
                     value={editingProduct.company_name || ''}
@@ -1362,7 +1380,7 @@ export const InventoryPage: React.FC = () => {
               {/* Trade Name (Combination of Product & Company/Brand) */}
               <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <label className="block font-bold text-emerald-900 text-xs">
+                  <label htmlFor="edit-prod-trade" className="block font-bold text-emerald-900 text-xs">
                     Trade Name (Product + Company/Brand Combination)
                   </label>
                   <span className="text-[10px] text-emerald-700 font-medium">
@@ -1370,6 +1388,7 @@ export const InventoryPage: React.FC = () => {
                   </span>
                 </div>
                 <input
+                  id="edit-prod-trade"
                   type="text"
                   maxLength={150}
                   value={editingProduct.trade_name || ''}
@@ -1406,42 +1425,47 @@ export const InventoryPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Category</label>
-                  <CustomSelect
-                    value={editingProduct.category || 'Fertilizer'}
-                    onChange={(val) => setEditingProduct({ ...editingProduct, category: val })}
-                    options={[
-                      { value: 'Fertilizer', label: 'Fertilizer' },
-                      { value: 'Pesticide', label: 'Pesticide' },
-                      { value: 'Seeds', label: 'Seeds' },
-                      { value: 'Micronutrients', label: 'Micronutrients' },
-                      { value: 'Bio-fertilizer', label: 'Bio-fertilizer' },
-                      { value: 'Organic', label: 'Organic' },
-                      { value: 'Others', label: 'Others' },
-                    ]}
-                  />
+                  <label className="block font-semibold text-slate-700">
+                    <span className="block mb-1">Category</span>
+                    <CustomSelect
+                      value={editingProduct.category || 'Fertilizer'}
+                      onChange={(val) => setEditingProduct({ ...editingProduct, category: val })}
+                      options={[
+                        { value: 'Fertilizer', label: 'Fertilizer' },
+                        { value: 'Pesticide', label: 'Pesticide' },
+                        { value: 'Seeds', label: 'Seeds' },
+                        { value: 'Micronutrients', label: 'Micronutrients' },
+                        { value: 'Bio-fertilizer', label: 'Bio-fertilizer' },
+                        { value: 'Organic', label: 'Organic' },
+                        { value: 'Others', label: 'Others' },
+                      ]}
+                    />
+                  </label>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Primary Unit</label>
-                  <CustomSelect
-                    value={editingProduct.unit || 'Bags'}
-                    onChange={(val) => setEditingProduct({ ...editingProduct, unit: val })}
-                    options={[
-                      { value: 'Bags', label: 'Bags' },
-                      { value: 'Kg', label: 'Kg' },
-                      { value: 'Grams', label: 'Grams' },
-                      { value: 'Litres', label: 'Litres' },
-                      { value: 'ml', label: 'ml' },
-                      { value: 'Bottles', label: 'Bottles' },
-                      { value: 'Packets', label: 'Packets' },
-                    ]}
-                  />
+                  <label className="block font-semibold text-slate-700">
+                    <span className="block mb-1">Primary Unit</span>
+                    <CustomSelect
+                      value={editingProduct.unit || 'Bags'}
+                      onChange={(val) => setEditingProduct({ ...editingProduct, unit: val })}
+                      options={[
+                        { value: 'Bags', label: 'Bags' },
+                        { value: 'Kg', label: 'Kg' },
+                        { value: 'Grams', label: 'Grams' },
+                        { value: 'Litres', label: 'Litres' },
+                        { value: 'ml', label: 'ml' },
+                        { value: 'Bottles', label: 'Bottles' },
+                        { value: 'Packets', label: 'Packets' },
+                      ]}
+                    />
+                  </label>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">HSN Code</label>
+                  <label htmlFor="edit-prod-hsn" className="block font-semibold text-slate-700 mb-1">HSN Code</label>
                   <input
+                    id="edit-prod-hsn"
                     type="text"
                     value={editingProduct.hsn_code ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, hsn_code: e.target.value })}
@@ -1454,8 +1478,9 @@ export const InventoryPage: React.FC = () => {
               {/* Batch & Expiry */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Batch Number</label>
+                  <label htmlFor="edit-prod-batch" className="block font-semibold text-slate-700 mb-1">Batch Number</label>
                   <input
+                    id="edit-prod-batch"
                     type="text"
                     value={editingProduct.batch_number ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, batch_number: e.target.value })}
@@ -1465,8 +1490,9 @@ export const InventoryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
+                  <label htmlFor="edit-prod-expiry" className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
                   <input
+                    id="edit-prod-expiry"
                     type="date"
                     value={editingProduct.expiry_date || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, expiry_date: e.target.value })}
@@ -1478,48 +1504,53 @@ export const InventoryPage: React.FC = () => {
               {/* Default Pricing & Stock */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Purchase (₹)</label>
+                  <label htmlFor="edit-prod-purchase-price" className="block font-semibold text-slate-700 mb-1">Purchase (₹)</label>
                   <input
+                    id="edit-prod-purchase-price"
                     type="number"
                     step="0.5"
                     value={editingProduct.cost_price ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, cost_price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, cost_price: Number.parseFloat(e.target.value) || 0 })}
                     className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Selling (₹)</label>
+                  <label htmlFor="edit-prod-selling-price" className="block font-semibold text-slate-700 mb-1">Selling (₹)</label>
                   <input
+                    id="edit-prod-selling-price"
                     type="number"
                     step="0.5"
                     value={editingProduct.selling_price ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, selling_price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, selling_price: Number.parseFloat(e.target.value) || 0 })}
                     className="w-full px-2.5 py-1.5 font-bold text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">GST Rate %</label>
-                  <CustomSelect
-                    value={String(editingProduct.gst_rate ?? 5)}
-                    onChange={(val) => setEditingProduct({ ...editingProduct, gst_rate: parseInt(val) })}
-                    options={[
-                      { value: '0', label: '0% (Exempt)' },
-                      { value: '5', label: '5% (Fertilizers)' },
-                      { value: '12', label: '12%' },
-                      { value: '18', label: '18% (Pesticides)' },
-                      { value: '28', label: '28%' },
-                    ]}
-                  />
+                  <label className="block font-semibold text-slate-700">
+                    <span className="block mb-1">GST Rate %</span>
+                    <CustomSelect
+                      value={String(editingProduct.gst_rate ?? 5)}
+                      onChange={(val) => setEditingProduct({ ...editingProduct, gst_rate: Number.parseInt(val, 10) })}
+                      options={[
+                        { value: '0', label: '0% (Exempt)' },
+                        { value: '5', label: '5% (Fertilizers)' },
+                        { value: '12', label: '12%' },
+                        { value: '18', label: '18% (Pesticides)' },
+                        { value: '28', label: '28%' },
+                      ]}
+                    />
+                  </label>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Opening Stock</label>
+                  <label htmlFor="edit-prod-stock" className="block font-semibold text-slate-700 mb-1">Opening Stock</label>
                   <input
+                    id="edit-prod-stock"
                     type="number"
                     value={editingProduct.current_stock ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, current_stock: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, current_stock: Number.parseInt(e.target.value, 10) || 0 })}
                     className="w-full px-2.5 py-1.5 font-black border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -1562,7 +1593,7 @@ export const InventoryPage: React.FC = () => {
                           type="number"
                           placeholder="Size (250)"
                           value={v.unit_size}
-                          onChange={(e) => updateVariantRow(idx, 'unit_size', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => updateVariantRow(idx, 'unit_size', Number.parseFloat(e.target.value) || 0)}
                           className="w-20 px-2 py-1 bg-white border border-slate-300 rounded text-xs"
                           required
                         />
@@ -1578,7 +1609,7 @@ export const InventoryPage: React.FC = () => {
                           type="number"
                           placeholder="Selling ₹"
                           value={v.selling_price}
-                          onChange={(e) => updateVariantRow(idx, 'selling_price', parseFloat(e.target.value) || 0)}
+                          onChange={(e) => updateVariantRow(idx, 'selling_price', Number.parseFloat(e.target.value) || 0)}
                           className="w-24 px-2 py-1 bg-white border border-slate-300 rounded text-xs font-bold text-slate-900"
                           required
                         />
@@ -1647,7 +1678,7 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleAdjustStock} className="p-5 space-y-3.5 text-xs">
+            <form onSubmit={(e) => { void handleAdjustStock(e); }} className="p-5 space-y-3.5 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-slate-500">Current Warehouse Stock:</p>
                 <p className="text-lg font-black text-brand-900">
@@ -1656,35 +1687,39 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Adjustment Type</label>
-                <CustomSelect
-                  value={adjustType}
-                  onChange={(val) => setAdjustType(val as any)}
-                  options={[
-                    { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
-                    { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
-                    { value: 'RETURN', label: 'Customer Return (+)' },
-                  ]}
-                />
+                <label className="block font-semibold text-slate-700">
+                  <span className="block mb-1">Adjustment Type</span>
+                  <CustomSelect
+                    value={adjustType}
+                    onChange={(val) => setAdjustType(val as any)}
+                    options={[
+                      { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
+                      { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
+                      { value: 'RETURN', label: 'Customer Return (+)' },
+                    ]}
+                  />
+                </label>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="adjust-stock-qty" className="block font-semibold text-slate-700 mb-1">
                   Quantity Adjustment (positive or negative number)
                 </label>
                 <input
+                  id="adjust-stock-qty"
                   type="number"
                   required
                   value={adjustQty}
-                  onChange={(e) => setAdjustQty(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setAdjustQty(Number.parseInt(e.target.value, 10) || 0)}
                   placeholder="e.g. -5 or +10"
                   className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Reason / Note</label>
+                <label htmlFor="adjust-stock-reason" className="block font-semibold text-slate-700 mb-1">Reason / Note</label>
                 <input
+                  id="adjust-stock-reason"
                   type="text"
                   required
                   value={adjustReason}

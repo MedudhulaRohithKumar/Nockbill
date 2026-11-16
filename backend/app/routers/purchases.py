@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field, model_validator
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.base import get_db
 from app.models.models import (
     Purchase, PurchaseItem, Product, ProductBatch,
@@ -138,7 +138,7 @@ def create_purchase(
         total_gst = Decimal("0")
 
         # Parse purchase date
-        p_date = datetime.utcnow()
+        p_date = datetime.now(timezone.utc)
         if payload.purchase_date:
             raw = str(payload.purchase_date)
             for fmt in ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"]:

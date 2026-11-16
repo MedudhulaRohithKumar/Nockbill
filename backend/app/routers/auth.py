@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import hmac
 import hashlib
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from app.database.base import get_db
@@ -51,6 +51,37 @@ def _purge_reset_state(db: Session, user_id: int) -> None:
     db.commit()
 
 
+def set_auth_cookie(response: Response, token: str) -> None:
+    """
+    Attach HttpOnly; Secure; SameSite=Lax cookie for XSS-proof browser sessions.
+    Token is also returned in JSON response body for non-browser / mobile clients.
+    """
+    max_age = (settings.access_token_expire_minutes * 60) if settings.access_token_expire_minutes else 60 * 60 * 24 * 7
+    is_secure = not settings.debug
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        max_age=max_age,
+        expires=max_age,
+        path="/",
+        httponly=True,
+        secure=is_secure,
+        samesite="lax",
+    )
+
+
+def clear_auth_cookie(response: Response) -> None:
+    """Clear the HttpOnly authentication cookie."""
+    is_secure = not settings.debug
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        httponly=True,
+        secure=is_secure,
+        samesite="lax",
+    )
+
+
 @router.get("/captcha")
 def get_login_captcha():
     """
@@ -65,7 +96,7 @@ def get_login_captcha():
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     # 1. Strictly enforce server-side single-use CAPTCHA verification first
     is_valid_captcha, captcha_error = verify_captcha_challenge(
         payload.captcha_token, payload.captcha_code
@@ -93,6 +124,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             detail="Incorrect username, mobile, or password",
         )
     token = create_access_token({"sub": str(user.id)})
+    set_auth_cookie(response, token)
 
     # Audit log
     audit = AuditLog(user_id=user.id, action=AuditAction.LOGIN)
@@ -110,7 +142,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=RegistrationResponse, status_code=201)
-def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db)):
+def register_shop(payload: ShopRegistrationRequest, response: Response, db: Session = Depends(get_db)):
     clean_username = (payload.username or "").strip()[:50]
     clean_email = (payload.email or "").strip()[:150] if payload.email else None
     clean_phone = (payload.phone or "").strip()[:20] if payload.phone else None
@@ -183,6 +215,7 @@ def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db
 
     # 4. Generate Auth Token
     token = create_access_token({"sub": str(new_user.id)})
+    set_auth_cookie(response, token)
 
     # 5. Business credential export payload
     base_login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
@@ -215,7 +248,7 @@ def register_shop(payload: ShopRegistrationRequest, db: Session = Depends(get_db
         "console_login_url": base_login_url,
         "gstin": shop_record.gstin or "UNREGISTERED",
         "fertilizer_license": shop_record.fertilizer_license_no or "N/A",
-        "created_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "security_warning": "CONFIDENTIAL: Official Business Master Access Key. Keep secure and do not share.",
     }
 
@@ -275,7 +308,7 @@ def activate_subscription(
         "demo": True,
         "payment_verified": False,
         "payment_ref": clean_ref,
-        "activated_at": datetime.utcnow().isoformat()
+        "activated_at": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -304,7 +337,7 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
 
     # Generate cryptographically secure 6-digit numeric verification code
     otp = f"{secrets.randbelow(900000) + 100000}"
-    expires_at = datetime.utcnow() + timedelta(minutes=RESET_CODE_TTL_MINUTES)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=RESET_CODE_TTL_MINUTES)
 
     # The database is the ONLY authority for reset state (no per-worker memory).
     # Issuing a new code invalidates every earlier code/session for this user.
@@ -397,7 +430,7 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Verification code must be a 6-digit number.")
 
     expired_msg = "Verification code has expired or was replaced. Please request a new code."
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Only the newest pending (unverified) code for this user is ever considered.
     entry = (
@@ -406,7 +439,12 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
         .order_by(PasswordResetCode.id.desc())
         .first()
     )
-    if not entry or now > entry.expires_at:
+    entry_expires_at = (
+        entry.expires_at.replace(tzinfo=timezone.utc)
+        if (entry and entry.expires_at and entry.expires_at.tzinfo is None)
+        else (entry.expires_at if entry else None)
+    )
+    if not entry or not entry_expires_at or now > entry_expires_at:
         raise HTTPException(status_code=400, detail=expired_msg)
     if (entry.attempts or 0) >= RESET_MAX_OTP_ATTEMPTS:
         _purge_reset_state(db, user.id)
@@ -489,7 +527,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
 
     invalid_msg = "The verification session is invalid or already used. Please verify your 6-digit code again."
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     freshness_cutoff = now - timedelta(seconds=RESET_SESSION_TTL_SECONDS)
 
     entry = (
@@ -501,7 +539,17 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     if not entry or not entry.verified_token:
         raise HTTPException(status_code=400, detail=invalid_msg)
 
-    if now > entry.expires_at or (entry.verified_at and entry.verified_at < freshness_cutoff):
+    entry_expires_at = (
+        entry.expires_at.replace(tzinfo=timezone.utc)
+        if (entry.expires_at and entry.expires_at.tzinfo is None)
+        else entry.expires_at
+    )
+    entry_verified_at = (
+        entry.verified_at.replace(tzinfo=timezone.utc)
+        if (entry.verified_at and entry.verified_at.tzinfo is None)
+        else entry.verified_at
+    )
+    if (entry_expires_at and now > entry_expires_at) or (entry_verified_at and entry_verified_at < freshness_cutoff):
         _purge_reset_state(db, user.id)
         raise HTTPException(
             status_code=400,
@@ -573,7 +621,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
 
 @router.post("/google", response_model=TokenResponse)
-def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = Depends(get_db)):
     """
     Production-grade Google Sign-In verification endpoint.
     Verifies the Google ID Token via Google's tokeninfo endpoint,
@@ -693,6 +741,7 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
 
     # Generate application JWT
     jwt_token = create_access_token({"sub": str(user.id)})
+    set_auth_cookie(response, jwt_token)
 
     audit = AuditLog(
         user_id=user.id,
@@ -710,6 +759,13 @@ def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
         role=user.role,
         subscription_status=user.subscription_status or "ACTIVE",
     )
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear HttpOnly authentication cookie."""
+    clear_auth_cookie(response)
+    return {"success": True, "message": "Successfully logged out"}
 
 
 @router.get("/me", response_model=UserResponse)

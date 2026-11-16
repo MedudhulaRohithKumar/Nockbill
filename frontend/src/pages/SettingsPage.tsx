@@ -106,7 +106,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6 text-xs">
+      <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-6 text-xs">
         {/* Shop & Proprietor Info */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
           <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -116,8 +116,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Shop / Firm Name *</label>
+              <label htmlFor="settings-shop-name" className="block font-semibold text-slate-700 mb-1">Shop / Firm Name *</label>
               <input
+                id="settings-shop-name"
                 type="text"
                 required
                 name="shop_name"
@@ -127,8 +128,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Proprietor / Owner Name *</label>
+              <label htmlFor="settings-proprietor-name" className="block font-semibold text-slate-700 mb-1">Proprietor / Owner Name *</label>
               <input
+                id="settings-proprietor-name"
                 type="text"
                 required
                 name="proprietor_name"
@@ -141,8 +143,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">GSTIN (15 Digits) *</label>
+              <label htmlFor="settings-gstin" className="block font-semibold text-slate-700 mb-1">GSTIN (15 Digits) *</label>
               <input
+                id="settings-gstin"
                 type="text"
                 required
                 name="gstin"
@@ -152,8 +155,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Phone Number *</label>
+              <label htmlFor="settings-phone" className="block font-semibold text-slate-700 mb-1">Phone Number *</label>
               <input
+                id="settings-phone"
                 type="tel"
                 required
                 name="phone"
@@ -166,8 +170,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Fertilizer License No.</label>
+              <label htmlFor="settings-fertilizer-license" className="block font-semibold text-slate-700 mb-1">Fertilizer License No.</label>
               <input
+                id="settings-fertilizer-license"
                 type="text"
                 name="fertilizer_license_no"
                 value={form.fertilizer_license_no || ''}
@@ -177,8 +182,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Pesticide License No.</label>
+              <label htmlFor="settings-pesticide-license" className="block font-semibold text-slate-700 mb-1">Pesticide License No.</label>
               <input
+                id="settings-pesticide-license"
                 type="text"
                 name="pesticide_license_no"
                 value={form.pesticide_license_no || ''}
@@ -188,8 +194,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Seed License No.</label>
+              <label htmlFor="settings-seed-license" className="block font-semibold text-slate-700 mb-1">Seed License No.</label>
               <input
+                id="settings-seed-license"
                 type="text"
                 name="seed_license_no"
                 value={form.seed_license_no || ''}
@@ -202,8 +209,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Address *</label>
+              <label htmlFor="settings-address" className="block font-semibold text-slate-700 mb-1">Address *</label>
               <input
+                id="settings-address"
                 type="text"
                 required
                 name="address_line1"
@@ -213,8 +221,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Pincode *</label>
+              <label htmlFor="settings-pincode" className="block font-semibold text-slate-700 mb-1">Pincode *</label>
               <input
+                id="settings-pincode"
                 type="text"
                 required
                 name="pincode"
@@ -235,8 +244,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Bank Name</label>
+              <label htmlFor="settings-bank-name" className="block font-semibold text-slate-700 mb-1">Bank Name</label>
               <input
+                id="settings-bank-name"
                 type="text"
                 name="bank_name"
                 value={form.bank_name || ''}
@@ -245,8 +255,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Account Number</label>
+              <label htmlFor="settings-bank-account" className="block font-semibold text-slate-700 mb-1">Account Number</label>
               <input
+                id="settings-bank-account"
                 type="text"
                 name="bank_account_no"
                 value={form.bank_account_no || ''}
@@ -258,8 +269,9 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">IFSC Code</label>
+              <label htmlFor="settings-bank-ifsc" className="block font-semibold text-slate-700 mb-1">IFSC Code</label>
               <input
+                id="settings-bank-ifsc"
                 type="text"
                 name="bank_ifsc"
                 value={form.bank_ifsc || ''}
@@ -268,8 +280,9 @@ export const SettingsPage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">UPI ID (VPA)</label>
+              <label htmlFor="settings-upi-id" className="block font-semibold text-slate-700 mb-1">UPI ID (VPA)</label>
               <input
+                id="settings-upi-id"
                 type="text"
                 name="upi_id"
                 value={form.upi_id || ''}
@@ -288,8 +301,9 @@ export const SettingsPage: React.FC = () => {
           </h3>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Invoice Number Prefix</label>
+            <label htmlFor="settings-invoice-prefix" className="block font-semibold text-slate-700 mb-1">Invoice Number Prefix</label>
             <input
+              id="settings-invoice-prefix"
               type="text"
               name="invoice_prefix"
               value={form.invoice_prefix}
@@ -300,8 +314,9 @@ export const SettingsPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Default Terms & Conditions on Bill</label>
+            <label htmlFor="settings-terms" className="block font-semibold text-slate-700 mb-1">Default Terms & Conditions on Bill</label>
             <textarea
+              id="settings-terms"
               rows={3}
               name="terms_conditions"
               value={form.terms_conditions || ''}

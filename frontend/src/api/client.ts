@@ -17,13 +17,15 @@ const resolveBaseUrl = (): string => {
 
 const api = axios.create({
   baseURL: resolveBaseUrl(),
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor for JWT auth token
+// Interceptor for JWT auth token (supports fallback Bearer tokens; browser uses HttpOnly cookies)
 api.interceptors.request.use((config) => {
+  config.withCredentials = true;
   const token = localStorage.getItem('token');
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -43,7 +45,9 @@ api.interceptors.response.use(
         url.includes('/auth/login') ||
         url.includes('/auth/register') ||
         url.includes('/auth/forgot-password') ||
-        url.includes('/auth/google');
+        url.includes('/auth/google') ||
+        url.includes('/auth/me') ||
+        url.includes('/auth/logout');
       const isAuthPage =
         window.location.pathname.includes('/login') ||
         window.location.pathname.includes('/register');

@@ -79,13 +79,13 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics(preset);
+    void fetchAnalytics(preset);
   }, [preset]);
 
   const handleApplyCustom = (e: React.FormEvent) => {
     e.preventDefault();
     setPreset('custom');
-    fetchAnalytics('custom', customStart, customEnd);
+    void fetchAnalytics('custom', customStart, customEnd);
   };
 
   const formatCurrency = (val: number) => {
@@ -199,7 +199,9 @@ export const AnalyticsPage: React.FC = () => {
         {/* Action & Refresh */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchAnalytics(preset)}
+            onClick={() => {
+              void fetchAnalytics(preset);
+            }}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
           >
@@ -260,10 +262,11 @@ export const AnalyticsPage: React.FC = () => {
             className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 bg-slate-50 p-3 rounded-xl"
           >
             <div className="flex-1 min-w-0">
-              <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
+              <label htmlFor="analytics-custom-start" className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
                 <Clock className="w-3 h-3 text-slate-400" /> Start Date &amp; Time
               </label>
               <input
+                id="analytics-custom-start"
                 type="datetime-local"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
@@ -272,10 +275,11 @@ export const AnalyticsPage: React.FC = () => {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
+              <label htmlFor="analytics-custom-end" className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
                 <Clock className="w-3 h-3 text-slate-400" /> End Date &amp; Time
               </label>
               <input
+                id="analytics-custom-end"
                 type="datetime-local"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
@@ -976,8 +980,8 @@ export const AnalyticsPage: React.FC = () => {
                           outerRadius={70}
                           paddingAngle={3}
                         >
-                          {data.payment_breakdown.map((_, idx) => (
-                            <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
+                          {data.payment_breakdown.map((item, idx) => (
+                            <Cell key={item.method} fill={COLORS[idx % COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />

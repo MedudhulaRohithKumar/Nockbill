@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, and_
 from typing import Optional, List
 from decimal import Decimal
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from app.database.base import get_db
 from app.models.models import (
     Sale, SaleItem, Product, GstTransaction,
@@ -381,8 +381,8 @@ def dashboard_summary(
         return {
             "id": s.id,
             "invoice_number": s.invoice_number,
-            "invoice_date": s.sale_date.isoformat() if s.sale_date else datetime.utcnow().isoformat(),
-            "sale_date": s.sale_date.isoformat() if s.sale_date else datetime.utcnow().isoformat(),
+            "invoice_date": s.sale_date.isoformat() if s.sale_date else datetime.now(timezone.utc).isoformat(),
+            "sale_date": s.sale_date.isoformat() if s.sale_date else datetime.now(timezone.utc).isoformat(),
             "customer_name": s.customer_name or "Farmer / Customer",
             "customer_phone": s.customer_phone or "",
             "payment_mode": s.payment_method.value if hasattr(s.payment_method, "value") else str(s.payment_method),
@@ -442,7 +442,7 @@ def get_analytics(
 ):
     from sqlalchemy.orm import selectinload
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Determine date/time bounds
     dt_start = None

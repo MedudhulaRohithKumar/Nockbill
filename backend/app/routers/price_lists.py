@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -74,7 +74,7 @@ def apply_price_list_to_product(product: Product, price_list: Optional[PriceList
             new_selling = base_price
 
     product.selling_price = new_selling
-    product.updated_at = datetime.utcnow()
+    product.updated_at = datetime.now(timezone.utc)
 
     # Keep active batches & primary variants in sync with the product's effective selling price
     if hasattr(product, "batches") and product.batches:
@@ -277,7 +277,7 @@ def update_price_list(
     if pl.adjustment_type == "DISCOUNT" and pl.calculation_mode == "PERCENTAGE" and pl.adjustment_value >= Decimal("100"):
         raise HTTPException(status_code=400, detail="Percentage discount must be less than 100%")
 
-    pl.updated_at = datetime.utcnow()
+    pl.updated_at = datetime.now(timezone.utc)
 
     # Recalculate prices for all products currently assigned to this price list
     all_shop_products = db.query(Product).options(

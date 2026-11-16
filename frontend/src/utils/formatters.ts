@@ -6,7 +6,7 @@
 export function safeNumber(val: any, fallback = 0): number {
   if (val === null || val === undefined) return fallback;
   const num = Number(val);
-  return isNaN(num) ? fallback : num;
+  return Number.isNaN(num) ? fallback : num;
 }
 
 export function safeString(val: any, fallback = ''): string {

@@ -36,10 +36,7 @@ def adjust_inventory(
     try:
         tx_enum = InventoryTxType(tx_type_str)
     except ValueError:
-        if tx_type_str == "AUDIT_CORRECTION":
-            tx_enum = InventoryTxType.ADJUSTMENT
-        else:
-            tx_enum = InventoryTxType.ADJUSTMENT
+        tx_enum = InventoryTxType.ADJUSTMENT
 
     qty = Decimal(str(payload.quantity))
     prev_stock = product.current_stock

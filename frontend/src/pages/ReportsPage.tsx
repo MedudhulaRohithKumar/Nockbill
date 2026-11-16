@@ -44,7 +44,7 @@ export const ReportsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    fetchReportData();
+    void fetchReportData();
   }, [activeTab, fromDate, toDate]);
 
   const fetchReportData = async () => {
@@ -147,7 +147,9 @@ export const ReportsPage: React.FC = () => {
             <span>New Bill (POS)</span>
           </button>
           <button
-            onClick={fetchReportData}
+            onClick={() => {
+              void fetchReportData();
+            }}
             disabled={isLoading}
             className="p-2 sm:p-2.5 text-slate-600 hover:text-brand-600 hover:bg-slate-100 bg-white rounded-xl transition-colors border border-slate-200"
             title="Refresh Data"

@@ -21,7 +21,10 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 8
-    Description: Master password for RDS PostgreSQL (Min 8 chars, required)
+    MaxLength: 128
+    AllowedPattern: "^[^/@\" ]+$"
+    ConstraintDescription: "Master password must be at least 8 characters and cannot contain '/', '@', '\"', or spaces (AWS RDS constraint)."
+    Description: Master password for RDS PostgreSQL (Min 8 chars, required, cannot contain '/', '@', '\"', or spaces)
 
   DbAllocatedStorage:
     Type: Number
@@ -428,7 +431,8 @@ Resources:
                 Action:
                   - ses:SendEmail
                   - ses:SendRawEmail
-                Resource: '*'
+                Resource:
+                  - !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*
 
   BackendFunction:
     Type: AWS::Serverless::Function

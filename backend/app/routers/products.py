@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, func, desc
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 
 from app.database.base import get_db
@@ -454,7 +454,7 @@ def get_refill_recommendations(
     3. Days of stock remaining < 7 days
     """
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     
     # Calculate sales velocity per product in last 30 days
     sales_stats = db.query(
@@ -664,8 +664,8 @@ def refill_stock(
     purchase = Purchase(
         shop_id=shop_id,
         supplier_name=payload.supplier_name or effective_company or "Stock Refill Supplier",
-        invoice_number=payload.invoice_number or f"REF-{datetime.utcnow().strftime('%Y%m%d%H%M')}-{product.id}",
-        purchase_date=datetime.utcnow(),
+        invoice_number=payload.invoice_number or f"REF-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}-{product.id}",
+        purchase_date=datetime.now(timezone.utc),
         subtotal=taxable,
         gst_amount=gst_amount,
         grand_total=total_val,
@@ -1028,7 +1028,7 @@ def update_product(
                 barcode=v_barcode
             ))
 
-    product.updated_at = datetime.utcnow()
+    product.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(product)
 

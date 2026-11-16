@@ -65,7 +65,7 @@ class TesseractProvider(OCRProvider):
     def _deskew(self, gray: np.ndarray) -> np.ndarray:
         """Attempt to correct image skew."""
         try:
-            coords = np.column_stack(np.where(gray > 0))
+            coords = np.column_stack(np.nonzero(gray > 0))
             angle = cv2.minAreaRect(coords)[-1]
             if angle < -45:
                 angle = -(90 + angle)
