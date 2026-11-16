@@ -126,14 +126,40 @@ Resources:
           QueryStringBehavior: all
 
   # ============================================================================
-  # 3. CLOUDFRONT DISTRIBUTION (Unified Origin)
+  # 3. CLOUDFRONT LOGGING & DISTRIBUTION (Unified Origin)
   # ============================================================================
+  CloudFrontAccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ks-cf-access-logs-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+
   UnifiedDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Enabled: true
         Comment: Unified CDN routing for Kisan Seva Kendra
+        Logging:
+          Bucket: !GetAtt CloudFrontAccessLogsBucket.RegionalDomainName
+          Prefix: cdn-access/
+          IncludeCookies: false
         Aliases:
           - !Sub ${Subdomain}.${DomainName}
         ViewerCertificate:

@@ -290,14 +290,37 @@ Resources:
       PubliclyAccessible: false
       MultiAZ: false
       DeletionProtection: false
-      BackupRetentionPeriod: 1
+      BackupRetentionPeriod: 7
+      StorageEncrypted: true
       Tags:
         - Key: Name
           Value: !Sub ks-postgres-${Environment}
 
   # ============================================================================
-  # 3. S3 STORAGE: 4 DEDICATED BUCKETS (DATE-WISE FOLDERS)
+  # 3. S3 STORAGE: DEDICATED ACCESS LOGS & 4 DATA BUCKETS
   # ============================================================================
+  S3AccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ks-s3-access-logs-${AWS::AccountId}-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldAccessLogs
+            Status: Enabled
+            ExpirationInDays: 90
+
   SalesInvoicesBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -311,6 +334,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3AccessLogsBucket
+        LogFilePrefix: sales-invoices/
       LifecycleConfiguration:
         Rules:
           - Id: TransitionOldInvoices
@@ -334,6 +360,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3AccessLogsBucket
+        LogFilePrefix: purchase-bills/
       LifecycleConfiguration:
         Rules:
           - Id: TransitionOldPurchases
@@ -355,6 +384,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3AccessLogsBucket
+        LogFilePrefix: gst-reports/
       LifecycleConfiguration:
         Rules:
           - Id: TransitionOldGstReports
@@ -376,6 +408,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LoggingConfiguration:
+        DestinationBucketName: !Ref S3AccessLogsBucket
+        LogFilePrefix: stock-reports/
 
   # ============================================================================
   # 4. NOTIFICATIONS: Amazon SNS
