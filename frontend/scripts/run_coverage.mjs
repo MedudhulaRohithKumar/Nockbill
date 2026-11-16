@@ -21,7 +21,7 @@ function walkFiles(dir, exts = ['.ts', '.tsx']) {
       results.push(full);
     }
   }
-  return results.sort();
+  return results.sort((a, b) => a.localeCompare(b));
 }
 
 function runFrontendSuite() {

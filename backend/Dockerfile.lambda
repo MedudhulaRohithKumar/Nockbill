@@ -13,7 +13,7 @@ WORKDIR /var/task
 
 # Install Python dependencies + AWS Lambda Runtime Interface Client
 COPY requirements.txt .
-RUN pip install --no-cache-dir --only-binary :all: awslambdaric && \
+RUN pip install --no-cache-dir --only-binary :all: awslambdaric==3.0.0 && \
     pip install --no-cache-dir --only-binary :all: -r requirements.txt
 
 # Copy only necessary application files (resolves docker:S6470)

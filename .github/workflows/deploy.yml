@@ -46,7 +46,7 @@ jobs:
 
       - name: Set up AWS SAM CLI
         run: |
-          curl -fsSL https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip -o aws-sam-cli.zip
+          curl --proto "=https" -fsSL https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip -o aws-sam-cli.zip
           unzip -q aws-sam-cli.zip -d sam-installation
           sudo ./sam-installation/install --update
           rm -rf aws-sam-cli.zip sam-installation
