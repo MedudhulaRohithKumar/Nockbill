@@ -646,9 +646,17 @@ export const AnalyticsPage: React.FC = () => {
                       return (
                         <tr
                           key={cat.category}
+                          role="button"
+                          tabIndex={0}
                           onClick={() =>
                             setSelectedCategoryPill(isSelected ? 'All Categories' : cat.category)
                           }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedCategoryPill(isSelected ? 'All Categories' : cat.category);
+                            }
+                          }}
                           className={`cursor-pointer transition ${
                             isSelected
                               ? 'bg-emerald-50/90 font-semibold'

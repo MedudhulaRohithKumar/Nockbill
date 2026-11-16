@@ -26,11 +26,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install tox and run Python tests with coverage
-        run: |
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir tox
-          tox -e py311
+      - name: Run Backend Tests & Generate Coverage XML
+        run: python3 backend/tests/generate_coverage_xml.py
 
       - name: Run Frontend Tests & Generate LCOV Coverage
         run: node frontend/scripts/run_coverage.mjs

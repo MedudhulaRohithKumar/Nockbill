@@ -16,6 +16,9 @@ from app.utils.helpers import (
     resolve_trade_name,
 )
 
+_ERR_SELLING_PRICE_NEGATIVE = "Selling price cannot be negative"
+_ERR_PURCHASE_PRICE_NEGATIVE = "Purchase price cannot be negative"
+
 # ─── Auth ────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
@@ -167,10 +170,10 @@ class ResetPasswordRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services or OAuth2 token")
-    shop_name: Optional[str] = Field(None, description="Optional shop name if user is signing up for the first time")
-    password: Optional[str] = Field(None, description="Optional password for hybrid email+password login")
-    phone: Optional[str] = Field(None, description="Optional mobile phone number")
-    gstin: Optional[str] = Field(None, description="Optional GSTIN")
+    shop_name: Optional[str] = Field(default=None, description="Optional shop name if user is signing up for the first time")
+    password: Optional[str] = Field(default=None, description="Optional password for hybrid email+password login")
+    phone: Optional[str] = Field(default=None, description="Optional mobile phone number")
+    gstin: Optional[str] = Field(default=None, description="Optional GSTIN")
 
 
 
@@ -307,9 +310,9 @@ class ProductCreate(BaseModel):
         self.hsn_code = sanitize_code(self.hsn_code, 50) if self.hsn_code else None
         self.barcode = sanitize_code(self.barcode, 100) if self.barcode else None
         if self.selling_price < Decimal("0"):
-            raise ValueError("Selling price cannot be negative")
+            raise ValueError(_ERR_SELLING_PRICE_NEGATIVE)
         if self.purchase_price < Decimal("0"):
-            raise ValueError("Purchase price cannot be negative")
+            raise ValueError(_ERR_PURCHASE_PRICE_NEGATIVE)
         if self.cost_price is not None and self.cost_price < Decimal("0"):
             raise ValueError("Cost price cannot be negative")
         if self.mrp is not None and self.mrp < Decimal("0"):
@@ -364,9 +367,9 @@ class ProductUpdate(BaseModel):
         if self.hsn_code is not None:
             self.hsn_code = sanitize_code(self.hsn_code, 50)
         if self.selling_price is not None and self.selling_price < Decimal("0"):
-            raise ValueError("Selling price cannot be negative")
+            raise ValueError(_ERR_SELLING_PRICE_NEGATIVE)
         if self.purchase_price is not None and self.purchase_price < Decimal("0"):
-            raise ValueError("Purchase price cannot be negative")
+            raise ValueError(_ERR_PURCHASE_PRICE_NEGATIVE)
         if self.cost_price is not None and self.cost_price < Decimal("0"):
             raise ValueError("Cost price cannot be negative")
         return self
@@ -543,9 +546,9 @@ class ProductRefillRequest(BaseModel):
         if self.quantity is None:
             self.quantity = qty
         if self.purchase_price is not None and self.purchase_price < Decimal("0"):
-            raise ValueError("Purchase price cannot be negative")
+            raise ValueError(_ERR_PURCHASE_PRICE_NEGATIVE)
         if self.selling_price is not None and self.selling_price < Decimal("0"):
-            raise ValueError("Selling price cannot be negative")
+            raise ValueError(_ERR_SELLING_PRICE_NEGATIVE)
         if self.mrp is not None and self.mrp < Decimal("0"):
             raise ValueError("MRP cannot be negative")
         self.company_name = sanitize_text(self.company_name, 200) if self.company_name else None
@@ -831,10 +834,10 @@ class InventoryTransactionResponse(BaseModel):
     quantity: Decimal
     previous_stock: Decimal
     new_stock: Decimal
-    reference_id: Optional[int]
-    reference_type: Optional[str]
+    reference_id: Optional[int] = None
+    reference_type: Optional[str] = None
     transaction_date: datetime
-    notes: Optional[str]
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -868,7 +871,7 @@ class ExpenseResponse(BaseModel):
     category: ExpenseCategory
     amount: Decimal
     expense_date: date
-    description: Optional[str]
+    description: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -944,8 +947,8 @@ class GstReportSummary(BaseModel):
 class StockReportRow(BaseModel):
     product_id: int
     product_name: str
-    company_name: Optional[str]
-    net_content: Optional[str]
+    company_name: Optional[str] = None
+    net_content: Optional[str] = None
     opening_stock: Decimal
     purchased: Decimal
     sold: Decimal

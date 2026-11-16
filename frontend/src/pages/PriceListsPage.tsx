@@ -958,8 +958,10 @@ export const PriceListsPage: React.FC = () => {
                           );
 
                           return (
-                            <div
+                            <button
                               key={p.id}
+                              type="button"
+                              disabled={hasOtherList}
                               onClick={() => {
                                 if (hasOtherList) return;
                                 setFormSelectedProductIds((prev) =>
@@ -968,7 +970,7 @@ export const PriceListsPage: React.FC = () => {
                                     : [...prev, p.id]
                                 );
                               }}
-                              className={`p-2.5 flex items-center justify-between text-xs ${
+                              className={`w-full text-left p-2.5 flex items-center justify-between text-xs ${
                                 hasOtherList
                                   ? 'bg-slate-50 opacity-60 cursor-not-allowed'
                                   : 'hover:bg-emerald-50/40 cursor-pointer'
@@ -1002,7 +1004,7 @@ export const PriceListsPage: React.FC = () => {
                                   {formatCurrency(preview)}
                                 </span>
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -1111,8 +1113,10 @@ export const PriceListsPage: React.FC = () => {
                     );
 
                     return (
-                      <div
+                      <button
                         key={p.id}
+                        type="button"
+                        disabled={lockedByOtherList}
                         onClick={() => {
                           if (lockedByOtherList) return;
                           setAssignSelectedIds((prev) =>
@@ -1121,7 +1125,7 @@ export const PriceListsPage: React.FC = () => {
                               : [...prev, p.id]
                           );
                         }}
-                        className={`p-3 flex items-center justify-between gap-3 text-xs transition ${
+                        className={`w-full text-left p-3 flex items-center justify-between gap-3 text-xs transition ${
                           lockedByOtherList
                             ? 'bg-amber-50/40 opacity-70 cursor-not-allowed'
                             : isSelected
@@ -1166,7 +1170,7 @@ export const PriceListsPage: React.FC = () => {
                             New: {formatCurrency(newPrice)}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })
                 ) : (

@@ -234,7 +234,7 @@ export const RegisterPage: React.FC = () => {
       setError('Please provide a valid 10-digit Indian mobile number starting with 6-9');
       return;
     }
-    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+    if (!formData.email.trim() || !/^[^\s@]{1,64}@[^\s@.]{1,63}(?:\.[^\s@.]{2,63}){1,8}$/.test(formData.email.trim())) {
       setError('Please enter a valid email address for reports and alerts');
       return;
     }

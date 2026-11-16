@@ -751,14 +751,15 @@ export const BillingPage: React.FC = () => {
               {searchResults.length > 0 && (
                 <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden divide-y divide-slate-100 max-h-80 overflow-y-auto">
                   {searchResults.map((product) => (
-                    <div
+                    <button
+                      type="button"
                       key={product.id}
                       onClick={() => {
                         handleSelectProductFromSearch(product);
                         setSearchQuery('');
                         setSearchResults([]);
                       }}
-                      className="p-3 hover:bg-emerald-50/70 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                      className="w-full text-left p-3 hover:bg-emerald-50/70 cursor-pointer flex items-center justify-between text-xs transition-colors"
                     >
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -796,7 +797,7 @@ export const BillingPage: React.FC = () => {
                           GST {safeNumber(product.gst_rate)}%
                         </span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

@@ -859,7 +859,6 @@ export const LoginPage: React.FC = () => {
                     pattern="[0-9]{6}"
                     required
                     maxLength={6}
-                    autoFocus
                     value={resetOtp}
                     onChange={(e) => {
                       // Strictly allow only digits 0-9 and cap at 6 characters
@@ -936,7 +935,6 @@ export const LoginPage: React.FC = () => {
                       type={showNewPassword ? 'text' : 'password'}
                       required
                       minLength={6}
-                      autoFocus
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min 6 characters"

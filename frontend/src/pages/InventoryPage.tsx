@@ -993,7 +993,6 @@ export const InventoryPage: React.FC = () => {
                         onChange={(e) => setRefillProductSearch(e.target.value)}
                         placeholder="Search 1000+ products by name, trade name, company, or 5-digit code..."
                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
-                        autoFocus
                       />
                     </div>
 

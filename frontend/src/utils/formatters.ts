@@ -44,8 +44,9 @@ export function formatCompactINR(val: any): string {
 export function sanitizeTextInput(val: string, maxLength = 200): string {
   if (!val) return '';
   return val
+    .slice(0, maxLength * 2)
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '')
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^<>]*>/g, '')
     .replace(/\s{2,}/g, ' ')
     .slice(0, maxLength);
 }
