@@ -9,8 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node scripts/run_coverage.mjs",
-    "test:coverage": "node scripts/run_coverage.mjs",
-    "test:vitest": "vitest run --coverage"
+    "test:coverage": "node scripts/run_coverage.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.40.0",
@@ -39,9 +38,6 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.3.4",
-    "vitest": "^2.1.8",
-    "@vitest/coverage-v8": "^2.1.8",
-    "jsdom": "^25.0.1"
+    "vite": "^5.3.4"
   }
 }

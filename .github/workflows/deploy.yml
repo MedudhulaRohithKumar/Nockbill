@@ -45,9 +45,12 @@ jobs:
           python-version: '3.11'
 
       - name: Set up AWS SAM CLI
-        uses: aws-actions/setup-sam@341eee1d120197779d721327c5b4d707b6651848 # v3.0.0
-        with:
-          use-installer: true
+        run: |
+          curl -fsSL https://github.com/aws/aws-sam-cli/releases/latest/download/aws-sam-cli-linux-x86_64.zip -o aws-sam-cli.zip
+          unzip -q aws-sam-cli.zip -d sam-installation
+          sudo ./sam-installation/install --update
+          rm -rf aws-sam-cli.zip sam-installation
+          sam --version
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
