@@ -327,6 +327,9 @@ export interface Sale {
   total_igst: number;
   round_off: number;
   grand_total: number;
+  vehicle_no?: string;
+  eway_bill_no?: string;
+  eway_bill_date?: string;
   notes?: string;
   status: 'Completed' | 'Cancelled' | 'Refunded' | string;
   items: SaleItem[];
@@ -483,4 +486,102 @@ export interface SalesReturnCreatePayload {
     returned_quantity: number;
   }[];
 }
+
+// ── Agri Doctor & Advisory ─────────────────────────────────────────
+export interface AgriDoctorMatchingProduct {
+  id: number;
+  product_name: string;
+  trade_name?: string;
+  company_name?: string;
+  category?: string;
+  unit?: string;
+  selling_price: number;
+  mrp?: number;
+  current_stock: number;
+  batch_number?: string;
+  expiry_date?: string;
+  in_stock: boolean;
+}
+
+export interface AgriDoctorAdvisory {
+  crop_name: string;
+  hindi_name: string;
+  pest_disease: string;
+  disease_hindi: string;
+  category: string;
+  technical_molecule: string;
+  dosage_per_pump: string;
+  dosage_per_acre: string;
+  symptoms: string;
+  advisory_notes: string;
+  matching_products: AgriDoctorMatchingProduct[];
+}
+
+export interface AgriDoctorCrop {
+  crop_name: string;
+  hindi_name: string;
+  pest_count: number;
+  pests: string[];
+}
+
+// ── Marketing & Seasonal WhatsApp Broadcast ─────────────────────────
+export interface FarmerSegmentItem {
+  customer_name: string;
+  customer_phone: string;
+  customer_address?: string;
+  village?: string;
+  total_bills: number;
+  total_spend: number;
+  last_visit_date?: string;
+  preferred_categories: string[];
+  pending_khata_balance: number;
+}
+
+export interface SegmentSummaryResponse {
+  total_farmers: number;
+  total_matching: number;
+  villages: string[];
+  farmers: FarmerSegmentItem[];
+}
+
+export interface CampaignTemplate {
+  id: string;
+  title: string;
+  season: string;
+  category: string;
+  template: string;
+  description: string;
+}
+
+export interface MarketingCampaign {
+  id: number;
+  campaign_name: string;
+  season: string;
+  target_crop?: string;
+  target_village?: string;
+  template_text: string;
+  total_recipients: number;
+  sent_count: number;
+  created_at: string;
+}
+
+// ── GST E-Way Bill ──────────────────────────────────────────────────
+export interface EWayBillGeneratePayload {
+  vehicle_no: string;
+  trans_distance_km?: number;
+  trans_mode?: string;
+  vehicle_type?: string;
+  transporter_id?: string;
+  transporter_name?: string;
+}
+
+export interface EWayBillGenerateResponse {
+  success: boolean;
+  invoice_number: string;
+  filename: string;
+  eway_bill_data: Record<string, unknown>;
+  portal_upload_url: string;
+  instructions: string;
+}
+
 

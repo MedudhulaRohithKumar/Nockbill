@@ -21,6 +21,7 @@ import {
   Zap,
   Package,
   Eraser,
+  Sprout,
   X
 } from 'lucide-react';
 import { productsApi, salesApi, khataApi, settingsApi, getErrorMessage } from '../api';
@@ -29,6 +30,7 @@ import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
+import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
 import {
   safeNumber,
   safeString,
@@ -106,6 +108,7 @@ export const BillingPage: React.FC = () => {
 
   // Modals & UI States
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isAgriDoctorOpen, setIsAgriDoctorOpen] = useState(false);
   const [savedSale, setSavedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -732,6 +735,15 @@ export const BillingPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsAgriDoctorOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 text-xs shadow-sm transition-all active:scale-95"
+            title="Open Agri Doctor crop advisory & pest-to-stock recommender"
+          >
+            <Sprout className="w-3.5 h-3.5 text-emerald-200" />
+            <span>🌱 Agri Doctor</span>
+          </button>
           <button
             onClick={() => navigate('/returns')}
             className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 px-3.5 rounded-xl flex items-center gap-1.5 text-xs transition-all shadow-sm active:scale-95"
@@ -1675,6 +1687,16 @@ export const BillingPage: React.FC = () => {
         onClose={() => setIsReceiptOpen(false)}
         sale={savedSale}
         settings={settings}
+      />
+
+      {/* Agri Doctor Crop Advisory Modal */}
+      <AgriDoctorModal
+        isOpen={isAgriDoctorOpen}
+        onClose={() => setIsAgriDoctorOpen(false)}
+        onAddToCart={(product) => {
+          addProductToCart(product);
+        }}
+        customerPhone={customerPhone}
       />
     </div>
   );

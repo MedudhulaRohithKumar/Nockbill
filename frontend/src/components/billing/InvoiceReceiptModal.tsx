@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Printer, Download, X, CheckCircle, Share2, QrCode } from 'lucide-react';
+import { Printer, Download, X, CheckCircle, Share2, QrCode, Truck } from 'lucide-react';
 import { Sale, ShopSettings, InvoiceTemplateId } from '../../types';
 import { salesApi, settingsApi } from '../../api';
 import { safeNumber, formatCurrency, buildWhatsAppInvoiceUrl } from '../../utils/formatters';
+import { EWayBillModal } from './EWayBillModal';
 
 interface InvoiceDocumentViewProps {
   sale: Sale;
@@ -362,6 +363,16 @@ export const InvoiceDocumentView: React.FC<InvoiceDocumentViewProps> = ({ sale, 
             </span>
           </div>
           <p className="text-[11px] text-slate-500">Status: {sale.status || 'Completed'}</p>
+          {sale.eway_bill_no && (
+            <p className="text-[11px] font-mono text-emerald-800 font-bold mt-0.5">
+              E-Way Bill: {sale.eway_bill_no}
+            </p>
+          )}
+          {sale.vehicle_no && (
+            <p className="text-[11px] font-mono text-slate-700">
+              Vehicle No: {sale.vehicle_no}
+            </p>
+          )}
         </div>
       </div>
 
@@ -586,6 +597,8 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
     window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const [isEWayOpen, setIsEWayOpen] = useState(false);
+
   return (
     <div
       role="dialog"
@@ -610,6 +623,19 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>WhatsApp Bill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEWayOpen(true)}
+              className={`${
+                Number(sale.grand_total || 0) >= 50000
+                  ? 'bg-indigo-600 hover:bg-indigo-500 font-bold ring-2 ring-indigo-400'
+                  : 'bg-slate-700 hover:bg-slate-600'
+              } text-white font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 text-[11px] sm:text-xs shadow transition-colors active:scale-95`}
+              title="Generate Government GST E-Way Bill JSON"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>E-Way Bill</span>
             </button>
             <button
               type="button"
@@ -663,6 +689,17 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
           </div>
         </div>
       </div>
+
+      {isEWayOpen && (
+        <EWayBillModal
+          isOpen={isEWayOpen}
+          onClose={() => setIsEWayOpen(false)}
+          sale={sale}
+          onEWayBillSaved={(updated) => {
+            Object.assign(sale, updated);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -20,6 +20,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ defa
 const SalesReturnPage = lazy(() => import('./pages/SalesReturnPage').then(m => ({ default: m.SalesReturnPage })));
 const PriceListsPage = lazy(() => import('./pages/PriceListsPage').then(m => ({ default: m.PriceListsPage })));
 const KhataPage = lazy(() => import('./pages/KhataPage').then(m => ({ default: m.KhataPage })));
+const MarketingPage = lazy(() => import('./pages/MarketingPage').then(m => ({ default: m.MarketingPage })));
 
 const RouteLoading: React.FC = () => (
   <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -77,6 +78,7 @@ export const App: React.FC = () => {
                   <Route path="/billing" element={<ErrorBoundary><BillingPage /></ErrorBoundary>} />
                   <Route path="/returns" element={<ErrorBoundary><SalesReturnPage /></ErrorBoundary>} />
                   <Route path="/khata" element={<ErrorBoundary><KhataPage /></ErrorBoundary>} />
+                  <Route path="/campaigns" element={<ErrorBoundary><MarketingPage /></ErrorBoundary>} />
                   <Route path="/inventory" element={<ErrorBoundary><InventoryPage /></ErrorBoundary>} />
                   <Route path="/price-lists" element={<ErrorBoundary><PriceListsPage /></ErrorBoundary>} />
                   <Route path="/purchases" element={<ErrorBoundary><PurchasesPage /></ErrorBoundary>} />

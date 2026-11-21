@@ -692,11 +692,10 @@ def import_master_agri_catalog(
             purchase_price=p_price,
             base_selling_price=s_price,
             selling_price=s_price,
-            mrp=m_price,
             gst_rate=Decimal(tpl["gst_rate"]),
             hsn_code=tpl["hsn_code"],
-            quantity=init_qty,
-            min_stock_threshold=Decimal("10"),
+            current_stock=init_qty,
+            minimum_stock=Decimal("10"),
             expiry_date=default_expiry,
             barcode=f"SH{shop_id}-{code_upper}",
             is_active=True,
@@ -709,11 +708,11 @@ def import_master_agri_catalog(
             batch_number=batch_no,
             trade_name=tpl["trade_name"],
             company_name=tpl["company_name"],
-            expiry_date=default_expiry,
+            current_stock=init_qty,
             purchase_price=p_price,
             selling_price=s_price,
             mrp=m_price,
-            current_stock=init_qty,
+            expiry_date=default_expiry,
             is_active=True,
         )
         db.add(batch)
@@ -823,7 +822,7 @@ def get_cashier_shift_handover(
         khata_q = khata_q.filter(KhataPayment.created_at >= start_dt, KhataPayment.created_at < end_dt)
 
     for s in sales_q.all():
-        uid = s.sold_by or current_user.id
+        uid = getattr(s, "created_by", None) or getattr(s, "sold_by", None) or current_user.id
         bucket = user_map.get(uid) or next(iter(user_map.values()), None)
         if not bucket:
             continue
@@ -899,11 +898,11 @@ def get_agri_inspector_compliance_register(
             "company_name": p.company_name,
             "category": p.category or "Fertilizer",
             "batch_number": p.batch_number or "-",
-            "expiry_date": p.expiry_date.isoformat() if p.expiry_date else None,
-            "current_stock": float(p.quantity or 0),
+            "expiry_date": p.expiry_date or None,
+            "current_stock": float(p.current_stock or 0),
             "unit": p.unit or "Bags",
             "selling_price": float(p.selling_price or 0),
-            "mrp": float(p.mrp or p.selling_price or 0),
+            "mrp": float(getattr(p, "mrp", None) or p.selling_price or 0),
         }
         for p in products
     ]
@@ -921,7 +920,11 @@ def get_agri_inspector_compliance_register(
         for it in s.items:
             batch_sale_register.append({
                 "invoice_number": s.invoice_number,
-                "sale_date": s.sale_date.isoformat() if s.sale_date else None,
+                "sale_date": (
+                    s.sale_date.isoformat()
+                    if hasattr(s.sale_date, "isoformat")
+                    else (str(s.sale_date) if s.sale_date else None)
+                ),
                 "farmer_name": s.customer_name or "Walk-in Farmer",
                 "farmer_phone": s.customer_phone or "-",
                 "farmer_village": getattr(s, "customer_address", None) or "-",

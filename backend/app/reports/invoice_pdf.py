@@ -167,6 +167,14 @@ def generate_invoice_pdf(sale, shop) -> bytes:
         ],
     ]
 
+    if getattr(sale, "eway_bill_no", None) or getattr(sale, "vehicle_no", None):
+        ewb_part = f"<b>E-Way Bill:</b> <font color='#15803d'>{_esc(sale.eway_bill_no)}</font>" if getattr(sale, "eway_bill_no", None) else ""
+        veh_part = f"<b>Vehicle No:</b> {_esc(sale.vehicle_no)}" if getattr(sale, "vehicle_no", None) else ""
+        invoice_data.append([
+            Paragraph(ewb_part or veh_part, styles["Normal"]),
+            Paragraph(veh_part if (ewb_part and veh_part) else "", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+        ])
+
     elements.append(Table(invoice_data, colWidths=["55%", "45%"]))
     elements.append(Spacer(1, 6))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))

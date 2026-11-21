@@ -99,17 +99,17 @@ def _extract_token(
 ) -> Optional[str]:
     """
     Extract bearer credentials from secure channels only:
-    1. HttpOnly 'access_token' cookie (browser sessions, XSS-safe)
-    2. Authorization: Bearer header (mobile / CLI / API clients)
+    1. Authorization: Bearer header (takes precedence for explicit API/client requests)
+    2. HttpOnly 'access_token' cookie (browser sessions, XSS-safe fallback)
     Query-string tokens (?token=...) are deliberately rejected so JWTs never leak
     into CloudFront/S3 access logs, browser history, or Referer headers.
     """
+    if credentials and credentials.credentials:
+        return credentials.credentials
     if access_token:
         return access_token
     if request and request.cookies.get("access_token"):
         return request.cookies.get("access_token")
-    if credentials and credentials.credentials:
-        return credentials.credentials
     return None
 
 

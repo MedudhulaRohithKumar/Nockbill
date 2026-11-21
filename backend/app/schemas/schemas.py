@@ -889,6 +889,9 @@ class SaleCreate(BaseModel):
     round_off: Optional[Decimal] = None
     grand_total: Optional[Decimal] = None
     payment_details: Optional[str] = None
+    vehicle_no: Optional[str] = None
+    eway_bill_no: Optional[str] = None
+    eway_bill_date: Optional[datetime] = None
     notes: Optional[str] = None
     idempotency_key: Optional[str] = None
     items: List[SaleItemCreate] = Field(..., min_length=1)
@@ -919,6 +922,8 @@ class SaleCreate(BaseModel):
             self.customer_phone = None
         self.customer_address = sanitize_text(self.customer_address, 300) if self.customer_address else None
         self.customer_gstin = validate_gstin(self.customer_gstin) if self.customer_gstin else None
+        self.vehicle_no = sanitize_code(self.vehicle_no, 30) if self.vehicle_no else None
+        self.eway_bill_no = sanitize_code(self.eway_bill_no, 50) if self.eway_bill_no else None
         self.notes = sanitize_text(self.notes, 500) if self.notes else None
         return self
 
@@ -965,6 +970,9 @@ class SaleResponse(BaseModel):
     payment_method: PaymentMethod = PaymentMethod.CASH
     payment_mode: Optional[str] = None
     payment_details: Optional[str] = None
+    vehicle_no: Optional[str] = None
+    eway_bill_no: Optional[str] = None
+    eway_bill_date: Optional[datetime] = None
     notes: Optional[str] = None
     sale_date: datetime
     invoice_date: Optional[str] = None
@@ -990,6 +998,8 @@ class SaleListResponse(BaseModel):
     grand_total: Decimal = Decimal("0")
     payment_method: PaymentMethod = PaymentMethod.CASH
     payment_mode: Optional[str] = None
+    vehicle_no: Optional[str] = None
+    eway_bill_no: Optional[str] = None
     sale_date: datetime
     invoice_date: Optional[str] = None
     total_taxable: Optional[Decimal] = None

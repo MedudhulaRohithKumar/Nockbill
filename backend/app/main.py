@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices, returns, price_lists, khata
+from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices, returns, price_lists, khata, agri_doctor, campaigns, eway_bill
 from app.database.base import engine, get_db
 from app.database.migrations import ensure_schema
 from app.middleware.security import SecurityHeadersMiddleware
@@ -57,6 +57,9 @@ app.include_router(expenses.router)
 app.include_router(settings_router.router)
 app.include_router(invoices.router)
 app.include_router(khata.router)
+app.include_router(agri_doctor.router)
+app.include_router(campaigns.router)
+app.include_router(eway_bill.router)
 
 # ── Authenticated, tenant-scoped file serving (replaces unauthenticated /uploads mount — M1) ─
 @app.get("/uploads/{filename}")

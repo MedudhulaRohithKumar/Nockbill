@@ -17,7 +17,8 @@ import {
   ChevronDown,
   RotateCcw,
   Tag,
-  BookOpen
+  BookOpen,
+  Send
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
@@ -57,6 +58,7 @@ export const AppLayout: React.FC = () => {
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
     { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
     { to: '/khata', label: 'Khata & Compliance', icon: BookOpen, badge: 'Udhar' },
+    { to: '/campaigns', label: 'WhatsApp Broadcast', icon: Send, badge: 'Marketing' },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
     ...(isOwner ? [{ to: '/price-lists', label: 'Price Lists', icon: Tag, badge: 'Owner' }] : []),
     { to: '/purchases', label: 'Inward / Purchases', icon: ShoppingBag },

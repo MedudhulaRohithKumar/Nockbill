@@ -104,6 +104,7 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
         cls._tmpdir.cleanup()
 
     def setUp(self):
+        self.client.cookies.clear()
         Base.metadata.drop_all(bind=self.engine)
         ensure_schema(self.engine, raise_on_error=True)
         _FALLBACK_USED_NONCES.clear()
@@ -1703,6 +1704,207 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
         comp_res = self.client.get("/api/khata/compliance-register", headers=self.owner_a_headers)
         self.assertEqual(comp_res.status_code, 200)
         self.assertGreaterEqual(len(comp_res.json()["stock_cum_price_board"]), 2)
+
+    # ── Agri Doctor Advisory & Real-time Stock Recommender ──
+    def test_agri_doctor_advisory_and_stock_recommender(self):
+        # 1. Crops list
+        crops_res = self.client.get("/api/agri-doctor/crops", headers=self.owner_a_headers)
+        self.assertEqual(crops_res.status_code, 200)
+        crop_names = [c["crop_name"] for c in crops_res.json()]
+        self.assertIn("Cotton", crop_names)
+        self.assertIn("Paddy", crop_names)
+        self.assertIn("Chilli", crop_names)
+
+        # 2. Add an in-stock Emamectin insecticide in Shop A
+        p_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Proclaim 5 SG Insecticide",
+                "trade_name": "Emamectin Benzoate 5 SG",
+                "company_name": "Syngenta",
+                "category": "Pesticide",
+                "unit": "Bottles",
+                "purchase_price": "280.00",
+                "selling_price": "340.00",
+                "current_stock": "18",
+                "gst_rate": "18.00",
+                "batch_number": "PROC-2026-X",
+                "expiry_date": "2027-12",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(p_res.status_code, 201)
+
+        # 3. Recommend for Pink Bollworm in Cotton
+        rec_res = self.client.get(
+            "/api/agri-doctor/recommend?crop=Cotton&pest_disease=Pink+Bollworm",
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(rec_res.status_code, 200)
+        rec = rec_res.json()
+        self.assertEqual(rec["crop_name"], "Cotton")
+        self.assertEqual(rec["pest_disease"], "Pink Bollworm")
+        self.assertIn("Emamectin Benzoate", rec["technical_molecule"])
+        self.assertIn("8 - 10 g", rec["dosage_per_pump"])
+        
+        # Verify Shop A's matching product is returned
+        matching_names = [m["product_name"] for m in rec["matching_products"]]
+        self.assertIn("Proclaim 5 SG Insecticide", matching_names)
+
+        # 4. Multi-tenant isolation: Shop B must NOT see Shop A's Proclaim product
+        rec_b = self.client.get(
+            "/api/agri-doctor/recommend?crop=Cotton&pest_disease=Pink+Bollworm",
+            headers=self.owner_b_headers,
+        )
+        self.assertEqual(rec_b.status_code, 200)
+        matching_b = [m["product_name"] for m in rec_b.json()["matching_products"]]
+        self.assertNotIn("Proclaim 5 SG Insecticide", matching_b)
+
+        # 5. Advisories search filter
+        adv_search = self.client.get(
+            "/api/agri-doctor/advisories?search=thrips",
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(adv_search.status_code, 200)
+        self.assertGreaterEqual(len(adv_search.json()), 1)
+
+    # ── Seasonal WhatsApp Broadcast Campaigns & Farmer Segments ──
+    def test_marketing_campaigns_and_farmer_segments(self):
+        # 1. Curated campaign templates
+        tpl_res = self.client.get("/api/campaigns/templates", headers=self.owner_a_headers)
+        self.assertEqual(tpl_res.status_code, 200)
+        tpl_ids = [t["id"] for t in tpl_res.json()]
+        self.assertIn("KHARIF_SEED_ARRIVAL", tpl_ids)
+        self.assertIn("PEST_OUTBREAK_ALERT", tpl_ids)
+
+        # 2. Create customer sale with village address
+        p = self.client.post(
+            "/api/products",
+            json={"product_name": "Kaveri 6588 Cotton Seed", "category": "Seeds", "unit": "Packets", "selling_price": "850", "purchase_price": "700", "current_stock": "50"},
+            headers=self.owner_a_headers,
+        ).json()
+        self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Ramu Patel",
+                "customer_phone": "9876500111",
+                "customer_address": "Village Rampur, Nizamabad",
+                "items": [{"product_id": p["id"], "product_name": p["product_name"], "quantity": 4, "price": 850, "gst_rate": 5}],
+            },
+            headers=self.owner_a_headers,
+        )
+
+        # 3. Get customer segments
+        seg_res = self.client.get("/api/campaigns/segments?season=ALL", headers=self.owner_a_headers)
+        self.assertEqual(seg_res.status_code, 200)
+        seg = seg_res.json()
+        self.assertGreaterEqual(seg["total_farmers"], 1)
+        phones = [f["customer_phone"] for f in seg["farmers"]]
+        self.assertIn("9876500111", phones)
+        self.assertIn("Rampur", seg["villages"])
+
+        # 4. Create broadcast campaign
+        camp_res = self.client.post(
+            "/api/campaigns",
+            json={
+                "campaign_name": "Kharif Cotton Arrival 2026",
+                "season": "KHARIF",
+                "target_crop": "Cotton",
+                "target_village": "Rampur",
+                "template_text": "Namaste {farmer_name}, certified seed arrived at {shop_name}.",
+                "recipients_count": 1,
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(camp_res.status_code, 201)
+        camp_id = camp_res.json()["id"]
+
+        # 5. Increment sent counter
+        inc_res = self.client.put(f"/api/campaigns/{camp_id}/increment", headers=self.owner_a_headers)
+        self.assertEqual(inc_res.status_code, 200)
+        self.assertEqual(inc_res.json()["sent_count"], 1)
+
+        # 6. Multi-tenant security: Shop B cannot access Shop A's campaign
+        self.assertEqual(self.client.put(f"/api/campaigns/{camp_id}/increment", headers=self.owner_b_headers).status_code, 404)
+
+    # ── Government GST E-Way Bill JSON Exporter & Number Attachment ──
+    def test_gst_eway_bill_json_export_and_number_attachment(self):
+        # 1. Ensure Shop A has GSTIN configured
+        self.client.put(
+            "/api/settings",
+            json={"gstin": "36AAAAA0000A1Z5", "shop_name": "Kisan Seva Kendra", "address_line1": "Mandi Road", "city": "Nizamabad", "pincode": "503001"},
+            headers=self.owner_a_headers,
+        )
+
+        # 2. Create large consignment sale (> ₹50,000 threshold)
+        p = self.client.post(
+            "/api/products",
+            json={"product_name": "IFFCO DAP 18:46:0 (50kg)", "category": "Fertilizer", "unit": "Bags", "hsn_code": "31052000", "selling_price": "1350", "purchase_price": "1200", "current_stock": "100"},
+            headers=self.owner_a_headers,
+        ).json()
+
+        sale_res = self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Narayana Reddy",
+                "customer_phone": "9848022334",
+                "customer_address": "Village Armoor",
+                "customer_gstin": None,
+                "is_interstate": False,
+                "items": [{"product_id": p["id"], "product_name": p["product_name"], "hsn_code": "31052000", "quantity": 50, "price": 1350, "gst_rate": 5}],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(sale_res.status_code, 201)
+        sale = sale_res.json()
+        self.assertEqual(float(sale["grand_total"]), 67500.0)
+
+        # 3. Generate NIC E-Way Bill JSON
+        ewb_res = self.client.post(
+            f"/api/eway-bill/sales/{sale['id']}/generate-json",
+            json={
+                "vehicle_no": "TS16AB1234",
+                "trans_distance_km": 35,
+                "trans_mode": "1",
+                "vehicle_type": "R",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(ewb_res.status_code, 200, ewb_res.text)
+        data = ewb_res.json()
+        self.assertTrue(data["success"])
+        nic_json = data["eway_bill_data"]
+        self.assertEqual(nic_json["version"], "1.0.0123")
+        bill = nic_json["billLists"][0]
+        self.assertEqual(bill["userGstin"], "36AAAAA0000A1Z5")
+        self.assertEqual(bill["fromGstin"], "36AAAAA0000A1Z5")
+        self.assertEqual(bill["toGstin"], "URP")
+        self.assertEqual(bill["vehicleNo"], "TS16AB1234")
+        self.assertEqual(bill["transDistance"], 35)
+        self.assertEqual(bill["actFromStateCode"], 36)
+        self.assertEqual(bill["docType"], "INV")
+        self.assertEqual(len(bill["itemList"]), 1)
+        self.assertEqual(bill["itemList"][0]["qtyUnit"], "BAG")
+
+        # 4. Attach 12-digit E-Way Bill number to the sale record
+        attach_res = self.client.put(
+            f"/api/eway-bill/sales/{sale['id']}/number",
+            json={"eway_bill_no": "231004928172"},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(attach_res.status_code, 200)
+        self.assertEqual(attach_res.json()["eway_bill_no"], "231004928172")
+
+        # 5. Multi-tenant security: Shop B cannot access Shop A's sale E-Way bill
+        self.assertEqual(
+            self.client.post(
+                f"/api/eway-bill/sales/{sale['id']}/generate-json",
+                json={"vehicle_no": "TS16AB1234"},
+                headers=self.owner_b_headers,
+            ).status_code,
+            404,
+        )
+
 
 
 if __name__ == "__main__":

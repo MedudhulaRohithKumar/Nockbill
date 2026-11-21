@@ -1,7 +1,7 @@
 import api from './client';
 import { buildRegisterPayload, GeneratedCredentials } from '../utils/registerPayload';
 import { INVENTORY_PAGE_SIZE, MAX_PRODUCTS_LIMIT, parseTotalCount } from '../utils/pagination';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList, IamUser } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList, IamUser, AgriDoctorCrop, AgriDoctorAdvisory, SegmentSummaryResponse, CampaignTemplate, MarketingCampaign, EWayBillGeneratePayload, EWayBillGenerateResponse } from '../types';
 
 export type RegisterPayload = ReturnType<typeof buildRegisterPayload>;
 
@@ -749,6 +749,71 @@ export const khataApi = {
         total_amount: number;
       }>;
     }>('/khata/compliance-register');
+    return res.data;
+  },
+};
+
+export const agriDoctorApi = {
+  getCrops: async () => {
+    const res = await api.get<AgriDoctorCrop[]>('/agri-doctor/crops');
+    return res.data;
+  },
+  getAdvisories: async (params?: { crop?: string; pest?: string; search?: string }) => {
+    const res = await api.get<AgriDoctorAdvisory[]>('/agri-doctor/advisories', { params });
+    return res.data;
+  },
+  getRecommendation: async (crop: string, pest_disease: string) => {
+    const res = await api.get<AgriDoctorAdvisory>('/agri-doctor/recommend', {
+      params: { crop, pest_disease },
+    });
+    return res.data;
+  },
+};
+
+export const campaignsApi = {
+  getTemplates: async () => {
+    const res = await api.get<CampaignTemplate[]>('/campaigns/templates');
+    return res.data;
+  },
+  getSegments: async (params?: { season?: string; category?: string; village?: string; khata_filter?: string }) => {
+    const res = await api.get<SegmentSummaryResponse>('/campaigns/segments', { params });
+    return res.data;
+  },
+  create: async (data: {
+    campaign_name: string;
+    season: string;
+    target_crop?: string;
+    target_village?: string;
+    template_text: string;
+    recipients_count: number;
+  }) => {
+    const res = await api.post<MarketingCampaign>('/campaigns', data);
+    return res.data;
+  },
+  list: async () => {
+    const res = await api.get<MarketingCampaign[]>('/campaigns');
+    return res.data;
+  },
+  incrementSent: async (campaignId: number) => {
+    const res = await api.put<MarketingCampaign>(`/campaigns/${campaignId}/increment`);
+    return res.data;
+  },
+};
+
+export const ewayBillApi = {
+  generateJson: async (saleId: number, payload: EWayBillGeneratePayload) => {
+    const res = await api.post<EWayBillGenerateResponse>(`/eway-bill/sales/${saleId}/generate-json`, payload);
+    return res.data;
+  },
+  saveNumber: async (saleId: number, eway_bill_no: string) => {
+    const res = await api.put<{
+      success: boolean;
+      sale_id: number;
+      invoice_number: string;
+      eway_bill_no: string;
+      eway_bill_date: string;
+      message: string;
+    }>(`/eway-bill/sales/${saleId}/number`, { eway_bill_no });
     return res.data;
   },
 };

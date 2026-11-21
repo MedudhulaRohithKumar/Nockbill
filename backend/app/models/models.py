@@ -280,6 +280,9 @@ class Sale(Base):
     round_off = Column(Numeric(8, 2), default=0)
     grand_total = Column(Numeric(14, 2), default=0)
     payment_method = Column(SAEnum(PaymentMethod), default=PaymentMethod.CASH)
+    vehicle_no = Column(String(30), nullable=True)
+    eway_bill_no = Column(String(50), nullable=True)
+    eway_bill_date = Column(DateTime, nullable=True)
     notes = Column(Text)
     sale_date = Column(DateTime, default=_utc_now, index=True)
     created_at = Column(DateTime, default=_utc_now)
@@ -557,3 +560,27 @@ class KhataPayment(Base):
     __table_args__ = (
         Index("ix_khata_shop_ledger_phone", "shop_id", "ledger_type", "party_phone"),
     )
+
+
+class MarketingCampaign(Base):
+    """
+    Tenant-scoped seasonal WhatsApp broadcast marketing campaigns.
+    Tracks farmer segmentation, localized campaign templates, and dispatch status.
+    """
+    __tablename__ = "marketing_campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
+    campaign_name = Column(String(200), nullable=False)
+    season = Column(String(50), default="KHARIF", nullable=False, index=True)  # KHARIF, RABI, ZAID, GENERAL
+    target_crop = Column(String(100), nullable=True)
+    target_village = Column(String(100), nullable=True)
+    template_text = Column(Text, nullable=False)
+    total_recipients = Column(Integer, default=0, nullable=False)
+    sent_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=_utc_now, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_campaign_shop_season", "shop_id", "season"),
+    )
+
