@@ -93,6 +93,33 @@ export const LoginPage: React.FC = () => {
     }
   }, [searchParams]);
 
+  const completeGoogleLogin = async (googleToken: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle(googleToken, { mode: 'login' });
+      navigate('/billing');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (err?.response?.status === 404 && detail?.code === 'ACCOUNT_NOT_FOUND') {
+        navigate('/register', {
+          state: {
+            googlePrefill: {
+              token: googleToken,
+              email: detail.email || '',
+              name: detail.name || '',
+              fromLogin: true,
+            },
+          },
+        });
+        return;
+      }
+      setError(getErrorMessage(err, 'Google Sign-In failed. Please try again or use your password.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Initialize Google Identity Services (GIS) on mount
   useEffect(() => {
     if (!googleClientId) return;
@@ -106,16 +133,7 @@ export const LoginPage: React.FC = () => {
           client_id: googleClientId,
           callback: async (response: any) => {
             if (response.credential) {
-              setIsLoading(true);
-              setError(null);
-              try {
-                await loginWithGoogle(response.credential);
-                navigate('/billing');
-              } catch (err: any) {
-                setError(getErrorMessage(err, 'Google Sign-In failed. Please try again or use your password.'));
-              } finally {
-                setIsLoading(false);
-              }
+              await completeGoogleLogin(response.credential);
             }
           },
           auto_select: false,
@@ -164,16 +182,7 @@ export const LoginPage: React.FC = () => {
               return;
             }
             if (tokenResponse.access_token) {
-              setIsLoading(true);
-              setError(null);
-              try {
-                await loginWithGoogle(tokenResponse.access_token);
-                navigate('/billing');
-              } catch (err: any) {
-                setError(getErrorMessage(err, 'Google Sign-In failed. Please try again or use your password.'));
-              } finally {
-                setIsLoading(false);
-              }
+              await completeGoogleLogin(tokenResponse.access_token);
             }
           },
         });
@@ -222,10 +231,22 @@ export const LoginPage: React.FC = () => {
       await login(username.trim(), password, captchaToken, cleanCaptcha);
       navigate('/billing');
     } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      if (err?.response?.status === 404 && detail?.code === 'ACCOUNT_NOT_FOUND') {
+        navigate('/register', {
+          state: {
+            loginPrefill: {
+              identifier: detail.identifier || username.trim(),
+              fromLogin: true,
+            },
+          },
+        });
+        return;
+      }
       // Every verification attempt burns the single-use server nonce — always issue a fresh CAPTCHA
       void fetchCaptcha();
       if (err.response?.status === 401) {
-        setError(err.response?.data?.detail || 'Incorrect username, mobile, or password.');
+        setError(getErrorMessage(err, 'Incorrect username, mobile, or password.'));
       } else {
         setError(getErrorMessage(err, 'Invalid credentials or security verification code.'));
       }

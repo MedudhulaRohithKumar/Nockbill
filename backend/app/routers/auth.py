@@ -49,6 +49,34 @@ RESET_SESSION_TTL_SECONDS = 600
 RESET_MAX_OTP_ATTEMPTS = 5
 RESET_MAX_TOKEN_ATTEMPTS = 3
 
+ACCOUNT_NOT_FOUND_CODE = "ACCOUNT_NOT_FOUND"
+ERR_ACCOUNT_DEACTIVATED = "Your account has been deactivated. Please contact support."
+ERR_EMAIL_ALREADY_EXISTS = (
+    "An account with this email already exists. Please sign in with your Google account or password."
+)
+
+
+def _get_login_url() -> str:
+    return f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+
+
+def _build_owner_credentials_payload(shop_record: ShopSettings, owner_user: User, login_url: str) -> dict:
+    """Build non-secret credential metadata for post-registration export (never includes password)."""
+    return {
+        "account_id": f"SHOP-{shop_record.id:05d}",
+        "shop_name": shop_record.shop_name,
+        "owner_name": owner_user.name,
+        "username": owner_user.username,
+        "email": owner_user.email or "",
+        "phone": owner_user.phone or "",
+        "role": owner_user.role.value,
+        "console_login_url": login_url,
+        "gstin": shop_record.gstin or "UNREGISTERED",
+        "fertilizer_license": shop_record.fertilizer_license_no or "N/A",
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "security_warning": "CONFIDENTIAL: Official Business Master Access Key. Keep secure and do not share.",
+    }
+
 
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
@@ -129,10 +157,23 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
             func.lower(User.username) == identifier_lower,
             func.lower(User.email) == identifier_lower,
             User.phone == clean_identifier
-        ),
-        User.is_active == True
+        )
     ).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": ACCOUNT_NOT_FOUND_CODE,
+                "message": "No shop account found with these details. Please register your shop.",
+                "identifier": clean_identifier,
+            },
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERR_ACCOUNT_DEACTIVATED,
+        )
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username, mobile, or password",
@@ -150,6 +191,9 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
         user_id=user.id,
         username=user.username,
         name=user.name,
+        email=user.email,
+        phone=user.phone,
+        shop_name=user.shop.shop_name if user.shop else None,
         role=user.role,
         subscription_status=user.subscription_status or "ACTIVE",
     )
@@ -245,7 +289,7 @@ def register_shop(payload: ShopRegistrationRequest, request: Request, response: 
     set_auth_cookie(response, token)
 
     # 5. Business credential export payload
-    base_login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+    base_login_url = _get_login_url()
 
     # 6. Dispatch Welcome Email
     if clean_email:
@@ -264,20 +308,7 @@ def register_shop(payload: ShopRegistrationRequest, request: Request, response: 
             logger.warning("Could not dispatch welcome email to %s: %s", clean_email, exc)
 
     # Never echo raw plaintext passwords back in HTTP response bodies (H5).
-    credentials = {
-        "account_id": f"SHOP-{shop_record.id:05d}",
-        "shop_name": shop_record.shop_name,
-        "owner_name": new_user.name,
-        "username": new_user.username,
-        "email": new_user.email or "",
-        "phone": new_user.phone or "",
-        "role": new_user.role.value,
-        "console_login_url": base_login_url,
-        "gstin": shop_record.gstin or "UNREGISTERED",
-        "fertilizer_license": shop_record.fertilizer_license_no or "N/A",
-        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "security_warning": "CONFIDENTIAL: Official Business Master Access Key. Keep secure and do not share.",
-    }
+    credentials = _build_owner_credentials_payload(shop_record, new_user, base_login_url)
 
     return RegistrationResponse(
         access_token=token,
@@ -728,6 +759,118 @@ def reset_password(payload: ResetPasswordRequest, request: Request, db: Session 
     return {"success": True, "message": "Password updated successfully! You can now sign in with your new password."}
 
 
+def _resolve_google_username(db: Session, requested_username: Optional[str], clean_email: str) -> str:
+    """Resolve and validate a unique username for a new Google-registered shop owner."""
+    if requested_username and requested_username.strip():
+        candidate = requested_username.strip()[:50]
+        if len(candidate) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username must be at least 3 characters.",
+            )
+        existing = db.query(User).filter(func.lower(User.username) == candidate.lower()).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username is already taken. Please choose another.",
+            )
+        return candidate
+
+    base_username = clean_email.split("@")[0].replace(".", "_").replace("-", "_")
+    if len(base_username) < 3:
+        base_username = f"{base_username}_shop"
+    candidate_username = base_username[:40]
+    suffix = 1
+    while db.query(User).filter(func.lower(User.username) == candidate_username.lower()).first():
+        candidate_username = f"{base_username[:35]}_{suffix}"
+        suffix += 1
+    return candidate_username
+
+
+def _create_google_shop_and_user(
+    db: Session,
+    payload: GoogleAuthRequest,
+    clean_email: str,
+    full_name: str,
+    google_sub: str,
+) -> tuple[ShopSettings, User]:
+    """Create a complete ShopSettings and hybrid Google+Password Owner User record."""
+    clean_pwd = (payload.password or "").strip()
+    if clean_pwd and len(clean_pwd) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters.",
+        )
+    chosen_password = clean_pwd if len(clean_pwd) >= 6 else secrets.token_urlsafe(24)
+
+    candidate_username = _resolve_google_username(db, payload.username, clean_email)
+    clean_owner = (payload.owner_name or "").strip()[:100] or full_name[:100]
+    shop_title = (payload.shop_name or "").strip()[:200] or f"{clean_owner[:150]}'s Shop"
+    proprietor_title = (payload.proprietor_name or "").strip()[:200] or clean_owner[:200]
+    clean_phone = payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None
+    initial_sub_status = "ACTIVE" if settings.demo_activation_allowed else "PENDING"
+
+    new_shop = ShopSettings(
+        shop_name=shop_title,
+        proprietor_name=proprietor_title,
+        email=clean_email[:150],
+        phone=clean_phone,
+        address_line1=payload.address_line1.strip()[:500] if payload.address_line1 else None,
+        address_line2=payload.address_line2.strip()[:500] if payload.address_line2 else None,
+        city=payload.city.strip()[:100] if payload.city else None,
+        state=payload.state.strip()[:100] if payload.state else None,
+        pincode=payload.pincode.strip()[:10] if payload.pincode else None,
+        gstin=payload.gstin.strip().upper()[:20] if (payload.gstin and payload.gstin.strip()) else None,
+        fertilizer_license_no=payload.fertilizer_license_no.strip()[:100] if payload.fertilizer_license_no else None,
+        pesticide_license_no=payload.pesticide_license_no.strip()[:100] if payload.pesticide_license_no else None,
+        seed_license_no=payload.seed_license_no.strip()[:100] if payload.seed_license_no else None,
+        bank_name=payload.bank_name.strip()[:200] if payload.bank_name else None,
+        bank_account_no=payload.bank_account_no.strip()[:50] if payload.bank_account_no else None,
+        bank_ifsc=payload.bank_ifsc.strip().upper()[:20] if payload.bank_ifsc else None,
+        bank_branch=payload.bank_branch.strip()[:200] if payload.bank_branch else None,
+        upi_id=payload.upi_id.strip()[:100] if payload.upi_id else None,
+        default_gst_rate=payload.default_gst_rate if payload.default_gst_rate is not None else 18,
+        invoice_prefix=payload.invoice_prefix.strip().upper()[:10] if payload.invoice_prefix else "INV",
+        invoice_counter=1,
+        currency="INR",
+        subscription_status=initial_sub_status,
+    )
+    db.add(new_shop)
+    db.flush()
+
+    user = User(
+        name=clean_owner,
+        username=candidate_username,
+        email=clean_email[:150],
+        phone=clean_phone,
+        google_sub=google_sub,
+        password_hash=hash_password(chosen_password),
+        role=UserRole.OWNER,
+        shop_id=new_shop.id,
+        subscription_status=initial_sub_status,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    if clean_email:
+        try:
+            send_welcome_account_email(
+                to_email=clean_email,
+                recipient_name=clean_owner,
+                username=candidate_username,
+                shop_name=new_shop.shop_name,
+                login_url=_get_login_url(),
+                gstin=new_shop.gstin,
+                license_no=new_shop.fertilizer_license_no,
+                role_name="Store Owner",
+            )
+        except Exception as exc:
+            logger.warning("Could not dispatch welcome email to new Google user %s: %s", clean_email, exc)
+
+    return new_shop, user
+
+
 @router.post("/google", response_model=TokenResponse)
 def google_auth(payload: GoogleAuthRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """
@@ -767,76 +910,78 @@ def google_auth(payload: GoogleAuthRequest, request: Request, response: Response
 
     full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
     clean_email = google_email.strip().lower()
+    auth_mode = (payload.mode or "auto").strip().lower()
 
-    # Look up strictly by immutable Google subject first to prevent pre-registration email hijacking (H5)
+    # Look up strictly by immutable Google subject first to prevent cross-account hijacking (H5)
     user = db.query(User).filter(User.google_sub == google_sub).first()
+    existing_by_email = db.query(User).filter(func.lower(User.email) == clean_email).first()
 
-    if not user:
-        existing_by_email = db.query(User).filter(func.lower(User.email) == clean_email).first()
-        if existing_by_email:
+    if auth_mode == "preflight":
+        if user or existing_by_email:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this email already exists. Please sign in with your username and password.",
+                detail=ERR_EMAIL_ALREADY_EXISTS,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": ACCOUNT_NOT_FOUND_CODE,
+                "message": "No shop account found for this Google account. Complete your shop setup to register.",
+                "email": clean_email,
+                "name": full_name,
+            },
+        )
+
+    if user and auth_mode == "register":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=ERR_EMAIL_ALREADY_EXISTS,
+        )
+
+    if not user and existing_by_email:
+        # Never allow linking if already bound to a different Google subject, during explicit
+        # registration, or whenever a password overwrite is attempted (H5).
+        if (
+            existing_by_email.google_sub
+            and existing_by_email.google_sub != google_sub
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This email is already linked to a different Google account.",
+            )
+        if auth_mode == "login" and not (payload.password or "").strip():
+            # Existing account created before google_sub existed (or registered with this
+            # verified Gmail): link google_sub cleanly without modifying password_hash.
+            existing_by_email.google_sub = google_sub
+            db.add(AuditLog(
+                user_id=existing_by_email.id,
+                shop_id=existing_by_email.shop_id,
+                action=AuditAction.SETTINGS_UPDATE,
+                description=f"Linked verified Google account ({clean_email}) to existing user {existing_by_email.username}",
+            ))
+            db.flush()
+            user = existing_by_email
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=ERR_EMAIL_ALREADY_EXISTS,
             )
 
-        base_username = clean_email.split("@")[0].replace(".", "_").replace("-", "_")
-        candidate_username = base_username[:40]
-        suffix = 1
-        while db.query(User).filter(User.username == candidate_username).first():
-            candidate_username = f"{base_username[:35]}_{suffix}"
-            suffix += 1
+    created_credentials: Optional[dict] = None
+    if not user:
+        if auth_mode == "login":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": ACCOUNT_NOT_FOUND_CODE,
+                    "message": "No shop account found for this Google account. Complete your shop setup to register.",
+                    "email": clean_email,
+                    "name": full_name,
+                },
+            )
 
-        shop_title = (payload.shop_name or "").strip()[:200] or f"{full_name[:150]}'s Shop"
-        initial_sub_status = "ACTIVE" if settings.demo_activation_allowed else "PENDING"
-
-        new_shop = ShopSettings(
-            shop_name=shop_title,
-            proprietor_name=full_name[:200],
-            email=clean_email[:150],
-            phone=payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None,
-            gstin=payload.gstin.strip().upper()[:20] if (payload.gstin and payload.gstin.strip()) else None,
-            default_gst_rate=18,
-            invoice_prefix="INV",
-            invoice_counter=1,
-            currency="INR",
-            subscription_status=initial_sub_status,
-        )
-        db.add(new_shop)
-        db.flush()
-
-        clean_pwd = (payload.password or "").strip()
-        chosen_password = clean_pwd if len(clean_pwd) >= 6 else secrets.token_urlsafe(24)
-
-        user = User(
-            name=full_name[:100],
-            username=candidate_username,
-            email=clean_email[:150],
-            phone=payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None,
-            google_sub=google_sub,
-            password_hash=hash_password(chosen_password),
-            role=UserRole.OWNER,
-            shop_id=new_shop.id,
-            subscription_status=initial_sub_status,
-            is_active=True,
-        )
-        db.add(user)
-        db.flush()
-
-        if clean_email:
-            try:
-                login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
-                send_welcome_account_email(
-                    to_email=clean_email,
-                    recipient_name=full_name,
-                    username=candidate_username,
-                    shop_name=new_shop.shop_name,
-                    login_url=login_url,
-                    gstin=new_shop.gstin,
-                    license_no=new_shop.fertilizer_license_no,
-                    role_name="Store Owner",
-                )
-            except Exception as exc:
-                logger.warning("Could not dispatch welcome email to new Google user %s: %s", clean_email, exc)
+        new_shop, user = _create_google_shop_and_user(db, payload, clean_email, full_name, google_sub)
+        created_credentials = _build_owner_credentials_payload(new_shop, user, _get_login_url())
     else:
         # Never overwrite an existing user's password_hash during Google Sign-In
         if payload.phone and payload.phone.strip() and not user.phone:
@@ -847,7 +992,7 @@ def google_auth(payload: GoogleAuthRequest, request: Request, response: Response
         db.flush()
 
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact support.")
+        raise HTTPException(status_code=403, detail=ERR_ACCOUNT_DEACTIVATED)
 
     # Generate application JWT bound to user.token_version (S6)
     jwt_token = create_user_access_token(user)
@@ -867,8 +1012,12 @@ def google_auth(payload: GoogleAuthRequest, request: Request, response: Response
         user_id=user.id,
         username=user.username,
         name=user.name,
+        email=user.email,
+        phone=user.phone,
+        shop_name=user.shop.shop_name if user.shop else None,
         role=user.role,
         subscription_status=user.subscription_status or "ACTIVE",
+        credentials=created_credentials,
     )
 
 

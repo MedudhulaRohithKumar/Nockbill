@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { authApi } from '../api';
+import { authApi, GoogleAuthOptions } from '../api';
 
 interface AuthContextType {
   user: User | null;
@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string, captchaToken: string, captchaCode: string) => Promise<void>;
-  loginWithGoogle: (credential: string, options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string) => Promise<void>;
+  loginWithGoogle: (credential: string, options?: GoogleAuthOptions | string) => Promise<any>;
   register: (payload: any) => Promise<any>;
   activateSubscription: (payload: any) => Promise<any>;
   logout: () => void;
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async (
     credential: string, 
-    options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string
+    options?: GoogleAuthOptions | string
   ) => {
     localStorage.removeItem('shop_settings');
     const data = await authApi.loginWithGoogle(credential, options);
@@ -94,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       is_active: true
     };
     setUser(userInfo);
+    return data;
   };
 
   const register = async (payload: any) => {

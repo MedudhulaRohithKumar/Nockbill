@@ -532,23 +532,127 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
         finally:
             settings.rate_limit_otp_request_per_hour = orig_limit
 
-        # H5: Google Auth refuses hijacking existing unlinked email account (409) and stores google_sub for new users
+        # Unregistered user on /api/auth/login -> 404 ACCOUNT_NOT_FOUND; wrong password -> 401
+        tok_nf, code_nf = _make_signed_captcha("N4F5O6", "a1b2c3d4e5f600112233445566778899")
+        login_not_found = self.client.post(
+            "/api/auth/login",
+            json={"username": "no_such_shop_owner", "password": "SomePassword#1", "captcha_token": tok_nf, "captcha_code": code_nf},
+        )
+        self.assertEqual(login_not_found.status_code, 404, login_not_found.text)
+        self.assertEqual(login_not_found.json()["detail"]["code"], "ACCOUNT_NOT_FOUND")
+        self.assertEqual(login_not_found.json()["detail"]["identifier"], "no_such_shop_owner")
+
+        tok_wp, code_wp = _make_signed_captcha("W7P8Q9", "b1c2d3e4f5a600112233445566778899")
+        login_wrong_pwd = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner_a", "password": "WrongPassword#99", "captcha_token": tok_wp, "captcha_code": code_wp},
+        )
+        self.assertEqual(login_wrong_pwd.status_code, 401, login_wrong_pwd.text)
+
+        # H5: Google Auth blocks password-hijack/register/preflight on existing unlinked email (409),
+        # returns 404 ACCOUNT_NOT_FOUND on mode="login" or mode="preflight" when no account exists (no silent ghost shop),
+        # links verified Google login to legacy google_sub=None account without changing password_hash,
+        # blocks linking a DIFFERENT google_sub (409), and creates full hybrid shop cleanly on mode="register".
         with patch("app.routers.auth.verify_google_token", return_value={"sub": "goog-sub-existing", "email": "alice@alpha.example", "email_verified": True, "name": "Attacker"}):
             hijack = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "password": "HijackedPassword123"})
             self.assertEqual(hijack.status_code, 409)
+            reg_dup = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "register", "shop_name": "Dup"})
+            self.assertEqual(reg_dup.status_code, 409)
+            preflight_dup = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "preflight"})
+            self.assertEqual(preflight_dup.status_code, 409)
 
+        # Unregistered Google user clicking "Continue with Google" on LoginPage (mode="login") or RegisterPage (mode="preflight") -> 404, 0 rows created
+        with patch("app.routers.auth.verify_google_token", return_value={"sub": "goog-sub-new-1", "email": "newmerchant@example.com", "email_verified": True, "name": "New Merchant"}):
+            not_found = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "login"})
+            self.assertEqual(not_found.status_code, 404, not_found.text)
+            self.assertEqual(not_found.json()["detail"]["code"], "ACCOUNT_NOT_FOUND")
+            self.assertEqual(not_found.json()["detail"]["email"], "newmerchant@example.com")
+            preflight_ok = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "preflight"})
+            self.assertEqual(preflight_ok.status_code, 404, preflight_ok.text)
+            self.assertEqual(preflight_ok.json()["detail"]["code"], "ACCOUNT_NOT_FOUND")
+            db = self.TestingSessionLocal()
+            try:
+                self.assertIsNone(db.query(User).filter(User.email == "newmerchant@example.com").first())
+            finally:
+                db.close()
+
+        # Same unregistered user completing full 3-step Shop Setup with Google (mode="register") + hybrid password
         with (
             patch("app.routers.auth.verify_google_token", return_value={"sub": "goog-sub-new-1", "email": "newmerchant@example.com", "email_verified": True, "name": "New Merchant"}),
             patch("app.routers.auth.send_welcome_account_email", return_value=True),
         ):
-            new_g = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "shop_name": "New Agro"})
+            new_g = self.client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "fake-id-token",
+                    "mode": "register",
+                    "owner_name": "New Merchant",
+                    "username": "new_merchant_agro",
+                    "phone": "9876543219",
+                    "password": "HybridPassword#2026",
+                    "shop_name": "New Agro Krishi Kendra",
+                    "address_line1": "Market Yard Gate 2",
+                    "city": "Nashik",
+                    "state": "Maharashtra",
+                    "pincode": "422001",
+                    "gstin": "27ABCDE1234F1Z5",
+                    "invoice_prefix": "NAK",
+                    "fertilizer_license_no": "FL-2026-99",
+                },
+            )
             self.assertEqual(new_g.status_code, 200, new_g.text)
+            self.assertEqual(new_g.json()["username"], "new_merchant_agro")
+            self.assertEqual(new_g.json()["shop_name"], "New Agro Krishi Kendra")
+            self.assertIsNotNone(new_g.json().get("credentials"))
+            self.assertNotIn("initial_password", new_g.json()["credentials"])
+            self.assertNotIn("HybridPassword#2026", new_g.text)
             db = self.TestingSessionLocal()
             try:
                 u = db.query(User).filter(User.email == "newmerchant@example.com").first()
                 self.assertEqual(u.google_sub, "goog-sub-new-1")
+                self.assertEqual(u.username, "new_merchant_agro")
+                self.assertEqual(u.phone, "9876543219")
+                self.assertEqual(u.shop.address_line1, "Market Yard Gate 2")
+                self.assertEqual(u.shop.city, "Nashik")
+                self.assertEqual(u.shop.pincode, "422001")
+                self.assertEqual(u.shop.fertilizer_license_no, "FL-2026-99")
             finally:
                 db.close()
+
+            # Hybrid Sign-In Verification:
+            # 1) Next time user can sign in via Google (mode="login")
+            g_next = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "login"})
+            self.assertEqual(g_next.status_code, 200, g_next.text)
+            # 2) Next time user can ALSO sign in via email/username + password on /api/auth/login
+            tok_hyb, code_hyb = _make_signed_captcha("H1Y2B3", "c1d2e3f4a5b600112233445566778899")
+            pwd_next = self.client.post(
+                "/api/auth/login",
+                json={
+                    "username": "newmerchant@example.com",
+                    "password": "HybridPassword#2026",
+                    "captcha_token": tok_hyb,
+                    "captcha_code": code_hyb,
+                },
+            )
+            self.assertEqual(pwd_next.status_code, 200, pwd_next.text)
+            self.assertEqual(pwd_next.json()["username"], "new_merchant_agro")
+
+        # Legacy existing user (google_sub=None) signing in via mode="login" links google_sub without altering password
+        with patch("app.routers.auth.verify_google_token", return_value={"sub": "goog-sub-alice", "email": "alice@alpha.example", "email_verified": True, "name": "Alice Owner"}):
+            linked = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "login"})
+            self.assertEqual(linked.status_code, 200, linked.text)
+            db = self.TestingSessionLocal()
+            try:
+                alice = db.query(User).filter(User.email == "alice@alpha.example").first()
+                self.assertEqual(alice.google_sub, "goog-sub-alice")
+                self.assertTrue(verify_password("AlphaPass#1", alice.password_hash))
+            finally:
+                db.close()
+
+        # Different google_sub trying to log in with Alice's already-linked email -> 409 Conflict
+        with patch("app.routers.auth.verify_google_token", return_value={"sub": "goog-sub-different", "email": "alice@alpha.example", "email_verified": True, "name": "Spoofer"}):
+            conflict = self.client.post("/api/auth/google", json={"credential": "fake-id-token", "mode": "login"})
+            self.assertEqual(conflict.status_code, 409)
 
     # ── M1: Tenant-scoped authenticated /uploads ──
     def test_m1_authenticated_tenant_scoped_uploads(self):

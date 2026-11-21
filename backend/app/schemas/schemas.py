@@ -49,8 +49,12 @@ class TokenResponse(BaseModel):
     user_id: int
     username: str
     name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    shop_name: Optional[str] = None
     role: UserRole
     subscription_status: Optional[str] = "ACTIVE"
+    credentials: Optional[dict] = None
 
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -187,10 +191,60 @@ class ResetPasswordRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     credential: str = Field(..., description="Google ID Token JWT returned by Google Identity Services or OAuth2 token")
-    shop_name: Optional[str] = Field(default=None, description="Optional shop name if user is signing up for the first time")
-    password: Optional[str] = Field(default=None, description="Optional password for hybrid email+password login")
-    phone: Optional[str] = Field(default=None, description="Optional mobile phone number")
-    gstin: Optional[str] = Field(default=None, description="Optional GSTIN")
+    mode: Optional[str] = Field(
+        default="auto",
+        description="Auth flow intent: 'login' (do not auto-create), 'preflight' (check availability), 'register', or 'auto'",
+    )
+    owner_name: Optional[str] = Field(default=None, max_length=100, description="Owner / proprietor full name")
+    username: Optional[str] = Field(default=None, max_length=50, description="Optional custom master username")
+    password: Optional[str] = Field(default=None, max_length=128, description="Password for hybrid Google + email/password login")
+    phone: Optional[str] = Field(default=None, max_length=20, description="Contact mobile phone number")
+    shop_name: Optional[str] = Field(default=None, max_length=200, description="Shop / business name")
+    proprietor_name: Optional[str] = Field(default=None, max_length=150, description="Proprietor display name on invoices")
+    address_line1: Optional[str] = Field(default=None, max_length=250)
+    address_line2: Optional[str] = Field(default=None, max_length=250)
+    city: Optional[str] = Field(default=None, max_length=100)
+    state: Optional[str] = Field(default=None, max_length=100)
+    pincode: Optional[str] = Field(default=None, max_length=10)
+    gstin: Optional[str] = Field(default=None, max_length=20, description="Optional GSTIN")
+    invoice_prefix: Optional[str] = Field(default=None, max_length=10)
+    fertilizer_license_no: Optional[str] = Field(default=None, max_length=100)
+    pesticide_license_no: Optional[str] = Field(default=None, max_length=100)
+    seed_license_no: Optional[str] = Field(default=None, max_length=100)
+    bank_name: Optional[str] = Field(default=None, max_length=150)
+    bank_account_no: Optional[str] = Field(default=None, max_length=40)
+    bank_ifsc: Optional[str] = Field(default=None, max_length=20)
+    bank_branch: Optional[str] = Field(default=None, max_length=150)
+    upi_id: Optional[str] = Field(default=None, max_length=100)
+    default_gst_rate: Optional[Decimal] = Field(default=None)
+
+    @model_validator(mode="after")
+    def sanitize_google_registration(self) -> "GoogleAuthRequest":
+        self.owner_name = sanitize_text(self.owner_name, 100) if self.owner_name else None
+        self.username = sanitize_code(self.username, 50) if self.username else None
+        self.shop_name = sanitize_text(self.shop_name, 200) if self.shop_name else None
+        self.proprietor_name = sanitize_text(self.proprietor_name, 150) if self.proprietor_name else None
+        self.address_line1 = sanitize_text(self.address_line1, 250) if self.address_line1 else None
+        self.address_line2 = sanitize_text(self.address_line2, 250) if self.address_line2 else None
+        self.city = sanitize_text(self.city, 100) if self.city else None
+        self.state = sanitize_text(self.state, 100) if self.state else None
+        self.phone = validate_phone(self.phone) if (self.phone and self.phone.strip()) else None
+        self.pincode = validate_pincode(self.pincode) if (self.pincode and self.pincode.strip()) else None
+        self.gstin = validate_gstin(self.gstin) if (self.gstin and self.gstin.strip()) else None
+        self.invoice_prefix = (
+            sanitize_code(self.invoice_prefix, 10, uppercase=True)
+            if (self.invoice_prefix and self.invoice_prefix.strip())
+            else None
+        )
+        self.fertilizer_license_no = sanitize_code(self.fertilizer_license_no, 100) if self.fertilizer_license_no else None
+        self.pesticide_license_no = sanitize_code(self.pesticide_license_no, 100) if self.pesticide_license_no else None
+        self.seed_license_no = sanitize_code(self.seed_license_no, 100) if self.seed_license_no else None
+        self.bank_name = sanitize_text(self.bank_name, 150) if self.bank_name else None
+        self.bank_account_no = sanitize_code(self.bank_account_no, 40) if self.bank_account_no else None
+        self.bank_ifsc = validate_ifsc(self.bank_ifsc) if (self.bank_ifsc and self.bank_ifsc.strip()) else None
+        self.bank_branch = sanitize_text(self.bank_branch, 150) if self.bank_branch else None
+        self.upi_id = sanitize_text(self.upi_id, 100) if self.upi_id else None
+        return self
 
 
 

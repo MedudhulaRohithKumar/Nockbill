@@ -5,6 +5,31 @@ import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, Dashboard
 
 export type RegisterPayload = ReturnType<typeof buildRegisterPayload>;
 
+export interface GoogleAuthOptions {
+  mode?: 'login' | 'register' | 'preflight' | 'auto';
+  owner_name?: string;
+  username?: string;
+  shop_name?: string;
+  proprietor_name?: string;
+  password?: string;
+  phone?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  gstin?: string;
+  invoice_prefix?: string;
+  fertilizer_license_no?: string;
+  pesticide_license_no?: string;
+  seed_license_no?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_ifsc?: string;
+  bank_branch?: string;
+  upi_id?: string;
+}
+
 export const authApi = {
   getCaptcha: async () => {
     const res = await api.get<{ captcha_token: string; captcha_image: string }>('/auth/captcha');
@@ -66,7 +91,7 @@ export const authApi = {
   },
   loginWithGoogle: async (
     credential: string, 
-    options?: { shop_name?: string; password?: string; phone?: string; gstin?: string } | string
+    options?: GoogleAuthOptions | string
   ) => {
     let finalCredential = credential;
     if (credential && !credential.startsWith('nockbill_gauth.')) {
@@ -108,8 +133,12 @@ export const authApi = {
       role: string;
       username: string;
       name?: string;
+      email?: string;
+      phone?: string;
+      shop_name?: string;
       user_id?: number;
       subscription_status?: string;
+      credentials?: Partial<GeneratedCredentials> | null;
     }>('/auth/google', payload);
     return res.data;
   },

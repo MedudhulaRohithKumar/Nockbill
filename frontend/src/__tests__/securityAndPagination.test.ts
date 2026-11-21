@@ -10,7 +10,9 @@ import {
   CAPTCHA_LENGTH,
   sanitizeCaptchaCode,
   buildRegisterPayload,
+  buildGoogleRegisterOptions,
   mergeGeneratedCredentials,
+  suggestUsernameFromEmail,
   type RegisterFormData,
 } from '../utils/registerPayload';
 import { filterByAlert, mergeProductsById } from '../utils/inventoryFilters';
@@ -113,7 +115,15 @@ export function runSecurityAndPaginationTests(): number {
   );
   assertEqual(merged.account_id, 'SHOP-00042', 'Server account_id preserved');
   assertEqual(merged.initial_password, 'StrongPassword#123', 'Typed password merged client-side only');
-  passed += 8;
+  assertEqual(suggestUsernameFromEmail('Ramesh.Patel-99@gmail.com'), 'ramesh_patel_99', 'Suggested username from email');
+  assertEqual(suggestUsernameFromEmail('ab@gmail.com'), 'ab_shop', 'Short email local part padded to >=3 chars');
+  const googleOpts = buildGoogleRegisterOptions(form);
+  assertEqual(googleOpts.mode, 'register', 'Google register mode is register');
+  assertEqual(googleOpts.username, 'kiran_agro', 'Google register username normalized');
+  assertEqual(googleOpts.shop_name, 'Patel Krishi Kendra', 'Google register shop_name trimmed');
+  assertEqual(googleOpts.password, 'StrongPassword#123', 'Google register hybrid password included');
+  assertEqual(googleOpts.gstin, '27ABCDE1234F1Z5', 'Google register GSTIN uppercased');
+  passed += 15;
 
   // 4. Inventory alert filters & deduplication
   const sampleProducts = [

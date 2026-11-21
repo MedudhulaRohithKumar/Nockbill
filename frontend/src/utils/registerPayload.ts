@@ -44,6 +44,44 @@ export function sanitizeCaptchaCode(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, CAPTCHA_LENGTH);
 }
 
+export function suggestUsernameFromEmail(email: string): string {
+  const localPart = (email || '').split('@')[0] || '';
+  const cleaned = localPart
+    .toLowerCase()
+    .replace(/[.-]/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 40);
+  if (cleaned.length >= 3) return cleaned;
+  return cleaned ? `${cleaned}_shop` : '';
+}
+
+export function buildGoogleRegisterOptions(form: RegisterFormData) {
+  return {
+    mode: 'register' as const,
+    owner_name: form.owner_name.trim(),
+    username: form.username.toLowerCase().trim(),
+    phone: form.phone.trim(),
+    password: form.password,
+    shop_name: form.shop_name.trim(),
+    proprietor_name: (form.proprietor_name || form.owner_name).trim(),
+    address_line1: form.address_line1.trim(),
+    address_line2: form.address_line2.trim() || undefined,
+    city: form.city.trim(),
+    state: form.state.trim(),
+    pincode: form.pincode.trim(),
+    gstin: form.gstin.trim().toUpperCase() || undefined,
+    invoice_prefix: (form.invoice_prefix || 'KSK').trim().toUpperCase(),
+    fertilizer_license_no: form.fertilizer_license_no.trim() || undefined,
+    pesticide_license_no: form.pesticide_license_no.trim() || undefined,
+    seed_license_no: form.seed_license_no.trim() || undefined,
+    bank_name: form.bank_name.trim() || undefined,
+    bank_account_no: form.bank_account_no.trim() || undefined,
+    bank_ifsc: form.bank_ifsc.trim().toUpperCase() || undefined,
+    bank_branch: form.bank_branch.trim() || undefined,
+    upi_id: form.upi_id.trim() || undefined,
+  };
+}
+
 export function buildRegisterPayload(form: RegisterFormData, captchaToken: string, captchaCode: string) {
   return {
     owner_name: form.owner_name,
