@@ -82,6 +82,62 @@ jobs:
         run: |
           sam build --template-file infrastructure/cloudformation_serverless.yaml
 
+      - name: Prepare Encrypted RDS Snapshot Migration (Zero Data Loss)
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          STACK_NAME="ks-serverless-${ENV_NAME}"
+          LEGACY_DB="ks-postgres-${ENV_NAME}"
+          ENC_DB="ks-postgres-${ENV_NAME}-enc"
+          UNENC_SNAP="${LEGACY_DB}-unenc-backup-v1"
+          ENC_SNAP="${LEGACY_DB}-encrypted-migration-v1"
+
+          if aws rds describe-db-instances --region "${AWS_REGION}" --db-instance-identifier "${ENC_DB}" >/dev/null 2>&1; then
+            echo "Encrypted RDS instance ${ENC_DB} already exists. Preserving existing DbSnapshotIdentifier parameter."
+            EXISTING_SNAP=$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --region "${AWS_REGION}" \
+              --query "Stacks[0].Parameters[?ParameterKey=='DbSnapshotIdentifier'].ParameterValue | [0]" \
+              --output text 2>/dev/null || echo "")
+            if [ "${EXISTING_SNAP}" = "None" ]; then
+              EXISTING_SNAP=""
+            fi
+            echo "DB_SNAPSHOT_ID=${EXISTING_SNAP}" >> "$GITHUB_ENV"
+          elif aws rds describe-db-instances --region "${AWS_REGION}" --db-instance-identifier "${LEGACY_DB}" >/dev/null 2>&1; then
+            echo "Legacy unencrypted RDS instance ${LEGACY_DB} detected. Preparing encrypted snapshot ${ENC_SNAP}..."
+            if ! aws rds describe-db-snapshots --region "${AWS_REGION}" --db-snapshot-identifier "${ENC_SNAP}" >/dev/null 2>&1; then
+              if ! aws rds describe-db-snapshots --region "${AWS_REGION}" --db-snapshot-identifier "${UNENC_SNAP}" >/dev/null 2>&1; then
+                echo "Creating source snapshot ${UNENC_SNAP} from ${LEGACY_DB}..."
+                aws rds create-db-snapshot \
+                  --region "${AWS_REGION}" \
+                  --db-instance-identifier "${LEGACY_DB}" \
+                  --db-snapshot-identifier "${UNENC_SNAP}"
+              fi
+              echo "Waiting for source snapshot ${UNENC_SNAP} to complete..."
+              aws rds wait db-snapshot-completed \
+                --region "${AWS_REGION}" \
+                --db-snapshot-identifier "${UNENC_SNAP}"
+
+              echo "Copying ${UNENC_SNAP} into KMS-encrypted snapshot ${ENC_SNAP}..."
+              aws rds copy-db-snapshot \
+                --region "${AWS_REGION}" \
+                --source-db-snapshot-identifier "${UNENC_SNAP}" \
+                --target-db-snapshot-identifier "${ENC_SNAP}" \
+                --kms-key-id alias/aws/rds \
+                --copy-tags
+            fi
+            echo "Waiting for encrypted snapshot ${ENC_SNAP} to complete..."
+            aws rds wait db-snapshot-completed \
+              --region "${AWS_REGION}" \
+              --db-snapshot-identifier "${ENC_SNAP}"
+            echo "Encrypted snapshot ${ENC_SNAP} is ready for zero-data-loss restore."
+            echo "DB_SNAPSHOT_ID=${ENC_SNAP}" >> "$GITHUB_ENV"
+          else
+            echo "No legacy unencrypted RDS instance found; fresh encrypted RDS instance will be created."
+            echo "DB_SNAPSHOT_ID=" >> "$GITHUB_ENV"
+          fi
+
       - name: Deploy to AWS SAM
         env:
           ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
@@ -102,6 +158,19 @@ jobs:
             echo "Please update DB_PASSWORD in GitHub Secrets with a password containing only letters, numbers, and allowed symbols (e.g. KisanSecure2026_Prod!)." >&2
             exit 1
           fi
+
+          PARAM_OVERRIDES=(
+            "Environment=${ENV_NAME}"
+            "DbUsername=kisan_admin"
+            "DbPassword=${DB_PASSWORD}"
+            "DbAllocatedStorage=20"
+            "VpcCidr=10.0.0.0/16"
+            "ReportNotificationEmail=${NOTIFY_EMAIL}"
+          )
+          if [ -n "${DB_SNAPSHOT_ID:-}" ]; then
+            PARAM_OVERRIDES+=("DbSnapshotIdentifier=${DB_SNAPSHOT_ID}")
+          fi
+
           sam deploy \
             --config-file infrastructure/samconfig.toml \
             --stack-name ks-serverless-${ENV_NAME} \
@@ -111,13 +180,26 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              Environment="${ENV_NAME}" \
-              DbUsername="kisan_admin" \
-              DbPassword="${DB_PASSWORD}" \
-              DbAllocatedStorage="20" \
-              VpcCidr="10.0.0.0/16" \
-              ReportNotificationEmail="${NOTIFY_EMAIL}"
+            --parameter-overrides "${PARAM_OVERRIDES[@]}"
+
+      - name: Run Post-Deploy Database Schema Migrations
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+        run: |
+          echo "Running idempotent PostgreSQL schema migrations via ks-backend-api-${ENV_NAME}..."
+          aws lambda invoke \
+            --region "${AWS_REGION}" \
+            --function-name "ks-backend-api-${ENV_NAME}" \
+            --cli-binary-format raw-in-base64-out \
+            --payload '{"action":"migrate_and_seed"}' \
+            migration_result.json
+          cat migration_result.json
+          echo ""
+          if grep -q '"errorMessage"' migration_result.json; then
+            echo "ERROR: Post-deploy database migration failed!" >&2
+            exit 1
+          fi
 
       - name: Diagnose CloudFormation Failure Events
         if: failure()

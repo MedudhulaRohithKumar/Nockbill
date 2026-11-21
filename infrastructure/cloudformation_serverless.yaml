@@ -84,17 +84,24 @@ Parameters:
 
   BackendReservedConcurrency:
     Type: Number
-    Default: 20
-    MinValue: 1
+    Default: 0
+    MinValue: 0
     Description: >
-      ReservedConcurrentExecutions for the backend Lambda. Bounds simultaneous RDS connections
-      (each execution environment holds DB_POOL_SIZE + DB_MAX_OVERFLOW = 2 connections).
-      NOTE: the account must keep at least 10 unreserved concurrent executions, so lower this
-      value on new accounts with the default 10-concurrency quota (or request a quota increase).
+      Optional ReservedConcurrentExecutions for the backend Lambda (0 = omit/unreserved,
+      safe on accounts with the default 10-concurrency quota; set to 20+ once quota is raised).
+
+  DbSnapshotIdentifier:
+    Type: String
+    Default: ""
+    Description: >
+      Optional encrypted RDS snapshot identifier to restore from when migrating an existing
+      unencrypted database to encrypted storage with zero data loss. Leave empty for fresh stacks.
 
 Conditions:
   EnableDeletionProtection: !Equals [!Ref DeletionProtectionEnabled, 'true']
   EnableMultiAz: !Equals [!Ref MultiAzEnabled, 'true']
+  UseDbSnapshot: !Not [!Equals [!Ref DbSnapshotIdentifier, '']]
+  HasReservedConcurrency: !Not [!Equals [!Ref BackendReservedConcurrency, 0]]
 
 Resources:
   # ============================================================================
@@ -334,21 +341,24 @@ Resources:
 
   PostgreSqlInstance:
     Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Metadata:
       cfn-lint:
         config:
           ignore_checks:
             - W1011
     Properties:
-      DBInstanceIdentifier: !Sub ks-postgres-${Environment}
+      DBInstanceIdentifier: !Sub ks-postgres-${Environment}-enc
       Engine: postgres
-      EngineVersion: "16.10"
+      EngineVersion: !If [UseDbSnapshot, !Ref AWS::NoValue, "16.10"]
       DBInstanceClass: !Ref DbInstanceClass
-      AllocatedStorage: !Ref DbAllocatedStorage
+      AllocatedStorage: !If [UseDbSnapshot, !Ref AWS::NoValue, !Ref DbAllocatedStorage]
       StorageType: gp3
-      DBName: kisan_seva_db
-      MasterUsername: !Ref DbUsername
-      MasterUserPassword: !Ref DbPassword
+      DBSnapshotIdentifier: !If [UseDbSnapshot, !Ref DbSnapshotIdentifier, !Ref AWS::NoValue]
+      DBName: !If [UseDbSnapshot, !Ref AWS::NoValue, kisan_seva_db]
+      MasterUsername: !If [UseDbSnapshot, !Ref AWS::NoValue, !Ref DbUsername]
+      MasterUserPassword: !If [UseDbSnapshot, !Ref AWS::NoValue, !Ref DbPassword]
       DBSubnetGroupName: !Ref DbSubnetGroup
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
@@ -356,10 +366,12 @@ Resources:
       MultiAZ: !If [EnableMultiAz, true, false]
       DeletionProtection: !If [EnableDeletionProtection, true, false]
       BackupRetentionPeriod: 7
-      StorageEncrypted: true
+      # When restoring from an encrypted snapshot, AWS RDS inherits encryption from the snapshot
+      # and forbids setting StorageEncrypted explicitly; fresh instances always enable encryption.
+      StorageEncrypted: !If [UseDbSnapshot, !Ref AWS::NoValue, true]
       Tags:
         - Key: Name
-          Value: !Sub ks-postgres-${Environment}
+          Value: !Sub ks-postgres-${Environment}-enc
 
   # ============================================================================
   # 3. S3 STORAGE: DEDICATED ACCESS LOGS & 4 DATA BUCKETS
@@ -546,8 +558,8 @@ Resources:
       PackageType: Image
       MemorySize: 1024
       Timeout: 30
-      # Bounds concurrent DB connections (see BackendReservedConcurrency parameter).
-      ReservedConcurrentExecutions: !Ref BackendReservedConcurrency
+      # Bounds concurrent DB connections when explicitly enabled (see BackendReservedConcurrency).
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref BackendReservedConcurrency, !Ref AWS::NoValue]
       Role: !GetAtt BackendLambdaRole.Arn
       VpcConfig:
         SecurityGroupIds:
