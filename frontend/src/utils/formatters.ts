@@ -280,4 +280,102 @@ export function mergeProductSearchResults<T extends { id: number }>(
   return merged;
 }
 
+/**
+ * Build a standard NPCI Dynamic UPI payment deep link (upi://pay?...).
+ */
+export function buildUpiPaymentUri(
+  upiId: string,
+  shopName: string,
+  amount?: number,
+  transactionNote?: string,
+): string {
+  const cleanVpa = (upiId || '').trim();
+  if (!cleanVpa) return '';
+  const cleanShop = (shopName || 'NockBill Shop').trim().slice(0, 80);
+  const params: string[] = [
+    `pa=${encodeURIComponent(cleanVpa)}`,
+    `pn=${encodeURIComponent(cleanShop)}`,
+  ];
+  const numericAmount = safeNumber(amount, 0);
+  if (numericAmount > 0) {
+    params.push(`am=${numericAmount.toFixed(2)}`);
+  }
+  if (transactionNote && transactionNote.trim()) {
+    params.push(`tn=${encodeURIComponent(transactionNote.trim().slice(0, 50))}`);
+  }
+  params.push('cu=INR');
+  return `upi://pay?${params.join('&')}`;
+}
+
+/**
+ * Build a 1-click WhatsApp digital invoice share URL (https://wa.me/...).
+ */
+export function buildWhatsAppInvoiceUrl(
+  customerPhone: string | undefined | null,
+  sale: {
+    invoice_number: string;
+    customer_name?: string;
+    grand_total: number;
+    payment_mode?: string;
+    payment_method?: string;
+    items?: Array<{ product_name: string; quantity: number; unit?: string; total_amount?: number; total?: number }>;
+  },
+  shop: { shop_name: string; phone?: string; upi_id?: string },
+): string {
+  const digits = (customerPhone || '').replace(/\D/g, '').slice(-10);
+  const waTarget = digits.length === 10 ? `91${digits}` : '';
+  const itemLines = (sale.items || [])
+    .slice(0, 8)
+    .map(
+      (it, idx) =>
+        `${idx + 1}. ${it.product_name} (${it.quantity} ${it.unit || 'u'}) - ₹${formatCurrency(it.total_amount ?? it.total ?? 0)}`,
+    )
+    .join('\n');
+  const upiLine = shop.upi_id
+    ? `\nUPI Payment ID: ${shop.upi_id} (${buildUpiPaymentUri(shop.upi_id, shop.shop_name, sale.grand_total, sale.invoice_number)})`
+    : '';
+  const text = [
+    `*${shop.shop_name || 'Krishi Seva Kendra'}*`,
+    `Tax Invoice: *#${sale.invoice_number}*`,
+    `Customer: ${sale.customer_name || 'Farmer'}`,
+    `------------------------`,
+    itemLines,
+    `------------------------`,
+    `*Grand Total: ₹${formatCurrency(sale.grand_total)}* (${sale.payment_mode || sale.payment_method || 'CASH'})`,
+    upiLine,
+    `Thank you for shopping with us!`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return `https://wa.me/${waTarget}?text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * Build a 1-click WhatsApp Khata / Udhar payment reminder URL (https://wa.me/...).
+ */
+export function buildWhatsAppKhataReminderUrl(
+  customerPhone: string | undefined | null,
+  customerName: string,
+  outstandingAmount: number,
+  shop: { shop_name: string; phone?: string; upi_id?: string },
+): string {
+  const digits = (customerPhone || '').replace(/\D/g, '').slice(-10);
+  const waTarget = digits.length === 10 ? `91${digits}` : '';
+  const upiUri = shop.upi_id
+    ? buildUpiPaymentUri(shop.upi_id, shop.shop_name, outstandingAmount, 'Khata Due')
+    : '';
+  const text = [
+    `Namaste *${customerName || 'Kisan Bhai'}*,`,
+    `Friendly reminder from *${shop.shop_name || 'Krishi Seva Kendra'}*:`,
+    `Your pending Khata / Udhar balance is *₹${formatCurrency(outstandingAmount)}*.`,
+    shop.upi_id ? `You can pay easily via UPI to *${shop.upi_id}*\n${upiUri}` : '',
+    shop.phone ? `For any query, call: ${shop.phone}` : '',
+    `Thank you!`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return `https://wa.me/${waTarget}?text=${encodeURIComponent(text)}`;
+}
+
+
 

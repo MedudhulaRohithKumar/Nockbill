@@ -2,15 +2,20 @@
 Invoice PDF generation using ReportLab.
 Supports both A4 and thermal (80mm wide) layouts.
 """
+import base64
 from io import BytesIO
 from decimal import Decimal
+import re
 from typing import List
+from urllib.parse import quote
+from reportlab.graphics.barcode.qr import QrCodeWidget
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph,
-    Spacer, HRFlowable
+    Spacer, HRFlowable, Image as RLImage
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
@@ -23,6 +28,53 @@ LIGHT_GREEN = HexColor("#E8F5E9")
 DARK_TEXT = HexColor("#212121")
 
 styles = getSampleStyleSheet()
+
+
+def _resolve_accent_color(shop) -> HexColor:
+    raw = (getattr(shop, "invoice_accent_color", None) or "").strip()
+    if re.fullmatch(r"#[0-9a-fA-F]{6}", raw):
+        return HexColor(raw)
+    return GREEN
+
+
+def _build_logo_flowable(shop):
+    show_logo = getattr(shop, "invoice_show_logo", True)
+    logo_val = getattr(shop, "logo_path", None)
+    if show_logo is False or not logo_val:
+        return None
+    try:
+        raw_str = str(logo_val).strip()
+        if raw_str.startswith("data:image/") and ";base64," in raw_str:
+            b64_part = raw_str.split(";base64,", 1)[1]
+            img_bytes = base64.b64decode(b64_part)
+            return RLImage(BytesIO(img_bytes), width=28 * mm, height=14 * mm, kind="proportional")
+    except Exception:
+        return None
+    return None
+
+
+def _build_upi_qr_flowable(shop, grand_total: Decimal, inv_num: str):
+    if getattr(shop, "invoice_show_bank_details", True) is False:
+        return None
+    vpa = (getattr(shop, "upi_id", None) or "").strip()
+    if not vpa:
+        return None
+    try:
+        sname = (getattr(shop, "shop_name", None) or "NockBill Shop").strip()[:80]
+        upi_uri = (
+            f"upi://pay?pa={quote(vpa, safe='@._-')}&pn={quote(sname)}"
+            f"&am={grand_total:.2f}&tn={quote(inv_num[:40])}&cu=INR"
+        )
+        qr_widget = QrCodeWidget(upi_uri)
+        b = qr_widget.getBounds()
+        w = max(b[2] - b[0], 1.0)
+        h = max(b[3] - b[1], 1.0)
+        size = 24 * mm
+        d = Drawing(size, size, transform=[size / w, 0, 0, size / h, 0, 0])
+        d.add(qr_widget)
+        return d
+    except Exception:
+        return None
 
 
 def _header_style(size=14, bold=True, color=GREEN, align=TA_CENTER):
@@ -53,21 +105,41 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     )
 
     elements = []
+    accent_color = _resolve_accent_color(shop)
 
-    # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(_esc(shop.shop_name or "NockBill Solutions"), _header_style(18)))
-    if shop.address:
-        elements.append(Paragraph(_esc(shop.address), _header_style(9, bold=False, color=DARK_TEXT)))
+    # ── Shop Header (with optional logo & tagline) ────────────
+    logo_flowable = _build_logo_flowable(shop)
+    if logo_flowable is not None:
+        logo_flowable.hAlign = "CENTER"
+        elements.append(logo_flowable)
+        elements.append(Spacer(1, 2))
+    elements.append(Paragraph(_esc(shop.shop_name or "NockBill Solutions"), _header_style(18, color=accent_color)))
+    tagline = getattr(shop, "invoice_header_tagline", None)
+    if tagline:
+        elements.append(Paragraph(_esc(tagline), _header_style(8.5, bold=False, color=colors.dimgrey)))
+    addr_line = getattr(shop, "address", None) or ", ".join(
+        p for p in [getattr(shop, "address_line1", None), getattr(shop, "city", None), getattr(shop, "state", None)] if p
+    )
+    if addr_line:
+        elements.append(Paragraph(_esc(addr_line), _header_style(9, bold=False, color=DARK_TEXT)))
     contact_parts = []
     if shop.phone:
         contact_parts.append(f"Phone: {_esc(shop.phone)}")
     if shop.gstin:
         contact_parts.append(f"GSTIN: {_esc(shop.gstin)}")
+    show_licenses = getattr(shop, "invoice_show_licenses", True) is not False
+    if show_licenses:
+        if getattr(shop, "fertilizer_license_no", None):
+            contact_parts.append(f"Fert Lic: {_esc(shop.fertilizer_license_no)}")
+        if getattr(shop, "pesticide_license_no", None):
+            contact_parts.append(f"Pest Lic: {_esc(shop.pesticide_license_no)}")
+        if getattr(shop, "seed_license_no", None):
+            contact_parts.append(f"Seed Lic: {_esc(shop.seed_license_no)}")
     if contact_parts:
-        elements.append(Paragraph(" | ".join(contact_parts), _header_style(9, bold=False, color=DARK_TEXT)))
+        elements.append(Paragraph(" | ".join(contact_parts), _header_style(8.5, bold=False, color=DARK_TEXT)))
 
-    elements.append(HRFlowable(width="100%", thickness=1.5, color=GREEN, spaceAfter=4))
-    elements.append(Paragraph("<b>TAX INVOICE / RETAIL BILL</b>", _header_style(12, bold=True, color=GREEN)))
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=accent_color, spaceAfter=4))
+    elements.append(Paragraph("<b>TAX INVOICE / RETAIL BILL</b>", _header_style(12, bold=True, color=accent_color)))
     elements.append(Spacer(1, 4))
 
     # ── Unique Billing Details ────────────────────────────────
@@ -146,7 +218,7 @@ def generate_invoice_pdf(sale, shop) -> bytes:
         repeatRows=1,
     )
     item_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), GREEN),
+        ("BACKGROUND", (0, 0), (-1, 0), accent_color),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
@@ -188,26 +260,61 @@ def generate_invoice_pdf(sale, shop) -> bytes:
         ("FONTNAME", (6, 4), (7, 4), "Helvetica-Bold"),
         ("FONTSIZE", (6, 4), (7, 4), 9.5),
         ("ALIGN", (6, 0), (7, -1), "RIGHT"),
-        ("LINEABOVE", (6, 4), (7, 4), 1, GREEN),
-        ("TEXTCOLOR", (6, 4), (7, 4), GREEN),
+        ("LINEABOVE", (6, 4), (7, 4), 1, accent_color),
+        ("TEXTCOLOR", (6, 4), (7, 4), accent_color),
     ]))
     elements.append(totals_table)
 
     elements.append(Spacer(1, 14))
 
-    # ── Terms & Authorized Signatory ──────────────────────────
-    footer_data = [
-        [
-            Paragraph("<b>Terms &amp; Conditions:</b><br/>1. Certified quality products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
-            Paragraph(f"For <b>{_esc(shop.shop_name or 'NockBill Solutions')}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+    # ── Terms, Bank Details & Authorized Signatory ────────────
+    raw_terms = getattr(shop, "terms_conditions", None)
+    if raw_terms:
+        terms_html = "<br/>".join(_esc(line) for line in str(raw_terms).splitlines() if line.strip())
+    else:
+        terms_html = "1. Certified quality products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction."
+
+    bank_html = ""
+    if getattr(shop, "invoice_show_bank_details", True) is not False and getattr(shop, "bank_account_no", None):
+        bank_parts = [
+            f"Bank: {_esc(shop.bank_name or '-')}",
+            f"A/C: {_esc(shop.bank_account_no)}",
         ]
-    ]
-    footer_table = Table(footer_data, colWidths=["60%", "40%"])
+        if getattr(shop, "bank_ifsc", None):
+            bank_parts.append(f"IFSC: {_esc(shop.bank_ifsc)}")
+        if getattr(shop, "upi_id", None):
+            bank_parts.append(f"UPI: {_esc(shop.upi_id)}")
+        bank_html = f"<br/><br/><b>Bank / UPI Details:</b><br/>{' | '.join(bank_parts)}"
+
+    sig_label = _esc(getattr(shop, "invoice_signature_label", None) or "Authorized Signatory")
+    footer_note = _esc(
+        getattr(shop, "invoice_footer_note", None)
+        or "Thank you for shopping with us! Wishing you a prosperous harvest."
+    )
+
+    qr_flowable = _build_upi_qr_flowable(shop, effective_grand_total, inv_num)
+    if qr_flowable is not None:
+        footer_data = [
+            [
+                Paragraph(f"<b>Terms &amp; Conditions:</b><br/>{terms_html}{bank_html}", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+                qr_flowable,
+                Paragraph(f"For <b>{_esc(shop.shop_name or 'NockBill Solutions')}</b><br/><br/><br/><b>{sig_label}</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            ]
+        ]
+        footer_table = Table(footer_data, colWidths=["52%", "18%", "30%"])
+    else:
+        footer_data = [
+            [
+                Paragraph(f"<b>Terms &amp; Conditions:</b><br/>{terms_html}{bank_html}", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+                Paragraph(f"For <b>{_esc(shop.shop_name or 'NockBill Solutions')}</b><br/><br/><br/><b>{sig_label}</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            ]
+        ]
+        footer_table = Table(footer_data, colWidths=["60%", "40%"])
     elements.append(footer_table)
     elements.append(Spacer(1, 8))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     elements.append(Paragraph(
-        "Thank you for shopping with us! Wishing you a prosperous harvest.",
+        footer_note,
         _header_style(8, bold=False, color=colors.grey),
     ))
 

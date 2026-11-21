@@ -1,7 +1,7 @@
 import api from './client';
 import { buildRegisterPayload, GeneratedCredentials } from '../utils/registerPayload';
 import { INVENTORY_PAGE_SIZE, MAX_PRODUCTS_LIMIT, parseTotalCount } from '../utils/pagination';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList, IamUser } from '../types';
 
 export type RegisterPayload = ReturnType<typeof buildRegisterPayload>;
 
@@ -35,7 +35,11 @@ export const authApi = {
     const res = await api.get<{ captcha_token: string; captcha_image: string }>('/auth/captcha');
     return res.data;
   },
-  login: async (credentials: { username: string; password: string; captcha_token: string; captcha_code: string } | FormData) => {
+  login: async (
+    credentials:
+      | { username: string; password: string; captcha_token: string; captcha_code: string; shop_account_id?: string }
+      | FormData,
+  ) => {
     let payload: any;
     if (credentials instanceof FormData) {
       payload = {
@@ -43,6 +47,7 @@ export const authApi = {
         password: credentials.get('password') as string,
         captcha_token: credentials.get('captcha_token') as string,
         captcha_code: credentials.get('captcha_code') as string,
+        shop_account_id: (credentials.get('shop_account_id') as string) || undefined,
       };
     } else {
       payload = credentials;
@@ -169,7 +174,41 @@ export const authApi = {
     } catch {
       return { success: false, message: 'Logout request completed' };
     }
-  }
+  },
+  listUsers: async (): Promise<IamUser[]> => {
+    const res = await api.get<IamUser[]>('/auth/users');
+    return res.data;
+  },
+  createUser: async (payload: {
+    name: string;
+    username: string;
+    password: string;
+    email?: string;
+    phone?: string;
+    role: 'OWNER' | 'STAFF';
+  }): Promise<IamUser> => {
+    const res = await api.post<IamUser>('/auth/users', payload);
+    return res.data;
+  },
+  updateUser: async (
+    userId: number,
+    payload: {
+      name?: string;
+      username?: string;
+      password?: string;
+      email?: string;
+      phone?: string;
+      role?: 'OWNER' | 'STAFF';
+      is_active?: boolean;
+    },
+  ): Promise<IamUser> => {
+    const res = await api.put<IamUser>(`/auth/users/${userId}`, payload);
+    return res.data;
+  },
+  deleteUser: async (userId: number): Promise<{ success: boolean; message: string }> => {
+    const res = await api.delete<{ success: boolean; message: string }>(`/auth/users/${userId}`);
+    return res.data;
+  },
 };
 
 export const productsApi = {
@@ -492,7 +531,226 @@ export const settingsApi = {
   update: async (data: Partial<ShopSettings>) => {
     const res = await api.put<ShopSettings>('/settings', data);
     return res.data;
-  }
+  },
+  uploadLogo: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post<ShopSettings>('/settings/logo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+  deleteLogo: async () => {
+    const res = await api.delete<ShopSettings>('/settings/logo');
+    return res.data;
+  },
+  getUpiQr: async (params?: { amount?: number; invoice_number?: string; upi_id?: string }) => {
+    const res = await api.get<{
+      upi_id: string;
+      shop_name: string;
+      upi_uri: string;
+      qr_svg_data_uri: string;
+    }>('/settings/upi-qr', { params });
+    return res.data;
+  },
+};
+
+export const khataApi = {
+  listCustomers: async (params?: { search?: string; only_due?: boolean }) => {
+    const res = await api.get<{
+      total_customers: number;
+      total_outstanding_udhar: number;
+      customers: Array<{
+        customer_key: string;
+        customer_name: string;
+        customer_phone?: string | null;
+        customer_address?: string | null;
+        customer_aadhar?: string | null;
+        customer_gstin?: string | null;
+        bill_count: number;
+        total_billed: number;
+        total_credit_billed: number;
+        total_repaid: number;
+        outstanding_balance: number;
+        last_purchase_date?: string | null;
+      }>;
+    }>('/khata/customers', { params });
+    return res.data;
+  },
+  lookupCustomer: async (phone: string) => {
+    const res = await api.get<{
+      found: boolean;
+      customer_name?: string;
+      customer_phone: string;
+      customer_address?: string | null;
+      customer_aadhar?: string | null;
+      customer_gstin?: string | null;
+      bill_count: number;
+      total_billed?: number;
+      total_credit_billed?: number;
+      total_repaid?: number;
+      outstanding_balance: number;
+      recent_sales: Array<{
+        id: number;
+        invoice_number: string;
+        sale_date?: string | null;
+        grand_total: number;
+        payment_method: string;
+        items: Array<{
+          product_id?: number;
+          product_name: string;
+          batch_number?: string | null;
+          quantity: number;
+          unit: string;
+          unit_price: number;
+          gst_rate: number;
+          hsn_code?: string | null;
+        }>;
+      }>;
+    }>('/khata/customers/lookup', { params: { phone } });
+    return res.data;
+  },
+  listSuppliers: async () => {
+    const res = await api.get<{
+      total_suppliers: number;
+      total_outstanding_payable: number;
+      suppliers: Array<{
+        supplier_name: string;
+        supplier_phone?: string | null;
+        supplier_gstin?: string | null;
+        bill_count: number;
+        total_purchased: number;
+        total_paid: number;
+        outstanding_payable: number;
+        last_purchase_date?: string | null;
+      }>;
+    }>('/khata/suppliers');
+    return res.data;
+  },
+  listPayments: async (params?: { ledger_type?: 'CUSTOMER' | 'SUPPLIER'; party_phone?: string }) => {
+    const res = await api.get<
+      Array<{
+        id: number;
+        ledger_type: string;
+        party_name: string;
+        party_phone?: string | null;
+        amount: number;
+        payment_mode: string;
+        notes?: string | null;
+        created_at?: string | null;
+      }>
+    >('/khata/payments', { params });
+    return res.data;
+  },
+  recordPayment: async (payload: {
+    ledger_type: 'CUSTOMER' | 'SUPPLIER';
+    party_name: string;
+    party_phone?: string;
+    party_gstin?: string;
+    amount: number;
+    payment_mode: string;
+    notes?: string;
+  }) => {
+    const res = await api.post('/khata/payments', payload);
+    return res.data;
+  },
+  getCatalogTemplates: async () => {
+    const res = await api.get<{
+      templates: Array<{
+        code: string;
+        product_name: string;
+        trade_name: string;
+        company_name: string;
+        category: string;
+        unit: string;
+        net_content: string;
+        hsn_code: string;
+        gst_rate: string;
+        purchase_price: string;
+        selling_price: string;
+        mrp: string;
+        initial_stock: number;
+      }>;
+    }>('/khata/catalog-templates');
+    return res.data;
+  },
+  importCatalog: async (codes?: string[]) => {
+    const res = await api.post<{
+      imported_count: number;
+      skipped_count: number;
+      imported_products: Array<{ id: number; product_code: string; product_name: string }>;
+    }>('/khata/import-catalog', { codes });
+    return res.data;
+  },
+  applyExpiryClearance: async (product_id: number, discount_percent: number) => {
+    const res = await api.post<{
+      product_id: number;
+      product_name: string;
+      base_selling_price: number;
+      discount_percent: number;
+      new_selling_price: number;
+    }>('/khata/expiry-clearance', { product_id, discount_percent });
+    return res.data;
+  },
+  getShiftHandover: async (target_date?: string) => {
+    const res = await api.get<{
+      date: string;
+      total_net_cash_in_drawer: number;
+      cashiers: Array<{
+        user_id: number;
+        username: string;
+        name: string;
+        role: string;
+        bills_count: number;
+        cash_sales: number;
+        upi_sales: number;
+        card_sales: number;
+        credit_sales_issued: number;
+        khata_cash_collected: number;
+        khata_upi_collected: number;
+        net_cash_in_drawer: number;
+      }>;
+    }>('/khata/shift-handover', { params: target_date ? { target_date } : undefined });
+    return res.data;
+  },
+  getComplianceRegister: async () => {
+    const res = await api.get<{
+      generated_at: string;
+      shop_name: string;
+      gstin?: string | null;
+      fertilizer_license_no?: string | null;
+      pesticide_license_no?: string | null;
+      seed_license_no?: string | null;
+      stock_cum_price_board: Array<{
+        product_id: number;
+        product_code?: string | null;
+        product_name: string;
+        company_name?: string | null;
+        category: string;
+        batch_number: string;
+        expiry_date?: string | null;
+        current_stock: number;
+        unit: string;
+        selling_price: number;
+        mrp: number;
+      }>;
+      batch_sale_register: Array<{
+        invoice_number: string;
+        sale_date?: string | null;
+        farmer_name: string;
+        farmer_phone: string;
+        farmer_village: string;
+        farmer_aadhar: string;
+        product_name: string;
+        company_name: string;
+        batch_number: string;
+        quantity: number;
+        unit: string;
+        total_amount: number;
+      }>;
+    }>('/khata/compliance-register');
+    return res.data;
+  },
 };
 
 export function getErrorMessage(err: any, fallback: string = 'An unexpected error occurred'): string {

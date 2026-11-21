@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 
 const defaultSettings: ShopSettings = {
   id: 1,
+  shop_account_id: 'SHOP-00001',
   shop_name: 'My Shop',
   proprietor_name: '',
   gstin: '',
@@ -24,7 +25,17 @@ const defaultSettings: ShopSettings = {
   bank_branch: '',
   upi_id: '',
   invoice_prefix: 'INV',
-  terms_conditions: '1. Goods once sold will not be taken back without original bill.\n2. Store fertilizers in cool and dry place away from direct sunlight.'
+  terms_conditions: '1. Goods once sold will not be taken back without original bill.\n2. Store fertilizers in cool and dry place away from direct sunlight.',
+  invoice_template: 'CLASSIC_GST',
+  invoice_accent_color: '#15803d',
+  invoice_header_tagline: '',
+  invoice_footer_note: 'Thank you for your business! Visit again.',
+  invoice_signature_label: 'Authorized Signatory',
+  invoice_show_logo: true,
+  invoice_show_licenses: true,
+  invoice_show_bank_details: true,
+  invoice_show_batch_expiry: true,
+  invoice_show_hsn: true,
 };
 
 interface ShopContextType {
@@ -69,13 +80,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id, user?.username]);
 
   const updateSettings = async (newSettings: Partial<ShopSettings>) => {
-    try {
-      const updated = await settingsApi.update(newSettings);
-      setSettings(updated);
-    } catch {
-      const merged = { ...settings, ...newSettings };
-      setSettings(merged);
-    }
+    const updated = await settingsApi.update(newSettings);
+    setSettings(updated);
   };
 
   return (

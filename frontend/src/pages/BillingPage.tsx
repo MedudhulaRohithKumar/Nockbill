@@ -23,7 +23,7 @@ import {
   Eraser,
   X
 } from 'lucide-react';
-import { productsApi, salesApi, getErrorMessage } from '../api';
+import { productsApi, salesApi, khataApi, settingsApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, ProductBatch, SaleItem, Sale } from '../types';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
@@ -524,6 +524,109 @@ export const BillingPage: React.FC = () => {
   const rawGrandTotal = totalTaxable + totalCgst + totalSgst + totalIgst;
   const roundedGrandTotal = Math.round(rawGrandTotal);
   const roundOff = Math.round((roundedGrandTotal - rawGrandTotal) * 100) / 100;
+
+  // Returning Customer Profile, Pending Udhar & Repeat Last Bill
+  const [customerLookup, setCustomerLookup] = useState<{
+    found: boolean;
+    customer_name?: string;
+    outstanding_balance: number;
+    bill_count: number;
+    recent_sales: Array<{
+      id: number;
+      invoice_number: string;
+      grand_total: number;
+      items: Array<{
+        product_id?: number;
+        product_name: string;
+        batch_number?: string | null;
+        quantity: number;
+        unit: string;
+        unit_price: number;
+        gst_rate: number;
+        hsn_code?: string | null;
+      }>;
+    }>;
+  } | null>(null);
+
+  useEffect(() => {
+    const cleanDigits = sanitizePhoneInput(customerPhone);
+    if (cleanDigits.length !== 10) {
+      setCustomerLookup(null);
+      return;
+    }
+    let active = true;
+    khataApi
+      .lookupCustomer(cleanDigits)
+      .then((res) => {
+        if (!active) return;
+        if (res.found) {
+          setCustomerLookup(res);
+          setCustomerName((prev) => prev.trim() || res.customer_name || '');
+          setCustomerAddress((prev) => prev.trim() || res.customer_address || '');
+          setCustomerAadhar((prev) => prev.trim() || res.customer_aadhar || '');
+          setCustomerGstin((prev) => prev.trim() || res.customer_gstin || '');
+        } else {
+          setCustomerLookup(null);
+        }
+      })
+      .catch(() => {
+        if (active) setCustomerLookup(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [customerPhone]);
+
+  const handleRepeatLastOrder = () => {
+    const lastSale = customerLookup?.recent_sales?.[0];
+    if (!lastSale || !lastSale.items?.length) return;
+    for (const prevItem of lastSale.items) {
+      const matchedProduct = inventory.find(
+        (p) =>
+          (prevItem.product_id && p.id === prevItem.product_id) ||
+          (p.product_name || p.name || '').toLowerCase() === prevItem.product_name.toLowerCase(),
+      );
+      if (matchedProduct) {
+        addItemToCart(matchedProduct);
+      }
+    }
+  };
+
+  // Dynamic UPI QR Code at POS Checkout
+  const [posUpiQrSvg, setPosUpiQrSvg] = useState<string | null>(null);
+  const upiSplitAmount = paymentSplits.reduce((sum, s) => {
+    if (s.method !== 'UPI') return sum;
+    if (paymentSplits.length === 1 && (!s.amount || s.amount <= 0)) {
+      return roundedGrandTotal;
+    }
+    return sum + safeNumber(s.amount, 0);
+  }, 0);
+
+  useEffect(() => {
+    const vpa = (settings.upi_id || '').trim();
+    if (!vpa || cart.length === 0 || upiSplitAmount <= 0) {
+      setPosUpiQrSvg(null);
+      return;
+    }
+    let active = true;
+    settingsApi
+      .getUpiQr({
+        amount: upiSplitAmount,
+        invoice_number: `${settings.invoice_prefix || 'INV'}-POS`,
+        upi_id: vpa,
+      })
+      .then((res) => {
+        if (active && res?.qr_svg_data_uri) {
+          setPosUpiQrSvg(res.qr_svg_data_uri);
+        }
+      })
+      .catch(() => {
+        if (active) setPosUpiQrSvg(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [settings.upi_id, settings.invoice_prefix, cart.length, upiSplitAmount]);
 
   const handleSaveAndPrint = async () => {
     if (cart.length === 0) {
@@ -1070,6 +1173,39 @@ export const BillingPage: React.FC = () => {
               Customer Information
             </h3>
 
+            {customerLookup?.found && (
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-emerald-900">
+                    Returning Farmer ({customerLookup.bill_count} bills)
+                  </span>
+                  {customerLookup.outstanding_balance > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/khata')}
+                      className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-full text-[10px]"
+                    >
+                      Pending Udhar: ₹{formatCurrency(customerLookup.outstanding_balance)}
+                    </button>
+                  )}
+                </div>
+                {customerLookup.recent_sales.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-200/60">
+                    <span className="text-[10px] text-emerald-800 truncate">
+                      Last: #{customerLookup.recent_sales[0].invoice_number} (₹{formatCurrency(customerLookup.recent_sales[0].grand_total)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRepeatLastOrder}
+                      className="px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg text-[10px] shrink-0"
+                    >
+                      + Repeat Last Order
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label htmlFor="customer-name" className="block text-[11px] font-semibold text-slate-700 mb-1">
                 Farmer / Customer Name *
@@ -1246,6 +1382,27 @@ export const BillingPage: React.FC = () => {
                     Split: ₹{formatCurrency(paymentSplits.reduce((s, p) => s + p.amount, 0))} / ₹{formatCurrency(roundedGrandTotal)}
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Live Dynamic UPI Checkout QR Code */}
+            {posUpiQrSvg && upiSplitAmount > 0 && (
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+                <div className="text-[11px] space-y-0.5">
+                  <div className="font-bold text-emerald-950 flex items-center gap-1">
+                    <QrCode className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Dynamic UPI QR Ready</span>
+                  </div>
+                  <div className="text-emerald-800 font-mono text-[10px]">{settings.upi_id}</div>
+                  <div className="font-black text-emerald-900 text-xs">
+                    Scan to Pay: ₹{formatCurrency(upiSplitAmount)}
+                  </div>
+                </div>
+                <img
+                  src={posUpiQrSvg}
+                  alt="POS Dynamic UPI Payment QR"
+                  className="w-20 h-20 bg-white p-1 rounded-lg border border-emerald-200 shrink-0"
+                />
               </div>
             )}
           </div>

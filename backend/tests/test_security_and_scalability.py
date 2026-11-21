@@ -1467,6 +1467,243 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
             finally:
                 seed_engine.dispose()
 
+    def test_shop_management_iam_users_and_invoice_builder(self):
+        # 1. Staff cannot list IAM users (403); Owner A lists only Shop A's IAM users
+        self.assertEqual(
+            self.client.get("/api/auth/users", headers=self.staff_a_headers).status_code,
+            403,
+        )
+        list_res = self.client.get("/api/auth/users", headers=self.owner_a_headers)
+        self.assertEqual(list_res.status_code, 200, list_res.text)
+        usernames = [u["username"] for u in list_res.json()]
+        self.assertIn("owner_a", usernames)
+        self.assertIn("staff_a", usernames)
+        self.assertNotIn("owner_b", usernames)
+        self.assertEqual(list_res.json()[0]["shop_account_id"], "SHOP-00001")
+
+        # 2. Owner A creates an IAM user
+        with patch("app.routers.auth.send_welcome_account_email", return_value=True):
+            create_res = self.client.post(
+                "/api/auth/users",
+                json={
+                    "name": "Ravi Cashier",
+                    "username": "Cashier_Ravi",
+                    "password": "RaviPassword#1",
+                    "phone": "9876500011",
+                    "email": "ravi@alpha.example",
+                    "role": "STAFF",
+                },
+                headers=self.owner_a_headers,
+            )
+        self.assertEqual(create_res.status_code, 201, create_res.text)
+        ravi_id = create_res.json()["id"]
+        self.assertEqual(create_res.json()["username"], "cashier_ravi")
+        self.assertEqual(create_res.json()["shop_account_id"], "SHOP-00001")
+
+        # 3. AWS Console-style IAM Login with Shop Account ID ("SHOP-00001") succeeds; wrong shop ("SHOP-00002") -> 401
+        tok_wrong, code_wrong = _make_signed_captcha("I1A2M3", "102030405060708090a0b0c0d0e0f001")
+        iam_wrong_shop = self.client.post(
+            "/api/auth/login",
+            json={
+                "shop_account_id": "SHOP-00002",
+                "username": "cashier_ravi",
+                "password": "RaviPassword#1",
+                "captcha_token": tok_wrong,
+                "captcha_code": code_wrong,
+            },
+        )
+        self.assertEqual(iam_wrong_shop.status_code, 401)
+
+        tok_ok, code_ok = _make_signed_captcha("I4A5M6", "102030405060708090a0b0c0d0e0f002")
+        iam_ok = self.client.post(
+            "/api/auth/login",
+            json={
+                "shop_account_id": "SHOP-00001",
+                "username": "cashier_ravi",
+                "password": "RaviPassword#1",
+                "captcha_token": tok_ok,
+                "captcha_code": code_ok,
+            },
+        )
+        self.assertEqual(iam_ok.status_code, 200, iam_ok.text)
+        ravi_token = iam_ok.json()["access_token"]
+        ravi_headers = {"Authorization": f"Bearer {ravi_token}"}
+        self.assertEqual(self.client.get("/api/auth/me", headers=ravi_headers).status_code, 200)
+
+        # 4. Cross-tenant protection: Owner B cannot edit or delete Owner A's IAM user (404)
+        self.assertEqual(
+            self.client.put(f"/api/auth/users/{ravi_id}", json={"name": "Hack"}, headers=self.owner_b_headers).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/auth/users/{ravi_id}", headers=self.owner_b_headers).status_code,
+            404,
+        )
+
+        # 5. Owner A cannot delete or deactivate their own active owner account (400)
+        owner_a_id = next(u["id"] for u in list_res.json() if u["username"] == "owner_a")
+        self.assertEqual(
+            self.client.put(f"/api/auth/users/{owner_a_id}", json={"is_active": False}, headers=self.owner_a_headers).status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.delete(f"/api/auth/users/{owner_a_id}", headers=self.owner_a_headers).status_code,
+            400,
+        )
+
+        # 6. Owner A updates Ravi's password -> Ravi's old JWT is immediately revoked (401)
+        upd_res = self.client.put(
+            f"/api/auth/users/{ravi_id}",
+            json={"name": "Ravi Senior Cashier", "password": "RaviNewPassword#2"},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(upd_res.status_code, 200, upd_res.text)
+        self.assertEqual(upd_res.json()["name"], "Ravi Senior Cashier")
+        self.assertEqual(self.client.get("/api/auth/me", headers=ravi_headers).status_code, 401)
+
+        # 7. Owner A deletes Ravi cleanly
+        del_res = self.client.delete(f"/api/auth/users/{ravi_id}", headers=self.owner_a_headers)
+        self.assertEqual(del_res.status_code, 200, del_res.text)
+
+        # 8. Invoice Builder settings & Shop Logo Upload/Delete
+        inv_upd = self.client.put(
+            "/api/settings",
+            json={
+                "shop_name": "Alpha Agro Center",
+                "invoice_template": "MODERN_CORPORATE",
+                "invoice_accent_color": "#1d4ed8",
+                "invoice_header_tagline": "Authorized IFFCO & Bayer Dealer",
+                "invoice_footer_note": "Thank you Farmer! Visit again.",
+                "invoice_signature_label": "Managing Partner",
+                "invoice_show_logo": True,
+                "invoice_show_licenses": True,
+                "invoice_show_bank_details": True,
+                "invoice_show_batch_expiry": False,
+                "invoice_show_hsn": True,
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(inv_upd.status_code, 200, inv_upd.text)
+        self.assertEqual(inv_upd.json()["invoice_template"], "MODERN_CORPORATE")
+        self.assertEqual(inv_upd.json()["invoice_accent_color"], "#1d4ed8")
+        self.assertFalse(inv_upd.json()["invoice_show_batch_expiry"])
+
+        bad_logo = self.client.post(
+            "/api/settings/logo",
+            files={"file": ("bad.png", b"not-a-valid-png", "image/png")},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(bad_logo.status_code, 422)
+
+        logo_res = self.client.post(
+            "/api/settings/logo",
+            files={"file": ("logo.png", _make_valid_png_bytes(), "image/png")},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(logo_res.status_code, 200, logo_res.text)
+        self.assertTrue(logo_res.json()["logo_path"].startswith("data:image/png;base64,"))
+
+        # Verify PDF generator renders with the uploaded data-URI logo & custom builder settings
+        from app.reports.invoice_pdf import generate_invoice_pdf
+        db = self.TestingSessionLocal()
+        try:
+            shop_a = db.query(ShopSettings).filter(ShopSettings.id == self.shop_a_id).first()
+            dummy_sale = Sale(
+                id=77,
+                shop_id=self.shop_a_id,
+                invoice_number="INV-202611-00077",
+                customer_name="Farmer Test",
+                payment_method="UPI",
+                subtotal=Decimal("500.00"),
+                gst_amount=Decimal("25.00"),
+                grand_total=Decimal("525.00"),
+            )
+            pdf_bytes = generate_invoice_pdf(dummy_sale, shop_a)
+            self.assertTrue(pdf_bytes.startswith(b"%PDF-"))
+        finally:
+            db.close()
+
+        del_logo = self.client.delete("/api/settings/logo", headers=self.owner_a_headers)
+        self.assertEqual(del_logo.status_code, 200)
+        self.assertIsNone(del_logo.json()["logo_path"])
+
+        # 9. Dynamic UPI QR Code & Khata / Onboarding / Compliance endpoints
+        qr_res = self.client.get(
+            "/api/settings/upi-qr?amount=1250.50&invoice_number=INV-101&upi_id=alpha@okaxis",
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(qr_res.status_code, 200, qr_res.text)
+        self.assertTrue(qr_res.json()["qr_svg_data_uri"].startswith("data:image/svg+xml;base64,"))
+        self.assertIn("am=1250.50", qr_res.json()["upi_uri"])
+
+        tpl_res = self.client.get("/api/khata/catalog-templates", headers=self.owner_a_headers)
+        self.assertEqual(tpl_res.status_code, 200)
+        self.assertGreaterEqual(len(tpl_res.json()["templates"]), 10)
+
+        imp_res = self.client.post(
+            "/api/khata/import-catalog",
+            json={"codes": ["IFFCO-NANO-UREA", "FMC-CORAGEN-150ML"]},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(imp_res.status_code, 201, imp_res.text)
+        self.assertEqual(imp_res.json()["imported_count"], 2)
+        imported_id = imp_res.json()["imported_products"][0]["id"]
+
+        clr_res = self.client.post(
+            "/api/khata/expiry-clearance",
+            json={"product_id": imported_id, "discount_percent": 10},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(clr_res.status_code, 200, clr_res.text)
+        self.assertEqual(clr_res.json()["new_selling_price"], 202.5)
+
+        # Create a CREDIT sale for Farmer Khata test
+        credit_sale = self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Kisan Udhar",
+                "customer_phone": "9876543210",
+                "customer_address": "Niphad",
+                "payment_method": "CREDIT",
+                "items": [{"product_id": imported_id, "product_name": "IFFCO Nano Urea Liquid", "quantity": 2, "price": 200, "gst_rate": 5}],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(credit_sale.status_code, 201, credit_sale.text)
+
+        cust_khata = self.client.get("/api/khata/customers?only_due=true", headers=self.owner_a_headers)
+        self.assertEqual(cust_khata.status_code, 200)
+        self.assertEqual(cust_khata.json()["total_outstanding_udhar"], 400.0)
+
+        lookup_res = self.client.get("/api/khata/customers/lookup?phone=9876543210", headers=self.owner_a_headers)
+        self.assertEqual(lookup_res.status_code, 200)
+        self.assertTrue(lookup_res.json()["found"])
+        self.assertEqual(lookup_res.json()["outstanding_balance"], 400.0)
+
+        pay_res = self.client.post(
+            "/api/khata/payments",
+            json={
+                "ledger_type": "CUSTOMER",
+                "party_name": "Kisan Udhar",
+                "party_phone": "9876543210",
+                "amount": 150,
+                "payment_mode": "UPI",
+                "notes": "Partial repayment",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(pay_res.status_code, 201, pay_res.text)
+
+        lookup_after = self.client.get("/api/khata/customers/lookup?phone=9876543210", headers=self.owner_a_headers)
+        self.assertEqual(lookup_after.json()["outstanding_balance"], 250.0)
+
+        self.assertEqual(self.client.get("/api/khata/suppliers", headers=self.owner_a_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/khata/payments", headers=self.owner_a_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/khata/shift-handover", headers=self.owner_a_headers).status_code, 200)
+        comp_res = self.client.get("/api/khata/compliance-register", headers=self.owner_a_headers)
+        self.assertEqual(comp_res.status_code, 200)
+        self.assertGreaterEqual(len(comp_res.json()["stock_cum_price_board"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

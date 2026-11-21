@@ -1,5 +1,21 @@
 export type UserRole = 'owner' | 'operator';
 
+export type InvoiceTemplateId = 'CLASSIC_GST' | 'MODERN_CORPORATE' | 'COMPACT_RETAIL' | 'THERMAL_80MM';
+
+export interface IamUser {
+  id: number;
+  name: string;
+  username: string;
+  email?: string | null;
+  phone?: string | null;
+  role: 'OWNER' | 'STAFF';
+  shop_id?: number;
+  shop_account_id?: string | null;
+  subscription_status?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface User {
   id: number;
   username: string;
@@ -13,6 +29,7 @@ export interface User {
 
 export interface ShopSettings {
   id: number;
+  shop_account_id?: string;
   shop_name: string;
   proprietor_name: string;
   gstin: string;
@@ -39,6 +56,16 @@ export interface ShopSettings {
   logo_path?: string | null;
   subscription_status?: string;
   terms_conditions?: string;
+  invoice_template?: InvoiceTemplateId;
+  invoice_accent_color?: string;
+  invoice_header_tagline?: string;
+  invoice_footer_note?: string;
+  invoice_signature_label?: string;
+  invoice_show_logo?: boolean;
+  invoice_show_licenses?: boolean;
+  invoice_show_bank_details?: boolean;
+  invoice_show_batch_expiry?: boolean;
+  invoice_show_hsn?: boolean;
 }
 
 export interface ProductBatch {

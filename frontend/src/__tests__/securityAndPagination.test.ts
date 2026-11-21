@@ -16,7 +16,13 @@ import {
   type RegisterFormData,
 } from '../utils/registerPayload';
 import { filterByAlert, mergeProductsById } from '../utils/inventoryFilters';
-import { generateBillIdempotencyKey, mergeProductSearchResults } from '../utils/formatters';
+import {
+  generateBillIdempotencyKey,
+  mergeProductSearchResults,
+  buildUpiPaymentUri,
+  buildWhatsAppInvoiceUrl,
+  buildWhatsAppKhataReminderUrl,
+} from '../utils/formatters';
 import type { Product } from '../types';
 
 function assertEqual<T>(actual: T, expected: T, message: string): void {
@@ -154,7 +160,31 @@ export function runSecurityAndPaginationTests(): number {
   assertEqual(mergedSearch.length, 3, 'Merged search respects limit');
   assertEqual(mergedSearch[0].id, 1, 'Local result order preserved');
   assertEqual(mergedSearch[2].id, 3, 'Remote unique results appended after dedup');
-  passed += 5;
+
+  // 6. Dynamic UPI Deep Link & WhatsApp Bill / Khata Reminder URLs
+  const upiUri = buildUpiPaymentUri('kisan@okaxis', 'Sri Lakshmi Agro', 1450.5, 'INV-101');
+  assertEqual(upiUri.startsWith('upi://pay?'), true, 'UPI URI starts with upi://pay?');
+  assertEqual(upiUri.includes('am=1450.50'), true, 'UPI URI includes formatted 2-decimal amount');
+  const waBill = buildWhatsAppInvoiceUrl(
+    '9876543210',
+    {
+      invoice_number: 'INV-101',
+      customer_name: 'Ramesh',
+      grand_total: 1450.5,
+      payment_mode: 'UPI',
+      items: [{ product_name: 'Nano Urea', quantity: 2, unit: 'Bottles', total_amount: 450 }],
+    },
+    { shop_name: 'Sri Lakshmi Agro', upi_id: 'kisan@okaxis' },
+  );
+  assertEqual(waBill.startsWith('https://wa.me/919876543210?text='), true, 'WhatsApp bill link targets 91<phone>');
+  const waRem = buildWhatsAppKhataReminderUrl(
+    '9876543210',
+    'Ramesh',
+    2500,
+    { shop_name: 'Sri Lakshmi Agro', upi_id: 'kisan@okaxis', phone: '9000011111' },
+  );
+  assertEqual(waRem.startsWith('https://wa.me/919876543210?text='), true, 'WhatsApp Khata reminder link targets 91<phone>');
+  passed += 9;
 
   return passed;
 }

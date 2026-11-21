@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ChevronDown,
   RotateCcw,
-  Tag
+  Tag,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
@@ -55,12 +56,13 @@ export const AppLayout: React.FC = () => {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
     { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
+    { to: '/khata', label: 'Khata & Compliance', icon: BookOpen, badge: 'Udhar' },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
     ...(isOwner ? [{ to: '/price-lists', label: 'Price Lists', icon: Tag, badge: 'Owner' }] : []),
     { to: '/purchases', label: 'Inward / Purchases', icon: ShoppingBag },
     { to: '/reports', label: 'GST & Reports', icon: BarChart3 },
     { to: '/analytics', label: 'Analytics', icon: TrendingUp, badge: 'Live' },
-    { to: '/settings', label: 'Shop Settings', icon: Settings },
+    { to: '/settings', label: 'Shop Management', icon: Settings },
   ];
 
   const bottomNavItems = [

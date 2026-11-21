@@ -11,7 +11,7 @@ from sqlalchemy import or_, func
 from app.database.base import get_db
 from app.models.models import User, UserRole, AuditAction, AuditLog, ShopSettings, PasswordResetCode
 from app.schemas.schemas import (
-    LoginRequest, TokenResponse, UserCreate, UserResponse,
+    LoginRequest, TokenResponse, UserCreate, UserUpdate, UserResponse,
     ShopRegistrationRequest, RegistrationResponse,
     ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest,
     SubscriptionPaymentRequest, SubscriptionWebhookRequest, GoogleAuthRequest
@@ -54,6 +54,56 @@ ERR_ACCOUNT_DEACTIVATED = "Your account has been deactivated. Please contact sup
 ERR_EMAIL_ALREADY_EXISTS = (
     "An account with this email already exists. Please sign in with your Google account or password."
 )
+
+
+def _format_shop_account_id(shop_id: Optional[int]) -> Optional[str]:
+    if not shop_id:
+        return None
+    return f"SHOP-{int(shop_id):05d}"
+
+
+def _serialize_user(user: User) -> UserResponse:
+    shop_id = getattr(user, "shop_id", None)
+    return UserResponse(
+        id=user.id,
+        name=user.name,
+        username=user.username,
+        email=user.email,
+        phone=user.phone,
+        role=user.role,
+        shop_id=shop_id,
+        shop_account_id=_format_shop_account_id(shop_id),
+        subscription_status=user.subscription_status or "ACTIVE",
+        is_active=bool(user.is_active),
+        created_at=user.created_at,
+    )
+
+
+def _resolve_shop_account_id(db: Session, raw_account_id: str) -> Optional[int]:
+    """Resolve an AWS-style Shop Account ID (e.g. 'SHOP-00001', '1', GSTIN, or shop name) to shop_id."""
+    cleaned = (raw_account_id or "").strip()
+    if not cleaned:
+        return None
+    upper = cleaned.upper()
+    numeric_part = upper[5:].strip() if upper.startswith("SHOP-") else upper
+    if numeric_part.isdigit():
+        candidate_id = int(numeric_part)
+        shop = db.query(ShopSettings).filter(ShopSettings.id == candidate_id).first()
+        if shop:
+            return shop.id
+    shop_by_alias = db.query(ShopSettings).filter(
+        or_(
+            func.upper(ShopSettings.gstin) == upper,
+            func.lower(ShopSettings.shop_name) == cleaned.lower(),
+        )
+    ).first()
+    if shop_by_alias:
+        return shop_by_alias.id
+    owner_by_alias = db.query(User).filter(
+        func.lower(User.username) == cleaned.lower(),
+        User.role == UserRole.OWNER,
+    ).first()
+    return owner_by_alias.shop_id if owner_by_alias else None
 
 
 def _get_login_url() -> str:
@@ -152,14 +202,33 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
             detail=captcha_error,
         )
 
-    user = db.query(User).filter(
+    raw_account_id = (payload.shop_account_id or "").strip()
+    resolved_shop_id: Optional[int] = None
+    if raw_account_id:
+        resolved_shop_id = _resolve_shop_account_id(db, raw_account_id)
+        if not resolved_shop_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Shop Account ID, IAM username, or password",
+            )
+
+    user_query = db.query(User).filter(
         or_(
             func.lower(User.username) == identifier_lower,
             func.lower(User.email) == identifier_lower,
             User.phone == clean_identifier
         )
-    ).first()
+    )
+    if resolved_shop_id is not None:
+        user_query = user_query.filter(User.shop_id == resolved_shop_id)
+    user = user_query.first()
+
     if not user:
+        if resolved_shop_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Shop Account ID, IAM username, or password",
+            )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -1043,7 +1112,22 @@ def logout(
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return _serialize_user(current_user)
+
+
+@router.get("/users", response_model=list[UserResponse])
+def list_shop_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_owner),
+):
+    """List all IAM users belonging to the authenticated owner's shop."""
+    users = (
+        db.query(User)
+        .filter(User.shop_id == current_user.shop_id)
+        .order_by(User.id.asc())
+        .all()
+    )
+    return [_serialize_user(u) for u in users]
 
 
 @router.post("/users", response_model=UserResponse, status_code=201)
@@ -1052,9 +1136,13 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_owner),
 ):
-    existing = db.query(User).filter(User.username == payload.username).first()
+    existing = db.query(User).filter(func.lower(User.username) == payload.username.lower()).first()
     if existing:
-        raise HTTPException(400, "Username already exists")
+        raise HTTPException(status_code=400, detail="Username already exists. Please choose another.")
+    if payload.email:
+        existing_email = db.query(User).filter(func.lower(User.email) == payload.email.lower()).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="An account with this email already exists.")
     user = User(
         name=payload.name,
         username=payload.username,
@@ -1063,18 +1151,27 @@ def create_user(
         password_hash=hash_password(payload.password),
         role=payload.role,
         shop_id=current_user.shop_id,
+        subscription_status=current_user.subscription_status or "ACTIVE",
         is_active=True,
     )
     db.add(user)
+    db.flush()
+    db.add(AuditLog(
+        user_id=current_user.id,
+        shop_id=current_user.shop_id,
+        action=AuditAction.SETTINGS_UPDATE,
+        description=f"Created IAM user {user.username} ({user.role.value})",
+    ))
     db.commit()
     db.refresh(user)
 
     # Dispatch Welcome Email to newly created sub-user
     if user.email and user.email.strip():
         try:
-            login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
+            account_id = _format_shop_account_id(current_user.shop_id) or ""
+            login_url = f"{_get_login_url()}?account={account_id}" if account_id else _get_login_url()
             shop_title = current_user.shop.shop_name if current_user.shop else "NockBill Solutions"
-            role_label = "Store Owner" if user.role == UserRole.OWNER else "Staff / Cashier"
+            role_label = "Store Owner" if user.role == UserRole.OWNER else "Staff / Cashier (IAM)"
             send_welcome_account_email(
                 to_email=user.email.strip(),
                 recipient_name=user.name,
@@ -1086,5 +1183,110 @@ def create_user(
         except Exception as exc:
             logger.warning("Could not dispatch welcome email to user %s: %s", user.email, exc)
 
-    return user
+    return _serialize_user(user)
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+def update_shop_user(
+    user_id: int,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_owner),
+):
+    """Update an IAM user strictly within the authenticated owner's shop."""
+    target = (
+        db.query(User)
+        .filter(User.id == user_id, User.shop_id == current_user.shop_id)
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="IAM user not found in your shop.")
+
+    if target.id == current_user.id:
+        if payload.is_active is False:
+            raise HTTPException(status_code=400, detail="You cannot deactivate your own active owner account.")
+        if payload.role is not None and payload.role != UserRole.OWNER:
+            raise HTTPException(status_code=400, detail="You cannot demote your own active owner account.")
+
+    if payload.username is not None and payload.username.lower() != target.username.lower():
+        dup_user = db.query(User).filter(
+            func.lower(User.username) == payload.username.lower(),
+            User.id != target.id,
+        ).first()
+        if dup_user:
+            raise HTTPException(status_code=400, detail="Username already exists. Please choose another.")
+        target.username = payload.username
+
+    if payload.email is not None:
+        if payload.email and (not target.email or payload.email.lower() != target.email.lower()):
+            dup_email = db.query(User).filter(
+                func.lower(User.email) == payload.email.lower(),
+                User.id != target.id,
+            ).first()
+            if dup_email:
+                raise HTTPException(status_code=400, detail="An account with this email already exists.")
+        target.email = payload.email
+
+    if payload.name is not None:
+        target.name = payload.name
+    if payload.phone is not None:
+        target.phone = payload.phone
+    if payload.role is not None:
+        target.role = payload.role
+
+    should_revoke_tokens = False
+    if payload.is_active is not None:
+        if not payload.is_active and target.is_active:
+            should_revoke_tokens = True
+        target.is_active = payload.is_active
+
+    if payload.password:
+        target.password_hash = hash_password(payload.password)
+        should_revoke_tokens = True
+
+    if should_revoke_tokens:
+        target.token_version = int(getattr(target, "token_version", 1) or 1) + 1
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        shop_id=current_user.shop_id,
+        action=AuditAction.SETTINGS_UPDATE,
+        description=f"Updated IAM user {target.username} (ID: {target.id})",
+    ))
+    db.commit()
+    db.refresh(target)
+    return _serialize_user(target)
+
+
+@router.delete("/users/{user_id}")
+def delete_shop_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_owner),
+):
+    """Permanently delete an IAM user strictly within the authenticated owner's shop."""
+    target = (
+        db.query(User)
+        .filter(User.id == user_id, User.shop_id == current_user.shop_id)
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="IAM user not found in your shop.")
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own active owner account.")
+
+    deleted_username = target.username
+    db.query(PasswordResetCode).filter(PasswordResetCode.user_id == target.id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.user_id == target.id).update(
+        {AuditLog.user_id: None}, synchronize_session=False
+    )
+    db.delete(target)
+    db.add(AuditLog(
+        user_id=current_user.id,
+        shop_id=current_user.shop_id,
+        action=AuditAction.SETTINGS_UPDATE,
+        description=f"Deleted IAM user {deleted_username} (ID: {user_id})",
+    ))
+    db.commit()
+    return {"success": True, "message": f"IAM user '{deleted_username}' deleted."}
 

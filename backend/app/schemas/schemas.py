@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Any, Dict
 from datetime import datetime, date
@@ -26,6 +27,11 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=200)
     captcha_token: str = Field(..., min_length=10, description="Cryptographically signed server CAPTCHA token")
     captcha_code: str = Field(..., min_length=6, max_length=6, description="6-character CAPTCHA code")
+    shop_account_id: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="Optional AWS-style Shop Account ID (e.g. SHOP-00001) or shop alias for IAM staff login",
+    )
 
     @field_validator("username")
     @classmethod
@@ -59,10 +65,50 @@ class TokenResponse(BaseModel):
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=6, max_length=128)
     email: Optional[str] = None
     phone: Optional[str] = None
     role: UserRole = UserRole.STAFF
+
+    @model_validator(mode="after")
+    def sanitize_user_create(self) -> "UserCreate":
+        self.name = sanitize_text(self.name, 100) or ""
+        self.username = (sanitize_code(self.username, 50) or "").lower()
+        if len(self.username) < 3:
+            raise ValueError("Username must be at least 3 characters")
+        self.email = sanitize_text(self.email, 150) if (self.email and self.email.strip()) else None
+        self.phone = validate_phone(self.phone) if (self.phone and self.phone.strip()) else None
+        return self
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    username: Optional[str] = Field(default=None, min_length=3, max_length=50)
+    password: Optional[str] = Field(default=None, max_length=128)
+    email: Optional[str] = Field(default=None, max_length=150)
+    phone: Optional[str] = Field(default=None, max_length=20)
+    role: Optional[UserRole] = Field(default=None)
+    is_active: Optional[bool] = Field(default=None)
+
+    @model_validator(mode="after")
+    def sanitize_user_update(self) -> "UserUpdate":
+        if self.name is not None:
+            self.name = sanitize_text(self.name, 100) or ""
+        if self.username is not None:
+            self.username = (sanitize_code(self.username, 50) or "").lower()
+            if len(self.username) < 3:
+                raise ValueError("Username must be at least 3 characters")
+        if self.password is not None:
+            cleaned_pwd = self.password.strip()
+            if cleaned_pwd and len(cleaned_pwd) < 6:
+                raise ValueError("Password must be at least 6 characters")
+            self.password = cleaned_pwd if cleaned_pwd else None
+        if self.email is not None:
+            self.email = sanitize_text(self.email, 150) if self.email.strip() else None
+        if self.phone is not None:
+            self.phone = validate_phone(self.phone) if self.phone.strip() else None
+        return self
+
 
 class UserResponse(BaseModel):
     id: int
@@ -71,6 +117,8 @@ class UserResponse(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     role: UserRole
+    shop_id: Optional[int] = None
+    shop_account_id: Optional[str] = None
     subscription_status: Optional[str] = "ACTIVE"
     is_active: bool
     created_at: datetime
@@ -250,6 +298,9 @@ class GoogleAuthRequest(BaseModel):
 
 # ─── Shop Settings ───────────────────────────────────────────────────────────
 
+_ALLOWED_INVOICE_TEMPLATES = {"CLASSIC_GST", "MODERN_CORPORATE", "COMPACT_RETAIL", "THERMAL_80MM"}
+
+
 class ShopSettingsUpdate(BaseModel):
     shop_name: Optional[str] = None
     proprietor_name: Optional[str] = None
@@ -274,7 +325,18 @@ class ShopSettingsUpdate(BaseModel):
     default_gst_rate: Optional[Decimal] = None
     currency: Optional[str] = None
     thermal_print: Optional[bool] = None
+    logo_path: Optional[str] = None
     terms_conditions: Optional[str] = None
+    invoice_template: Optional[str] = None
+    invoice_accent_color: Optional[str] = None
+    invoice_header_tagline: Optional[str] = None
+    invoice_footer_note: Optional[str] = None
+    invoice_signature_label: Optional[str] = None
+    invoice_show_logo: Optional[bool] = None
+    invoice_show_licenses: Optional[bool] = None
+    invoice_show_bank_details: Optional[bool] = None
+    invoice_show_batch_expiry: Optional[bool] = None
+    invoice_show_hsn: Optional[bool] = None
 
     @model_validator(mode="after")
     def sanitize_settings(self) -> "ShopSettingsUpdate":
@@ -306,6 +368,21 @@ class ShopSettingsUpdate(BaseModel):
             self.invoice_prefix = sanitize_code(self.invoice_prefix, 10, uppercase=True) or "INV"
         if self.terms_conditions is not None:
             self.terms_conditions = sanitize_text(self.terms_conditions, 2000, allow_newlines=True)
+        if self.invoice_template is not None:
+            tpl = (self.invoice_template or "").strip().upper()
+            self.invoice_template = tpl if tpl in _ALLOWED_INVOICE_TEMPLATES else "CLASSIC_GST"
+        if self.invoice_accent_color is not None:
+            raw_color = (self.invoice_accent_color or "").strip()
+            if re.fullmatch(r"#[0-9a-fA-F]{6}", raw_color):
+                self.invoice_accent_color = raw_color.lower()
+            else:
+                self.invoice_accent_color = "#15803d"
+        if self.invoice_header_tagline is not None:
+            self.invoice_header_tagline = sanitize_text(self.invoice_header_tagline, 250)
+        if self.invoice_footer_note is not None:
+            self.invoice_footer_note = sanitize_text(self.invoice_footer_note, 300)
+        if self.invoice_signature_label is not None:
+            self.invoice_signature_label = sanitize_text(self.invoice_signature_label, 120) or "Authorized Signatory"
         return self
 
 class ShopSettingsResponse(BaseModel):
@@ -336,6 +413,16 @@ class ShopSettingsResponse(BaseModel):
     thermal_print: bool
     logo_path: Optional[str] = None
     terms_conditions: Optional[str] = None
+    invoice_template: Optional[str] = "CLASSIC_GST"
+    invoice_accent_color: Optional[str] = "#15803d"
+    invoice_header_tagline: Optional[str] = None
+    invoice_footer_note: Optional[str] = "Thank you for your business! Visit again."
+    invoice_signature_label: Optional[str] = "Authorized Signatory"
+    invoice_show_logo: Optional[bool] = True
+    invoice_show_licenses: Optional[bool] = True
+    invoice_show_bank_details: Optional[bool] = True
+    invoice_show_batch_expiry: Optional[bool] = True
+    invoice_show_hsn: Optional[bool] = True
     subscription_status: Optional[str] = "ACTIVE"
 
     class Config:

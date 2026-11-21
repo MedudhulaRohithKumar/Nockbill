@@ -38,6 +38,16 @@ COLUMN_MIGRATIONS: List[Tuple[str, str, str]] = [
     ("shop_settings", "bank_branch", "VARCHAR(200)"),
     ("shop_settings", "upi_id", "VARCHAR(100)"),
     ("shop_settings", "terms_conditions", "TEXT"),
+    ("shop_settings", "invoice_template", "VARCHAR(40) DEFAULT 'CLASSIC_GST'"),
+    ("shop_settings", "invoice_accent_color", "VARCHAR(20) DEFAULT '#15803d'"),
+    ("shop_settings", "invoice_header_tagline", "VARCHAR(250)"),
+    ("shop_settings", "invoice_footer_note", "VARCHAR(300)"),
+    ("shop_settings", "invoice_signature_label", "VARCHAR(120) DEFAULT 'Authorized Signatory'"),
+    ("shop_settings", "invoice_show_logo", "BOOLEAN DEFAULT TRUE"),
+    ("shop_settings", "invoice_show_licenses", "BOOLEAN DEFAULT TRUE"),
+    ("shop_settings", "invoice_show_bank_details", "BOOLEAN DEFAULT TRUE"),
+    ("shop_settings", "invoice_show_batch_expiry", "BOOLEAN DEFAULT TRUE"),
+    ("shop_settings", "invoice_show_hsn", "BOOLEAN DEFAULT TRUE"),
     ("shop_settings", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
     ("products", "trade_name", "VARCHAR(200)"),
     ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
@@ -83,6 +93,7 @@ INDEX_STATEMENTS = [
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_product_shop_barcode ON products (shop_id, barcode)",
     "CREATE INDEX IF NOT EXISTS ix_audit_logs_shop_id ON audit_logs (shop_id)",
     "CREATE INDEX IF NOT EXISTS ix_rate_limit_bucket_created ON rate_limit_events (bucket, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_khata_shop_ledger_phone ON khata_payments (shop_id, ledger_type, party_phone)",
 ]
 
 _CATEGORY_BACKFILL_SQL = """
@@ -206,6 +217,8 @@ def _backfill_data(conn: Connection, dialect: str) -> None:
             _exec_savepoint(conn, "ALTER TABLE purchase_items ALTER COLUMN product_id DROP NOT NULL")
         if "product_batches" in tables:
             _exec_savepoint(conn, "ALTER TABLE product_batches ALTER COLUMN expiry_date DROP NOT NULL")
+        if "shop_settings" in tables:
+            _exec_savepoint(conn, "ALTER TABLE shop_settings ALTER COLUMN logo_path TYPE TEXT")
     if "products" in tables:
         conn.execute(text(
             "UPDATE products SET base_selling_price = selling_price WHERE base_selling_price IS NULL"

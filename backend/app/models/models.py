@@ -138,11 +138,21 @@ class ShopSettings(Base):
     upi_id = Column(String(100))
     invoice_prefix = Column(String(10), default="INV")
     invoice_counter = Column(Integer, default=1)
-    logo_path = Column(String(500))
+    logo_path = Column(Text)
     default_gst_rate = Column(Numeric(5, 2), default=18)
     currency = Column(String(5), default="INR")
     thermal_print = Column(Boolean, default=False)
     terms_conditions = Column(Text)
+    invoice_template = Column(String(40), default="CLASSIC_GST")
+    invoice_accent_color = Column(String(20), default="#15803d")
+    invoice_header_tagline = Column(String(250))
+    invoice_footer_note = Column(String(300), default="Thank you for your business! Visit again.")
+    invoice_signature_label = Column(String(120), default="Authorized Signatory")
+    invoice_show_logo = Column(Boolean, default=True)
+    invoice_show_licenses = Column(Boolean, default=True)
+    invoice_show_bank_details = Column(Boolean, default=True)
+    invoice_show_batch_expiry = Column(Boolean, default=True)
+    invoice_show_hsn = Column(Boolean, default=True)
     subscription_status = Column(String(20), default="ACTIVE")
     updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
 
@@ -520,4 +530,30 @@ class RateLimitEvent(Base):
 
     __table_args__ = (
         Index("ix_rate_limit_bucket_created", "bucket", "created_at"),
+    )
+
+
+class KhataPayment(Base):
+    """
+    Tenant-scoped Customer Udhar (Credit) repayments and Supplier Payable settlements.
+    ledger_type: 'CUSTOMER' (repayment against CREDIT sales) or 'SUPPLIER' (payout against purchase bills).
+    """
+    __tablename__ = "khata_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
+    ledger_type = Column(String(20), nullable=False, default="CUSTOMER", index=True)
+    party_name = Column(String(200), nullable=False, index=True)
+    party_phone = Column(String(20), nullable=True, index=True)
+    party_gstin = Column(String(20), nullable=True)
+    reference_id = Column(Integer, nullable=True)
+    reference_number = Column(String(100), nullable=True)
+    amount = Column(Numeric(14, 2), nullable=False, default=0)
+    payment_mode = Column(String(30), nullable=False, default="CASH")
+    notes = Column(String(300), nullable=True)
+    recorded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=_utc_now, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_khata_shop_ledger_phone", "shop_id", "ledger_type", "party_phone"),
     )

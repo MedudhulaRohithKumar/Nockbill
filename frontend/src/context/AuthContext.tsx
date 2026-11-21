@@ -7,7 +7,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string, captchaToken: string, captchaCode: string) => Promise<void>;
+  login: (username: string, password: string, captchaToken: string, captchaCode: string, shopAccountId?: string) => Promise<void>;
   loginWithGoogle: (credential: string, options?: GoogleAuthOptions | string) => Promise<any>;
   register: (payload: any) => Promise<any>;
   activateSubscription: (payload: any) => Promise<any>;
@@ -49,13 +49,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void initAuth();
   }, []);
 
-  const login = async (username: string, password: string, captchaToken: string, captchaCode: string) => {
+  const login = async (
+    username: string,
+    password: string,
+    captchaToken: string,
+    captchaCode: string,
+    shopAccountId?: string,
+  ) => {
     localStorage.removeItem('shop_settings');
     const data = await authApi.login({
       username,
       password,
       captcha_token: captchaToken,
       captcha_code: captchaCode,
+      shop_account_id: shopAccountId?.trim() || undefined,
     });
     // Remove token from localStorage: browser automatically stores and sends HttpOnly cookie
     localStorage.removeItem('token');
