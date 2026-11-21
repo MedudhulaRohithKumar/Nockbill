@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   BookOpen,
   Users,
@@ -15,6 +16,8 @@ import {
   Percent,
   PackagePlus,
   X,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { khataApi, productsApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
@@ -28,12 +31,105 @@ import {
 
 type KhataTab = 'farmers' | 'suppliers' | 'catalog' | 'handover' | 'compliance';
 
+interface KhataModuleOption {
+  id: KhataTab;
+  title: string;
+  badge: string;
+  badgeColor: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const KHATA_MODULE_OPTIONS: KhataModuleOption[] = [
+  {
+    id: 'farmers',
+    title: 'Farmer Khata (Udhar)',
+    badge: 'Farmer Credit',
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    description: 'Track outstanding farmer credit, payment collections & send WhatsApp payment reminders with UPI QR',
+    icon: Users,
+  },
+  {
+    id: 'suppliers',
+    title: 'Supplier Khata (Payables)',
+    badge: 'Distributor Dues',
+    badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
+    description: 'Inward purchase bills, pending supplier payables, payout history & ledger receipts',
+    icon: Truck,
+  },
+  {
+    id: 'catalog',
+    title: '1-Click Agri Catalog & Expiry Clearance',
+    badge: 'Stock & Margin',
+    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+    description: '100+ pre-curated fertilizers, seeds & pesticides with 1-click godown import and automated expiry markdown',
+    icon: Sparkles,
+  },
+  {
+    id: 'handover',
+    title: 'Cashier Shift Handover',
+    badge: 'Cash Drawer',
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+    description: 'Daily cash drawer balancing, UPI/Card payment reconciliation & cashier shift handover receipts',
+    icon: Clock,
+  },
+  {
+    id: 'compliance',
+    title: 'Agri Inspector Register (Form O)',
+    badge: 'Govt Compliance',
+    badgeColor: 'bg-rose-100 text-rose-800 border-rose-200',
+    description: 'Official Stock-cum-Price Board and Batch Sale Register for Agriculture Officers & Quality Control inspections',
+    icon: ShieldCheck,
+  },
+];
+
 export const KhataPage: React.FC = () => {
   const { settings } = useShop();
   const { user } = useAuth();
   const isOwner = (user?.role || '').toLowerCase() === 'owner';
 
-  const [activeTab, setActiveTab] = useState<KhataTab>('farmers');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as KhataTab) || 'farmers';
+  const [activeTab, setActiveTab] = useState<KhataTab>(
+    ['farmers', 'suppliers', 'catalog', 'handover', 'compliance'].includes(initialTab)
+      ? initialTab
+      : 'farmers'
+  );
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab') as KhataTab | null;
+    if (tabParam && ['farmers', 'suppliers', 'catalog', 'handover', 'compliance'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropdownOpen]);
+
+  const handleTabChange = (newTab: KhataTab) => {
+    setActiveTab(newTab);
+    setSearchParams({ tab: newTab });
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -270,72 +366,141 @@ export const KhataPage: React.FC = () => {
         )}
       </div>
 
-      {/* Sub-Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('farmers')}
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            activeTab === 'farmers'
-              ? 'bg-brand-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Farmer Khata (Udhar)</span>
-        </button>
+      {/* Khata Module Dropdown Selector (Under Khata) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-brand-600 animate-pulse" />
+            <label
+              htmlFor="khata-module-dropdown-btn"
+              className="text-xs font-black uppercase tracking-wider text-slate-500"
+            >
+              Select Khata Module:
+            </label>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('suppliers')}
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            activeTab === 'suppliers'
-              ? 'bg-brand-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          <span>Supplier Khata (Payables)</span>
-        </button>
+          {/* Interactive Dropdown Button & Menu */}
+          {(() => {
+            const activeOption =
+              KHATA_MODULE_OPTIONS.find((opt) => opt.id === activeTab) ||
+              KHATA_MODULE_OPTIONS[0];
+            const ActiveIcon = activeOption.icon;
+            return (
+              <div className="relative w-full md:w-[480px]" ref={dropdownRef}>
+                <button
+                  id="khata-module-dropdown-btn"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={isDropdownOpen}
+                  onClick={() => setIsDropdownOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 truncate">
+                    <div className="w-8 h-8 rounded-lg bg-brand-800 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <ActiveIcon className="w-4 h-4" />
+                    </div>
+                    <div className="text-left truncate">
+                      <div className="text-xs font-black text-slate-900 truncate">
+                        {activeOption.title}
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate font-normal">
+                        {activeOption.description}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${activeOption.badgeColor}`}
+                    >
+                      {activeOption.badge}
+                    </span>
+                    <ChevronDown
+                      className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                        isDropdownOpen ? 'rotate-180 text-brand-700' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('catalog')}
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            activeTab === 'catalog'
-              ? 'bg-brand-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>1-Click Agri Catalog &amp; Expiry Clearance</span>
-        </button>
+                {/* Dropdown Menu Popup */}
+                {isDropdownOpen && (
+                  <div
+                    role="listbox"
+                    aria-label="Khata Modules"
+                    className="absolute right-0 left-0 md:left-auto md:w-[480px] mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden z-40 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <div className="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Switch Khata Section
+                      </span>
+                      <span className="text-[10px] text-brand-700 font-bold bg-brand-50 px-2 py-0.5 rounded-full border border-brand-200">
+                        5 Specialized Ledgers
+                      </span>
+                    </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('handover')}
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            activeTab === 'handover'
-              ? 'bg-brand-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Cashier Shift Handover</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('compliance')}
-          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            activeTab === 'compliance'
-              ? 'bg-brand-800 text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Agri Inspector Register (Form O)</span>
-        </button>
+                    <div className="p-2 space-y-1">
+                      {KHATA_MODULE_OPTIONS.map((opt) => {
+                        const OptIcon = opt.icon;
+                        const isSelected = activeTab === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            role="option"
+                            aria-selected={isSelected}
+                            onClick={() => {
+                              handleTabChange(opt.id);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 cursor-pointer ${
+                              isSelected
+                                ? 'bg-brand-50 border border-brand-200 shadow-sm'
+                                : 'hover:bg-slate-50 border border-transparent'
+                            }`}
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                isSelected
+                                  ? 'bg-brand-800 text-white'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              <OptIcon className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span
+                                  className={`text-xs font-black truncate ${
+                                    isSelected
+                                      ? 'text-brand-900'
+                                      : 'text-slate-800'
+                                  }`}
+                                >
+                                  {opt.title}
+                                </span>
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 border ${opt.badgeColor}`}
+                                >
+                                  {opt.badge}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                                {opt.description}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <Check className="w-4 h-4 text-brand-700 shrink-0 mt-1" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       {error && (
