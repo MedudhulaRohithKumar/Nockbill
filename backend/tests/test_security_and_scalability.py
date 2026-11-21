@@ -445,15 +445,33 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
         )
         self.assertEqual(ret.status_code, 201, ret.text)
 
-    # ── H2: Secrets Manager DB URL resolver ──
+    # ── H2: Secrets Manager DB URL resolver & SQLAlchemy 2.1 psycopg2 driver loading ──
     def test_h2_secrets_manager_db_url_builder(self):
+        from app.database.base import normalize_database_url
+
         fake_client = MagicMock()
         fake_client.get_secret_value.return_value = {
             "SecretString": json.dumps({"username": "pgadmin", "password": "p@ss/word#1"})
         }
         with patch("boto3.client", return_value=fake_client):
             url = build_database_url_from_secret("arn:aws:secretsmanager:ap-south-1:123:secret:db", "db.internal", 5432, "kisan_seva_db", "ap-south-1")
-            self.assertEqual(url, "postgresql://pgadmin:p%40ss%2Fword%231@db.internal:5432/kisan_seva_db")
+            self.assertEqual(url, "postgresql+psycopg2://pgadmin:p%40ss%2Fword%231@db.internal:5432/kisan_seva_db")
+
+        # Verify bare postgresql:// and postgres:// URLs normalize to psycopg2 and instantiate an Engine cleanly
+        self.assertEqual(
+            normalize_database_url("postgresql://u:p@host:5432/db"),
+            "postgresql+psycopg2://u:p@host:5432/db",
+        )
+        self.assertEqual(
+            normalize_database_url("postgres://u:p@host:5432/db"),
+            "postgresql+psycopg2://u:p@host:5432/db",
+        )
+        pg_engine = create_engine(url)
+        try:
+            self.assertEqual(pg_engine.dialect.name, "postgresql")
+            self.assertEqual(pg_engine.dialect.driver, "psycopg2")
+        finally:
+            pg_engine.dispose()
 
         fake_client.get_secret_value.return_value = {"SecretString": json.dumps({"username": "only"})}
         with patch("boto3.client", return_value=fake_client):

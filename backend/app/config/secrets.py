@@ -46,6 +46,6 @@ def build_database_url_from_secret(
             "Database secret must contain 'username' and 'password' (and DB_HOST must be set)."
         )
     return (
-        f"postgresql://{quote(str(username), safe='')}:{quote(str(password), safe='')}"
+        f"postgresql+psycopg2://{quote(str(username), safe='')}:{quote(str(password), safe='')}"
         f"@{resolved_host}:{int(resolved_port)}/{resolved_db}"
     )

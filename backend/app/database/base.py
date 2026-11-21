@@ -10,9 +10,26 @@ _ON_LAMBDA = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
 _POOL_SIZE = settings.db_pool_size if settings.db_pool_size > 0 else (1 if _ON_LAMBDA else 5)
 _MAX_OVERFLOW = settings.db_max_overflow if settings.db_max_overflow >= 0 else (1 if _ON_LAMBDA else 10)
 
-if "sqlite" in settings.database_url:
+
+def normalize_database_url(raw_url: str) -> str:
+    """
+    SQLAlchemy 2.1+ defaults bare ``postgresql://`` URLs to ``psycopg`` (v3).
+    Explicitly select ``psycopg2`` when no driver suffix is present so the installed
+    ``psycopg2-binary`` driver is always loaded cleanly.
+    """
+    url = (raw_url or "").strip()
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
+
+
+_DATABASE_URL = normalize_database_url(settings.database_url)
+
+if "sqlite" in _DATABASE_URL:
     engine = create_engine(
-        settings.database_url,
+        _DATABASE_URL,
         connect_args={"check_same_thread": False, "timeout": 30},
     )
 
@@ -26,7 +43,7 @@ if "sqlite" in settings.database_url:
         cursor.close()
 else:
     engine = create_engine(
-        settings.database_url,
+        _DATABASE_URL,
         pool_pre_ping=True,
         pool_size=_POOL_SIZE,
         max_overflow=_MAX_OVERFLOW,

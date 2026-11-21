@@ -3,7 +3,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 
 # Import all models so Alembic can auto-detect them
-from app.database.base import Base
+from app.database.base import Base, normalize_database_url
 import app.models.models  # noqa: F401
 
 config = context.config
@@ -15,7 +15,7 @@ target_metadata = Base.metadata
 
 # Override sqlalchemy.url from app settings
 from app.config.settings import settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", normalize_database_url(settings.database_url))
 
 
 def run_migrations_offline() -> None:
