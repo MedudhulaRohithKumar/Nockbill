@@ -53,6 +53,13 @@ Parameters:
     Default: 20
     Description: Allocated storage in GB for RDS PostgreSQL
 
+  DbBackupRetentionPeriod:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    Description: Automated backup retention period in days (AWS Free Plan caps this at 1; use 7+ on paid plans)
+
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
@@ -365,7 +372,7 @@ Resources:
       PubliclyAccessible: false
       MultiAZ: !If [EnableMultiAz, true, false]
       DeletionProtection: !If [EnableDeletionProtection, true, false]
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: !Ref DbBackupRetentionPeriod
       # When restoring from an encrypted snapshot, AWS RDS inherits encryption from the snapshot
       # and forbids setting StorageEncrypted explicitly; fresh instances always enable encryption.
       StorageEncrypted: !If [UseDbSnapshot, !Ref AWS::NoValue, true]

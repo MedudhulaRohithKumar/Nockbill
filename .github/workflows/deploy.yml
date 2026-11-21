@@ -143,6 +143,7 @@ jobs:
           ENV_NAME: ${{ github.event.inputs.environment || 'prod' }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           NOTIFY_EMAIL: ${{ secrets.REPORT_NOTIFICATION_EMAIL || 'admin@nockbill.local' }}
+          DB_BACKUP_RETENTION: ${{ vars.DB_BACKUP_RETENTION_DAYS || '1' }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
         run: |
           if [ -z "${DB_PASSWORD}" ]; then
@@ -164,6 +165,7 @@ jobs:
             "DbUsername=kisan_admin"
             "DbPassword=${DB_PASSWORD}"
             "DbAllocatedStorage=20"
+            "DbBackupRetentionPeriod=${DB_BACKUP_RETENTION}"
             "VpcCidr=10.0.0.0/16"
             "ReportNotificationEmail=${NOTIFY_EMAIL}"
           )
