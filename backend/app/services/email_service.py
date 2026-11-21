@@ -13,6 +13,7 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
 from app.config.settings import settings
+from app.utils.helpers import escape_html_text as _h
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ def _render_email_wrapper(content_html: str, preview_text: str = "") -> str:
 <body style="margin: 0; padding: 24px 12px; background-color: #f1f5f9;">
   <!-- Preview Text (Hidden in body, visible in inbox preview) -->
   <div style="display: none; font-size: 1px; color: #f1f5f9; line-height: 1px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hidden;">
-    {preview_text}
+    {_h(preview_text)}
   </div>
 
   <table width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -238,7 +239,7 @@ def send_password_reset_email(
     if reset_link:
         action_btn_html = f"""
         <div style="margin: 28px 0 20px; text-align: center;">
-          <a href="{reset_link}" style="background-color: #059669; color: #ffffff; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
+          <a href="{_h(reset_link)}" style="background-color: #059669; color: #ffffff; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
             Reset Password Instantly &rarr;
           </a>
         </div>
@@ -249,14 +250,14 @@ def send_password_reset_email(
         Password Reset Request
       </h2>
       <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 12px 0 24px;">
-        Hello <strong>{recipient_name}</strong>,<br>
+        Hello <strong>{_h(recipient_name)}</strong>,<br>
         We received a request to reset your password for your NockBill Solutions store account. Please use the 6-digit verification code below to proceed:
       </p>
 
       <!-- OTP Code Box -->
       <div style="background-color: #ecfdf5; border: 1.5px dashed #059669; border-radius: 12px; padding: 22px 16px; text-align: center; margin: 24px 0;">
         <span class="otp-text" style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #065f46; display: inline-block;">
-          {otp_code}
+          {_h(otp_code)}
         </span>
         <p style="margin: 8px 0 0; color: #047857; font-size: 12px; font-weight: 600;">
           ⏱️ Valid for 15 minutes &bull; Single-use security token
@@ -316,7 +317,7 @@ def send_password_reset_confirmation_email(
         Your Password Has Been Updated
       </h2>
       <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 12px 0 20px;">
-        Hello <strong>{recipient_name}</strong>,<br>
+        Hello <strong>{_h(recipient_name)}</strong>,<br>
         This email confirms that the password for your NockBill Solutions account was successfully updated.
       </p>
 
@@ -324,15 +325,15 @@ def send_password_reset_confirmation_email(
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin: 20px 0; font-size: 14px;">
         <tr>
           <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 35%;">Username</td>
-          <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 700;">{username}</td>
+          <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 700;">{_h(username)}</td>
         </tr>
         <tr>
           <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Associated Store</td>
-          <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{shop_name}</td>
+          <td style="padding: 14px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{_h(shop_name)}</td>
         </tr>
         <tr>
           <td style="padding: 14px 18px; color: #64748b;">Date &amp; Time</td>
-          <td style="padding: 14px 18px; color: #0f172a; font-weight: 600;">{timestamp_str}</td>
+          <td style="padding: 14px 18px; color: #0f172a; font-weight: 600;">{_h(timestamp_str)}</td>
         </tr>
       </table>
 
@@ -409,37 +410,37 @@ def send_welcome_account_email(
         Welcome to NockBill Solutions!
       </h2>
       <p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 12px 0 24px;">
-        Hello <strong>{recipient_name}</strong>,<br>
-        Congratulations! Your merchant dashboard for <strong>{shop_name}</strong> is ready. You now have full access to high-speed GST billing, scannable batch-level inventory tracking, and automated tax reporting.
+        Hello <strong>{_h(recipient_name)}</strong>,<br>
+        Congratulations! Your merchant dashboard for <strong>{_h(shop_name)}</strong> is ready. You now have full access to high-speed GST billing, scannable batch-level inventory tracking, and automated tax reporting.
       </p>
 
       <!-- Store & Credential Card -->
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin: 20px 0; font-size: 14px;">
         <tr>
           <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b; width: 38%;">Store / Business</td>
-          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 700;">{shop_name}</td>
+          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 700;">{_h(shop_name)}</td>
         </tr>
         <tr>
           <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Login Username</td>
-          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #059669; font-weight: 700;">{username}</td>
+          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #059669; font-weight: 700;">{_h(username)}</td>
         </tr>
         <tr>
           <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Assigned Role</td>
-          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{role_name}</td>
+          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{_h(role_name)}</td>
         </tr>
         <tr>
           <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #64748b;">GSTIN</td>
-          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{gstin_display}</td>
+          <td style="padding: 12px 18px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-weight: 600;">{_h(gstin_display)}</td>
         </tr>
         <tr>
           <td style="padding: 12px 18px; color: #64748b;">Agro / Seed License</td>
-          <td style="padding: 12px 18px; color: #0f172a; font-weight: 600;">{license_display}</td>
+          <td style="padding: 12px 18px; color: #0f172a; font-weight: 600;">{_h(license_display)}</td>
         </tr>
       </table>
 
       <!-- CTA Button -->
       <div style="margin: 28px 0; text-align: center;">
-        <a href="{target_login_url}" style="background-color: #059669; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
+        <a href="{_h(target_login_url)}" style="background-color: #059669; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
           Launch Shop Dashboard &rarr;
         </a>
       </div>

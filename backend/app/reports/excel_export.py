@@ -5,6 +5,7 @@ import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from app.utils.helpers import sanitize_excel_cell as _cell
 
 
 GREEN_FILL = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
@@ -48,7 +49,7 @@ def export_gst_report_excel(rows, summary, period: str) -> bytes:
     for row in rows:
         ws.append([
             row.transaction_date.strftime("%d/%m/%Y"),
-            row.invoice_number,
+            _cell(row.invoice_number),
             float(row.taxable_amount),
             f"{row.gst_rate}%",
             float(row.gst_amount),
@@ -77,9 +78,9 @@ def export_stock_report_excel(rows) -> bytes:
     _apply_header(ws, 1, headers)
     for row in rows:
         ws.append([
-            row.product_name,
-            row.company_name or "-",
-            row.net_content or "-",
+            _cell(row.product_name),
+            _cell(row.company_name or "-"),
+            _cell(row.net_content or "-"),
             float(row.opening_stock),
             float(row.purchased),
             float(row.sold),

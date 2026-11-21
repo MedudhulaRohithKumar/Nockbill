@@ -200,6 +200,17 @@ class TestStaticSecurityAndCodeQuality(unittest.TestCase):
         self.assertIn("def clear_auth_cookie", auth_router)
         self.assertIn("access_token: Optional[str] = Cookie(None)", auth_utils)
 
+    def test_inventory_category_units_and_attributes_supported(self):
+        products_router = (BACKEND_DIR / "app" / "routers" / "products.py").read_text(encoding="utf-8")
+        models_file = (BACKEND_DIR / "app" / "models" / "models.py").read_text(encoding="utf-8")
+        schemas_file = (BACKEND_DIR / "app" / "schemas" / "schemas.py").read_text(encoding="utf-8")
+
+        for unit_token in ('"Pouches"', '"Tons"', '"Pieces"', '"Nos"', '"Sets"', '"Meters"', '"Rolls"', '"Grams"', '"Litre"'):
+            self.assertIn(unit_token, products_router)
+        self.assertIn("category_attributes = Column(Text", models_file)
+        self.assertIn("category_attributes: Optional[Dict[str, Any]] = None", schemas_file)
+        self.assertIn("def _sanitize_category_attributes", schemas_file)
+
 
 if __name__ == "__main__":
     unittest.main()

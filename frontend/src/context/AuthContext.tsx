@@ -28,12 +28,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('user');
       try {
         const res: any = await authApi.me();
+        const role: UserRole = res.role === 'OWNER' ? 'owner' : 'operator';
         const userData: User = {
-          id: res.id || 1,
+          id: res.id,
           username: res.username,
-          full_name: res.name || (res.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
-          role: (res.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
-          subscription_status: res.subscription_status || (res.username === 'admin' ? 'ACTIVE' : 'PENDING'),
+          full_name: res.name || (role === 'owner' ? 'Shop Owner' : 'Billing Operator'),
+          role,
+          subscription_status: res.subscription_status || 'PENDING',
           is_active: res.is_active ?? true,
         };
         setUser(userData);
@@ -61,12 +62,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('user');
     setToken(null);
 
+    const role: UserRole = data.role === 'OWNER' ? 'owner' : 'operator';
     const userInfo: User = {
-      id: data.user_id || 1,
+      id: data.user_id || 0,
       username: data.username,
-      full_name: data.name || (data.username === 'admin' ? 'Shop Owner' : 'Billing Operator'),
-      role: (data.role === 'OWNER' ? 'owner' : 'operator') as UserRole,
-      subscription_status: data.subscription_status || (data.username === 'admin' ? 'ACTIVE' : 'PENDING'),
+      full_name: data.name || (role === 'owner' ? 'Shop Owner' : 'Billing Operator'),
+      role,
+      subscription_status: data.subscription_status || 'PENDING',
       is_active: true
     };
     setUser(userInfo);

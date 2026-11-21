@@ -22,9 +22,31 @@ Parameters:
     NoEcho: true
     MinLength: 8
     MaxLength: 128
-    AllowedPattern: "^[^/@\" ]+$"
-    ConstraintDescription: "Master password must be at least 8 characters and cannot contain '/', '@', '\"', or spaces (AWS RDS constraint)."
-    Description: Master password for RDS PostgreSQL (Min 8 chars, required, cannot contain '/', '@', '\"', or spaces)
+    AllowedPattern: "^[^/@\" \\\\]+$"
+    ConstraintDescription: "Master password must be at least 8 characters and cannot contain '/', '@', '\"', backslash, or spaces."
+    Description: >
+      Master password for RDS PostgreSQL (NoEcho; min 8 chars; cannot contain '/', '@', '"', backslash or spaces).
+      It is stored ONLY in RDS and the PostgreSqlSecret Secrets Manager secret; the backend Lambda reads it at
+      runtime via DB_SECRET_ARN and never receives it as an environment variable.
+
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    Description: RDS instance class (db.t4g.micro = free tier / dev; use db.t4g.small or larger for production load)
+
+  DeletionProtectionEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >
+      Enable RDS deletion protection (keep 'true' for production). Set to 'false' first
+      (and update the stack) before intentionally deleting the stack.
+
+  MultiAzEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable RDS Multi-AZ standby. 'false' is acceptable for dev; set to 'true' for production.
 
   DbAllocatedStorage:
     Type: Number
@@ -40,6 +62,39 @@ Parameters:
     Type: String
     Default: admin@kisansevakendra.local
     Description: Notification email for generated reports and deployment alerts
+
+  BackendEnvironment:
+    Type: String
+    Default: production
+    AllowedValues: [development, staging, production]
+    Description: Value of the ENVIRONMENT variable consumed by the backend application (controls prod-only hardening)
+
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: https://nockbill.com
+    Description: >
+      Comma-separated list of exact browser origins (scheme://host[:port]) allowed for CORS.
+      Wildcards are NOT allowed. Include the CloudFront/custom-domain origin that serves the SPA.
+
+  SubscriptionPaymentMode:
+    Type: String
+    Default: live
+    AllowedPattern: "^[a-z_]{2,32}$"
+    Description: Subscription payment mode passed to the backend (SUBSCRIPTION_PAYMENT_MODE), default 'live'
+
+  BackendReservedConcurrency:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    Description: >
+      ReservedConcurrentExecutions for the backend Lambda. Bounds simultaneous RDS connections
+      (each execution environment holds DB_POOL_SIZE + DB_MAX_OVERFLOW = 2 connections).
+      NOTE: the account must keep at least 10 unreserved concurrent executions, so lower this
+      value on new accounts with the default 10-concurrency quota (or request a quota increase).
+
+Conditions:
+  EnableDeletionProtection: !Equals [!Ref DeletionProtectionEnabled, 'true']
+  EnableMultiAz: !Equals [!Ref MultiAzEnabled, 'true']
 
 Resources:
   # ============================================================================
@@ -231,7 +286,7 @@ Resources:
       SourceSecurityGroupId: !Ref DatabaseSecurityGroup
 
   # ============================================================================
-  # 2. DATABASE: Amazon RDS PostgreSQL (Free Tier db.t4g.micro)
+  # 2. DATABASE: Amazon RDS PostgreSQL (instance class via DbInstanceClass; default free-tier db.t4g.micro)
   # Direct connection from Lambda (RDS Proxy is not available on free tier accounts)
   # ============================================================================
   PostgreSqlSecret:
@@ -239,13 +294,14 @@ Resources:
     Properties:
       Name: !Sub ks-db-credentials-${Environment}
       Description: Database credentials for Kisan Seva Kendra RDS
+      # JSON keys consumed by the backend: username, password (+ host/port/dbname for reference).
       SecretString: !Sub >
         {
           "username": "${DbUsername}",
           "password": "${DbPassword}",
           "engine": "postgres",
-          "host": "",
-          "port": 5432,
+          "host": "${PostgreSqlInstance.Endpoint.Address}",
+          "port": ${PostgreSqlInstance.Endpoint.Port},
           "dbname": "kisan_seva_db"
         }
 
@@ -267,6 +323,15 @@ Resources:
         PasswordLength: 64
         ExcludePunctuation: true
 
+  PaymentWebhookSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ks-payment-webhook-secret-${Environment}
+      Description: Shared HMAC secret used to verify subscription payment webhooks (generated, never in template)
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
   PostgreSqlInstance:
     Type: AWS::RDS::DBInstance
     Metadata:
@@ -278,7 +343,7 @@ Resources:
       DBInstanceIdentifier: !Sub ks-postgres-${Environment}
       Engine: postgres
       EngineVersion: "16.10"
-      DBInstanceClass: db.t4g.micro
+      DBInstanceClass: !Ref DbInstanceClass
       AllocatedStorage: !Ref DbAllocatedStorage
       StorageType: gp3
       DBName: kisan_seva_db
@@ -288,8 +353,8 @@ Resources:
       VPCSecurityGroups:
         - !Ref DatabaseSecurityGroup
       PubliclyAccessible: false
-      MultiAZ: false
-      DeletionProtection: false
+      MultiAZ: !If [EnableMultiAz, true, false]
+      DeletionProtection: !If [EnableDeletionProtection, true, false]
       BackupRetentionPeriod: 7
       StorageEncrypted: true
       Tags:
@@ -459,9 +524,14 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Ref PostgreSqlSecret
                   - !Ref JwtSigningSecret
                   - !Ref GoogleBridgeSigningSecret
+                  - !Ref PaymentWebhookSecret
+              # DB credentials: read at runtime via DB_SECRET_ARN (this secret ARN only)
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref PostgreSqlSecret
               - Effect: Allow
                 Action:
                   - ses:SendEmail
@@ -476,6 +546,8 @@ Resources:
       PackageType: Image
       MemorySize: 1024
       Timeout: 30
+      # Bounds concurrent DB connections (see BackendReservedConcurrency parameter).
+      ReservedConcurrentExecutions: !Ref BackendReservedConcurrency
       Role: !GetAtt BackendLambdaRole.Arn
       VpcConfig:
         SecurityGroupIds:
@@ -485,8 +557,21 @@ Resources:
           - !Ref PrivateSubnet2
       Environment:
         Variables:
-          ENVIRONMENT: !Ref Environment
-          DATABASE_URL: !Sub postgresql://${DbUsername}:${DbPassword}@${PostgreSqlInstance.Endpoint.Address}:${PostgreSqlInstance.Endpoint.Port}/kisan_seva_db
+          ENVIRONMENT: !Ref BackendEnvironment
+          # DB credentials are NOT passed in env vars: the app fetches JSON keys `username`
+          # and `password` from Secrets Manager (DB_SECRET_ARN) and builds the URL itself.
+          DB_SECRET_ARN: !Ref PostgreSqlSecret
+          DB_HOST: !GetAtt PostgreSqlInstance.Endpoint.Address
+          DB_PORT: !GetAtt PostgreSqlInstance.Endpoint.Port
+          DB_NAME: kisan_seva_db
+          # Lambda: one execution environment handles one request at a time -> tiny pool.
+          DB_POOL_SIZE: "1"
+          DB_MAX_OVERFLOW: "1"
+          ALLOWED_ORIGINS: !Join [",", !Ref AllowedOrigins]
+          AUTO_MIGRATE_ON_STARTUP: "false"
+          ENABLE_API_DOCS: "false"
+          SUBSCRIPTION_PAYMENT_MODE: !Ref SubscriptionPaymentMode
+          PAYMENT_WEBHOOK_SECRET: !Sub '{{resolve:secretsmanager:${PaymentWebhookSecret}:SecretString}}'
           S3_ENABLED: "True"
           S3_INVOICES_BUCKET: !Ref SalesInvoicesBucket
           S3_PURCHASES_BUCKET: !Ref PurchaseBillsBucket
@@ -542,19 +627,27 @@ Resources:
       Role: !GetAtt FrontendLambdaRole.Arn
       Environment:
         Variables:
-          ENVIRONMENT: !Ref Environment
+          ENVIRONMENT: !Ref BackendEnvironment
+          ALLOWED_ORIGINS: !Join [",", !Ref AllowedOrigins]
           BACKEND_API_URL: !GetAtt BackendFunctionUrl.FunctionUrl
           GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
           GOOGLE_BRIDGE_SECRET: !Sub '{{resolve:secretsmanager:${GoogleBridgeSigningSecret}:SecretString}}'
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
-          AllowOrigins:
-            - '*'
+          AllowOrigins: !Ref AllowedOrigins
           AllowMethods:
-            - '*'
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - HEAD
           AllowHeaders:
-            - '*'
+            - Authorization
+            - Content-Type
+            - Accept
+            - X-Requested-With
           MaxAge: 86400
 
   # ============================================================================
@@ -733,6 +826,10 @@ Outputs:
   BackendFunctionUrl:
     Description: Immediate public HTTPS Function URL to access Backend FastAPI
     Value: !GetAtt BackendFunctionUrl.FunctionUrl
+
+  PaymentWebhookSecretArn:
+    Description: Secrets Manager ARN of the payment webhook HMAC secret (configure the same value at the payment provider)
+    Value: !Ref PaymentWebhookSecret
 
   RdsEndpoint:
     Description: Amazon RDS PostgreSQL Endpoint

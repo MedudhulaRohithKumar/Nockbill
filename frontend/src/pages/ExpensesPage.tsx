@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Wallet, Trash2, X, IndianRupee, TrendingDown } from 'lucide-react';
-import { expensesApi } from '../api';
+import { Plus, Wallet, Trash2, X, IndianRupee, TrendingDown, AlertCircle } from 'lucide-react';
+import { expensesApi, getErrorMessage } from '../api';
 import { Expense } from '../types';
 import { safeNumber, formatCurrency } from '../utils/formatters';
 import { CustomSelect } from '../components/common/CustomSelect';
@@ -12,33 +12,34 @@ const CATEGORY_COLORS: Record<string, string> = {
   Electricity: 'bg-yellow-100 text-yellow-800',
   Packaging: 'bg-teal-100 text-teal-800',
   Office: 'bg-indigo-100 text-indigo-800',
+  Internet: 'bg-cyan-100 text-cyan-800',
+  Maintenance: 'bg-orange-100 text-orange-800',
   Misc: 'bg-slate-100 text-slate-700',
 };
 
 export const ExpensesPage: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form State
   const [category, setCategory] = useState<'Rent' | 'Electricity' | 'Transport' | 'Labor' | 'Packaging' | 'Office' | 'Misc'>('Transport');
-  const [amount, setAmount] = useState<number>(1200);
+  const [amount, setAmount] = useState<number>(0);
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
-  const [description, setDescription] = useState('Fertilizer unloading labor charges at godown');
+  const [description, setDescription] = useState('');
   const [paymentMode, setPaymentMode] = useState('Cash');
 
   const loadExpenses = async () => {
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       const data = await expensesApi.getAll();
-      setExpenses(data);
-    } catch {
-      setExpenses([
-        { id: 1, category: 'Transport', amount: 4500, expense_date: '2024-08-16', description: 'Freight charges for 200 bags DAP transport from railway siding', payment_mode: 'Cash' },
-        { id: 2, category: 'Labor', amount: 2400, expense_date: '2024-08-17', description: 'Loading & stacking labor for godown', payment_mode: 'Cash' },
-        { id: 3, category: 'Electricity', amount: 3200, expense_date: '2024-08-20', description: 'APMC Godown electricity bill', payment_mode: 'UPI' },
-        { id: 4, category: 'Rent', amount: 8000, expense_date: '2024-08-01', description: 'Monthly shop & warehouse rent', payment_mode: 'Bank Transfer' },
-      ]);
+      setExpenses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err, 'Failed to load expenses from server. Please refresh and try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -48,23 +49,34 @@ export const ExpensesPage: React.FC = () => {
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    if (!amount || amount <= 0) {
+      setFormError('Amount must be greater than zero.');
+      return;
+    }
     const payload: Partial<Expense> = { category, amount, expense_date: expenseDate, description, payment_mode: paymentMode };
+    setIsSaving(true);
     try {
       await expensesApi.create(payload);
       setIsModalOpen(false);
+      setFormError(null);
+      setAmount(0);
+      setDescription('');
       void loadExpenses();
-    } catch {
-      setExpenses([{ id: Date.now(), ...payload } as Expense, ...expenses]);
-      setIsModalOpen(false);
+    } catch (err) {
+      setFormError(getErrorMessage(err, 'Could not save expense. Please try again.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDeleteExpense = async (id: number) => {
+    setErrorMsg(null);
     try {
       await expensesApi.delete(id);
-      setExpenses(expenses.filter(e => e.id !== id));
-    } catch {
-      setExpenses(expenses.filter(e => e.id !== id));
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err, 'Could not delete expense. Owner permissions may be required.'));
     }
   };
 
@@ -84,13 +96,21 @@ export const ExpensesPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          type="button"
+          onClick={() => { setFormError(null); setIsModalOpen(true); }}
           className="w-full sm:w-auto bg-brand-700 hover:bg-brand-600 text-white font-bold py-3 sm:py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs shadow-md transition-all active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Add Expense</span>
         </button>
       </div>
+
+      {errorMsg && (
+        <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -223,12 +243,18 @@ export const ExpensesPage: React.FC = () => {
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden">
             <div className="px-5 py-4 bg-brand-800 text-white flex items-center justify-between">
               <h3 className="font-bold text-sm">Add Expense Entry</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-brand-200 hover:text-white p-1">
+              <button type="button" onClick={() => setIsModalOpen(false)} aria-label="Close modal" className="text-brand-200 hover:text-white p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={(e) => { void handleAddExpense(e); }} className="p-5 space-y-3 text-xs">
+              {formError && (
+                <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
               <div>
                 <label className="block font-semibold text-slate-700">
                   <span className="block mb-1">Expense Category</span>
@@ -313,9 +339,10 @@ export const ExpensesPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-brand-700 hover:bg-brand-600 text-white px-5 py-2.5 rounded-xl font-bold shadow transition-all text-sm"
+                  disabled={isSaving}
+                  className="flex-1 bg-brand-700 hover:bg-brand-600 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl font-bold shadow transition-all text-sm"
                 >
-                  Save Expense
+                  {isSaving ? 'Saving...' : 'Save Expense'}
                 </button>
               </div>
             </form>

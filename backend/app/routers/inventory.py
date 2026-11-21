@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, selectinload
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 from app.database.base import get_db
 from app.models.models import (
@@ -9,7 +9,8 @@ from app.models.models import (
 )
 from app.schemas.schemas import InventoryAdjustRequest
 from app.routers.products import serialize_product
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_owner
+from app.utils.stock_sync import sync_batch_stock_delta, sync_variant_stock
 
 router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 def adjust_inventory(
     payload: InventoryAdjustRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
     product = db.query(Product).filter(
@@ -55,6 +56,11 @@ def adjust_inventory(
         # If user provides +/- relative adjustment
         product.current_stock = max(Decimal("0"), product.current_stock + qty)
 
+    # Keep ProductBatch & ProductVariant stock synchronized with manual adjustment (SD3)
+    delta = product.current_stock - prev_stock
+    sync_batch_stock_delta(db, product, delta)
+    sync_variant_stock(db, product, delta)
+
     inv_tx = InventoryTransaction(
         shop_id=shop_id,
         product_id=product.id,
@@ -69,6 +75,7 @@ def adjust_inventory(
 
     db.add(AuditLog(
         user_id=current_user.id,
+        shop_id=shop_id,
         action=AuditAction.INVENTORY_ADJUST,
         reference_id=product.id,
         reference_type="Product",
@@ -91,7 +98,7 @@ def adjust_inventory(
 
 @router.get("/transactions")
 def list_transactions(
-    product_id: int = None,
+    product_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),

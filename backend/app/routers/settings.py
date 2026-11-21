@@ -1,9 +1,12 @@
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from app.config.settings import settings
 from app.database.base import get_db
 from app.models.models import ShopSettings, AuditLog, AuditAction, User
 from app.schemas.schemas import ShopSettingsUpdate, ShopSettingsResponse
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_owner
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
@@ -54,6 +57,7 @@ def _serialize_settings(shop: ShopSettings) -> dict:
         "thermal_print": bool(shop.thermal_print),
         "logo_path": _g("logo_path"),
         "terms_conditions": _g("terms_conditions"),
+        "subscription_status": _g("subscription_status") or "TRIAL",
     }
 
 
@@ -70,16 +74,48 @@ def get_settings(
 def update_settings(
     payload: ShopSettingsUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
     shop = _get_or_create_settings(db, current_user)
     for field, value in payload.model_dump(exclude_unset=True).items():
         if hasattr(shop, field):
             setattr(shop, field, value)
     db.add(AuditLog(
-        user_id=current_user.id, action=AuditAction.SETTINGS_UPDATE,
+        user_id=current_user.id,
+        shop_id=shop.id,
+        action=AuditAction.SETTINGS_UPDATE,
         reference_type="ShopSettings",
     ))
     db.commit()
     db.refresh(shop)
     return _serialize_settings(shop)
+
+
+def serve_tenant_upload(filename: str, db: Session, current_user: User) -> FileResponse:
+    """
+    Serve an uploaded file strictly to authenticated users whose shop owns that file (M1).
+    Prevents path traversal and cross-tenant logo/document access.
+    """
+    clean_name = Path(filename).name
+    if not clean_name or clean_name != filename or clean_name.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid file name")
+
+    shop_id = getattr(current_user, "shop_id", None)
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first() if shop_id else None
+    allowed_names = set()
+    if shop and shop.logo_path:
+        allowed_names.add(Path(shop.logo_path).name)
+    is_shop_prefixed = shop_id is not None and clean_name.startswith(f"shop_{shop_id}_")
+
+    if clean_name not in allowed_names and not is_shop_prefixed:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    upload_root = Path(settings.upload_dir).resolve()
+    target_path = (upload_root / clean_name).resolve()
+    if upload_root not in target_path.parents or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(
+        path=str(target_path),
+        headers={"Cache-Control": "private, max-age=3600"},
+    )

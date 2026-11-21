@@ -241,3 +241,43 @@ export function resolveTradeName(
   return { suggested: pClean || cClean, relatedMappings };
 }
 
+/**
+ * Generate a cryptographically strong, per-draft idempotency key for POS sales (SD4).
+ * Uses Web Crypto API (`crypto.randomUUID` or `crypto.getRandomValues`) so duplicate
+ * taps or retries on flaky rural 4G networks never create duplicate invoices.
+ */
+export function generateBillIdempotencyKey(): string {
+  const cryptoObj = globalThis.crypto;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return `sale-${cryptoObj.randomUUID()}`;
+  }
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    cryptoObj.getRandomValues(bytes);
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `sale-${hex}`;
+  }
+  return `sale-${Date.now().toString(36)}`;
+}
+
+/**
+ * Merge local POS inventory matches with debounced server `/api/products/search`
+ * results, deduplicating by product ID and capping the dropdown size (SD5).
+ */
+export function mergeProductSearchResults<T extends { id: number }>(
+  localMatches: T[],
+  remoteMatches: T[],
+  limit = 50
+): T[] {
+  const seen = new Set<number>();
+  const merged: T[] = [];
+  for (const item of [...localMatches, ...remoteMatches]) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+    if (merged.length >= limit) break;
+  }
+  return merged;
+}
+
+

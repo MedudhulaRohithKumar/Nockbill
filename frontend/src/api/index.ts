@@ -1,5 +1,9 @@
 import api from './client';
+import { buildRegisterPayload, GeneratedCredentials } from '../utils/registerPayload';
+import { INVENTORY_PAGE_SIZE, MAX_PRODUCTS_LIMIT, parseTotalCount } from '../utils/pagination';
 import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList } from '../types';
+
+export type RegisterPayload = ReturnType<typeof buildRegisterPayload>;
 
 export const authApi = {
   getCaptcha: async () => {
@@ -21,7 +25,7 @@ export const authApi = {
     const res = await api.post<{ access_token: string; token_type: string; role: string; username: string; name?: string; user_id?: number; subscription_status?: string }>('/auth/login', payload);
     return res.data;
   },
-  register: async (payload: any) => {
+  register: async (payload: RegisterPayload) => {
     const res = await api.post<{
       access_token: string;
       token_type: string;
@@ -33,7 +37,7 @@ export const authApi = {
       role: string;
       shop_name: string;
       subscription_status?: string;
-      credentials: any;
+      credentials?: Partial<GeneratedCredentials> | null;
     }>('/auth/register', payload);
     return res.data;
   },
@@ -140,13 +144,42 @@ export const authApi = {
 };
 
 export const productsApi = {
-  getAll: async (params?: { category?: string; search?: string; low_stock?: boolean }) => {
-    const res = await api.get<Product[]>('/products', { params });
+  getAll: async (params?: { category?: string; search?: string; low_stock?: boolean; skip?: number; limit?: number }) => {
+    // Backend default is 200 rows; always request the maximum page (500) unless the caller overrides it.
+    const res = await api.get<Product[]>('/products', { params: { limit: MAX_PRODUCTS_LIMIT, ...params } });
     return res.data;
+  },
+  getPage: async (params: { skip?: number; limit?: number; search?: string; category?: string; active_only?: boolean }): Promise<{ items: Product[]; total: number }> => {
+    const query: Record<string, string | number | boolean> = {
+      skip: Math.max(0, params.skip ?? 0),
+      limit: Math.min(MAX_PRODUCTS_LIMIT, Math.max(1, params.limit ?? INVENTORY_PAGE_SIZE)),
+    };
+    if (params.search) query.search = params.search;
+    if (params.category) query.category = params.category;
+    if (params.active_only !== undefined) query.active_only = params.active_only;
+    const res = await api.get<Product[]>('/products', { params: query });
+    const items = Array.isArray(res.data) ? res.data : [];
+    return { items, total: parseTotalCount(res.headers, items.length) };
+  },
+  /** Walk every server page (500 rows each) for views that must filter client-side. */
+  getAllPages: async (params: { search?: string; category?: string; active_only?: boolean } = {}): Promise<Product[]> => {
+    const all: Product[] = [];
+    for (let guard = 0; guard < 40; guard += 1) {
+      const { items, total } = await productsApi.getPage({ ...params, skip: all.length, limit: MAX_PRODUCTS_LIMIT });
+      all.push(...items);
+      if (items.length === 0 || all.length >= total) break;
+    }
+    return all;
   },
   getById: async (id: number) => {
     const res = await api.get<Product>(`/products/${id}`);
     return res.data;
+  },
+  search: async (q: string): Promise<Product[]> => {
+    const clean = q.trim();
+    if (!clean) return [];
+    const res = await api.get<Product[]>('/products/search', { params: { q: clean } });
+    return Array.isArray(res.data) ? res.data : [];
   },
   getByBarcode: async (barcode: string): Promise<Product> => {
     const res = await api.get<{ found: boolean; product: Product; matched_variant?: any }>(`/products/by-barcode/${encodeURIComponent(barcode)}`);
@@ -181,6 +214,7 @@ export const productsApi = {
     company_name?: string;
     trade_name?: string;
     batch_number?: string;
+    manufacture_date?: string;
     expiry_date?: string;
     purchase_price?: number;
     selling_price?: number;
@@ -210,9 +244,7 @@ export const productsApi = {
     return res.data;
   },
   getBarcodePdfUrl: (productId: number, params?: { label_size?: string; copies?: number; include_batch?: boolean; batch_id?: number }) => {
-    const token = localStorage.getItem('token');
     const query = new URLSearchParams();
-    if (token) query.set('token', token);
     if (params?.label_size) query.set('label_size', params.label_size);
     if (params?.copies) query.set('copies', String(params.copies));
     if (params?.include_batch !== undefined) query.set('include_batch', String(params.include_batch));
@@ -296,8 +328,7 @@ export const salesApi = {
     return res.data;
   },
   getPdfUrl: (saleId: number) => {
-    const token = localStorage.getItem('token');
-    return token ? `/api/invoices/${saleId}/pdf?token=${encodeURIComponent(token)}` : `/api/invoices/${saleId}/pdf`;
+    return `/api/invoices/${saleId}/pdf`;
   },
 };
 
@@ -321,8 +352,7 @@ export const returnsApi = {
     return res.data;
   },
   getPdfUrl: (returnId: number): string => {
-    const token = localStorage.getItem('token');
-    return token ? `/api/returns/${returnId}/pdf?token=${encodeURIComponent(token)}` : `/api/returns/${returnId}/pdf`;
+    return `/api/returns/${returnId}/pdf`;
   },
 };
 
@@ -336,8 +366,7 @@ export const purchasesApi = {
     return res.data;
   },
   getPdfUrl: (purchaseId: number) => {
-    const token = localStorage.getItem('token');
-    return token ? `/api/purchases/${purchaseId}/pdf?token=${encodeURIComponent(token)}` : `/api/purchases/${purchaseId}/pdf`;
+    return `/api/purchases/${purchaseId}/pdf`;
   },
 };
 

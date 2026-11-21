@@ -1,4 +1,6 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, desc
 from typing import List, Optional
@@ -8,41 +10,40 @@ from datetime import datetime, timezone
 from app.database.base import get_db
 from app.models.models import (
     Sale, SaleItem, SalesReturn, SalesReturnItem, Product, ProductBatch,
-    InventoryTransaction, InventoryTxType, ShopSettings, AuditLog, AuditAction, User, PaymentMethod
+    GstTransaction, InventoryTransaction, InventoryTxType, ShopSettings, AuditLog, AuditAction, User, PaymentMethod
 )
 from app.schemas.schemas import (
     SalesReturnCreate, SalesReturnResponse, InvoiceReturnLookupResponse,
     ReturnEligibleItem, SalesReturnItemResponse
 )
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_owner
+from app.utils.errors import internal_server_error
+from app.utils.helpers import sanitize_download_filename
+from app.utils.stock_sync import sync_batch_stock_delta, sync_variant_stock
 from app.reports.return_pdf import generate_sales_return_pdf
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/returns", tags=["Sales Returns"])
 
 
-def _generate_return_number(db: Session, return_date: datetime, shop_id: int = 1) -> str:
-    """Generate a unique return number: RET-YYYYMM-XXXXX."""
-    prefix = f"RET-{return_date.strftime('%Y%m')}"
-    # Count returns in this month for this shop
-    start_of_month = datetime(return_date.year, return_date.month, 1)
-    if return_date.month == 12:
-        end_of_month = datetime(return_date.year + 1, 1, 1)
-    else:
-        end_of_month = datetime(return_date.year, return_date.month + 1, 1)
-
-    count = db.query(func.count(SalesReturn.id)).filter(
-        SalesReturn.shop_id == shop_id,
-        SalesReturn.return_date >= start_of_month,
-        SalesReturn.return_date < end_of_month
-    ).scalar() or 0
-
-    counter = count + 1
+def _generate_return_number(db: Session, return_date: datetime, shop_id: int = 1, offset: int = 0) -> str:
+    """Generate a unique return number: RET-S{shop_id}-YYYYMM-XXXXX via SQL MAX (B9)."""
+    prefix = f"RET-S{shop_id}-{return_date.strftime('%Y%m')}"
+    max_num = (
+        db.query(func.max(SalesReturn.return_number))
+        .filter(SalesReturn.return_number.like(f"{prefix}-%"))
+        .scalar()
+    )
+    counter = 1
+    if max_num:
+        try:
+            counter = int(max_num.rsplit("-", 1)[-1]) + 1
+        except ValueError:
+            counter = 1
+    counter += offset
     while True:
         ret_num = f"{prefix}-{counter:05d}"
-        exists = db.query(SalesReturn).filter(
-            SalesReturn.shop_id == shop_id,
-            SalesReturn.return_number == ret_num
-        ).first()
+        exists = db.query(SalesReturn.id).filter(SalesReturn.return_number == ret_num).first()
         if not exists:
             return ret_num
         counter += 1
@@ -142,7 +143,7 @@ def lookup_invoice_for_return(
 def process_sales_return(
     payload: SalesReturnCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
     """
     Process a sales return:
@@ -156,10 +157,11 @@ def process_sales_return(
         raise HTTPException(status_code=400, detail="No items selected for return")
 
     shop_id = getattr(current_user, "shop_id", 1) or 1
+    # Row-lock parent Sale FIRST to serialize concurrent returns on the same invoice (SD1)
     sale = db.query(Sale).options(selectinload(Sale.items)).filter(
         Sale.id == payload.sale_id,
         Sale.shop_id == shop_id
-    ).first()
+    ).with_for_update().first()
     if not sale:
         raise HTTPException(status_code=404, detail="Original sale invoice not found")
 
@@ -185,6 +187,7 @@ def process_sales_return(
     refund_subtotal = Decimal("0")
     refund_gst_amount = Decimal("0")
     refund_grand_total = Decimal("0")
+    gst_reversal_buckets: dict[Decimal, dict[str, Decimal]] = {}
 
     created_return_items: List[SalesReturnItem] = []
 
@@ -197,7 +200,7 @@ def process_sales_return(
         })
         locked_products = (
             db.query(Product)
-            .filter(Product.id.in_(involved_product_ids))
+            .filter(Product.shop_id == shop_id, Product.id.in_(involved_product_ids))
             .order_by(Product.id.asc())
             .with_for_update()
             .all()
@@ -211,9 +214,10 @@ def process_sales_return(
         })
         locked_batches = (
             db.query(ProductBatch)
-            .filter(ProductBatch.id.in_(involved_batch_ids))
+            .join(Product, Product.id == ProductBatch.product_id)
+            .filter(Product.shop_id == shop_id, ProductBatch.id.in_(involved_batch_ids))
             .order_by(ProductBatch.id.asc())
-            .with_for_update()
+            .with_for_update(of=ProductBatch)
             .all()
         ) if involved_batch_ids else []
         batches_by_id = {b.id: b for b in locked_batches}
@@ -260,31 +264,58 @@ def process_sales_return(
             refund_subtotal += item_taxable
             refund_gst_amount += item_gst
             refund_grand_total += item_total
+            if gst_rate not in gst_reversal_buckets:
+                gst_reversal_buckets[gst_rate] = {"taxable": Decimal("0"), "gst": Decimal("0")}
+            gst_reversal_buckets[gst_rate]["taxable"] += item_taxable
+            gst_reversal_buckets[gst_rate]["gst"] += item_gst
 
-            # Restock Product using pre-locked map
-            if sale_item.product_id and sale_item.product_id in products_by_id:
-                product = products_by_id[sale_item.product_id]
-                prev_stock = product.current_stock or Decimal("0")
-                product.current_stock = prev_stock + ret_qty
+            # Snapshot item cost_price for accurate COGS reversal in P&L/Analytics (SD2)
+            matched_product = products_by_id.get(sale_item.product_id) if sale_item.product_id else None
+            effective_cost_price = (
+                Decimal(str(sale_item.cost_price))
+                if sale_item.cost_price is not None
+                else (Decimal(str(matched_product.purchase_price or 0)) if matched_product else Decimal("0"))
+            )
 
-                # Log inventory transaction
+            # Restock Product using pre-locked map and keep variant stock synchronized (SD3)
+            if matched_product:
+                prev_stock = matched_product.current_stock or Decimal("0")
+                matched_product.current_stock = prev_stock + ret_qty
+                sync_variant_stock(db, matched_product, ret_qty, matched_price=unit_price)
+
                 inv_tx = InventoryTransaction(
                     shop_id=shop_id,
-                    product_id=product.id,
+                    product_id=matched_product.id,
                     transaction_type=InventoryTxType.RETURN,
                     quantity=ret_qty,
                     previous_stock=prev_stock,
-                    new_stock=product.current_stock,
+                    new_stock=matched_product.current_stock,
                     reference_type="RETURN",
                     reference_id=sale.id,
                     notes=f"Sales Return #{return_number} from Invoice #{sale.invoice_number}"
                 )
                 db.add(inv_tx)
 
-            # Restock Batch if applicable
+            # Restock Batch if applicable; fall back to batch_number match or sync_batch_stock_delta (SD3)
             if sale_item.batch_id and sale_item.batch_id in batches_by_id:
                 batch = batches_by_id[sale_item.batch_id]
                 batch.current_stock = (batch.current_stock or Decimal("0")) + ret_qty
+            elif matched_product:
+                named_batch = None
+                if sale_item.batch_number:
+                    named_batch = (
+                        db.query(ProductBatch)
+                        .filter(
+                            ProductBatch.product_id == matched_product.id,
+                            ProductBatch.batch_number == sale_item.batch_number,
+                        )
+                        .with_for_update()
+                        .first()
+                    )
+                if named_batch:
+                    named_batch.current_stock = (named_batch.current_stock or Decimal("0")) + ret_qty
+                else:
+                    sync_batch_stock_delta(db, matched_product, ret_qty)
 
             return_item = SalesReturnItem(
                 sale_item_id=sale_item.id,
@@ -296,6 +327,7 @@ def process_sales_return(
                 net_content=sale_item.net_content,
                 returned_quantity=ret_qty,
                 unit_price=unit_price,
+                cost_price=effective_cost_price,
                 gst_rate=gst_rate,
                 refund_taxable=item_taxable,
                 refund_gst=item_gst,
@@ -306,41 +338,60 @@ def process_sales_return(
         if not created_return_items:
             raise HTTPException(status_code=400, detail="No valid return quantities entered")
 
-        sales_return = SalesReturn(
-            shop_id=shop_id,
-            return_number=return_number,
-            sale_id=sale.id,
-            invoice_number=sale.invoice_number,
-            customer_name=sale.customer_name,
-            customer_phone=sale.customer_phone,
-            refund_subtotal=refund_subtotal,
-            refund_gst_amount=refund_gst_amount,
-            refund_grand_total=refund_grand_total,
-            refund_payment_method=payload.refund_payment_method or PaymentMethod.CASH,
-            reason=payload.reason or "Customer unused stock return",
-            notes=payload.notes,
-            return_date=return_date,
-            created_by=current_user.id,
-        )
-        db.add(sales_return)
-        db.flush()
+        sales_return = None
+        for attempt in range(5):
+            candidate_ret_num = return_number if attempt == 0 else _generate_return_number(db, return_date, shop_id, offset=attempt)
+            sales_return = SalesReturn(
+                shop_id=shop_id,
+                return_number=candidate_ret_num,
+                sale_id=sale.id,
+                invoice_number=sale.invoice_number,
+                customer_name=sale.customer_name,
+                customer_phone=sale.customer_phone,
+                refund_subtotal=refund_subtotal,
+                refund_gst_amount=refund_gst_amount,
+                refund_grand_total=refund_grand_total,
+                refund_payment_method=payload.refund_payment_method or PaymentMethod.CASH,
+                reason=payload.reason or "Customer unused stock return",
+                notes=payload.notes,
+                return_date=return_date,
+                created_by=current_user.id,
+            )
+            try:
+                with db.begin_nested():
+                    db.add(sales_return)
+                    db.flush()
+                return_number = candidate_ret_num
+                break
+            except IntegrityError:
+                if attempt == 4:
+                    raise
 
         for item in created_return_items:
             item.sales_return_id = sales_return.id
             db.add(item)
 
-        # Audit Log
-        try:
-            audit = AuditLog(
-                user_id=current_user.id,
-                action=AuditAction.INVENTORY_ADJUST,
-                reference_id=sales_return.id,
-                reference_type="sales_returns",
-                description=f"Sales Return #{return_number} for Invoice #{sale.invoice_number} (Refund ₹{refund_grand_total})",
-            )
-            db.add(audit)
-        except Exception:
-            pass
+        # Record offsetting credit-note GstTransaction rows so GST filings deduct returns (SD2)
+        for rate, bucket in gst_reversal_buckets.items():
+            db.add(GstTransaction(
+                shop_id=shop_id,
+                sale_id=sale.id,
+                invoice_number=return_number,
+                taxable_amount=-bucket["taxable"].quantize(Decimal("0.01")),
+                gst_rate=rate,
+                gst_amount=-bucket["gst"].quantize(Decimal("0.01")),
+                transaction_date=return_date,
+            ))
+
+        audit = AuditLog(
+            shop_id=shop_id,
+            user_id=current_user.id,
+            action=AuditAction.SALE_RETURN,
+            reference_id=sales_return.id,
+            reference_type="sales_returns",
+            description=f"Sales Return #{return_number} for Invoice #{sale.invoice_number} (Refund ₹{refund_grand_total})",
+        )
+        db.add(audit)
 
         db.commit()
         db.refresh(sales_return)
@@ -349,9 +400,9 @@ def process_sales_return(
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to process return: {str(e)}")
+        raise internal_server_error(logger, "Failed to process sales return")
 
 
 @router.get("", response_model=List[SalesReturnResponse])
@@ -413,7 +464,7 @@ def download_sales_return_pdf(
         shop = ShopSettings(shop_name="NockBill Solutions")
 
     pdf_bytes = generate_sales_return_pdf(sales_return, shop)
-    filename = f"CreditNote_{sales_return.return_number}.pdf"
+    filename = sanitize_download_filename(f"CreditNote_{sales_return.return_number}.pdf", f"CreditNote_{sales_return.id}.pdf")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

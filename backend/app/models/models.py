@@ -22,13 +22,25 @@ class UserRole(str, enum.Enum):
 class UnitType(str, enum.Enum):
     ML = "ml"
     LITER = "liter"
+    LITRE = "Litre"
     LITRES = "Litres"
     GRAM = "gram"
-    KG = "kg"
+    GRAMS = "Grams"
+    KG = "Kg"
     BAGS = "Bags"
     PACKETS = "Packets"
+    POUCHES = "Pouches"
+    TONS = "Tons"
     BOTTLES = "Bottles"
     PCS = "pcs"
+    PIECES = "Pieces"
+    NOS = "Nos"
+    SETS = "Sets"
+    METERS = "Meters"
+    ROLLS = "Rolls"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class PaymentMethod(str, enum.Enum):
@@ -54,6 +66,8 @@ class ExpenseCategory(str, enum.Enum):
     TRANSPORTATION = "TRANSPORTATION"
     INTERNET = "INTERNET"
     MAINTENANCE = "MAINTENANCE"
+    PACKAGING = "PACKAGING"
+    OFFICE = "OFFICE"
     OTHER = "OTHER"
 
 
@@ -85,6 +99,10 @@ class User(Base):
     role = Column(SAEnum(UserRole), default=UserRole.STAFF, nullable=False)
     email = Column(String(150), nullable=True, index=True)
     phone = Column(String(20), nullable=True, index=True)
+    # Google account subject (stable id). Required before an existing account may be linked to Google.
+    google_sub = Column(String(64), unique=True, nullable=True, index=True)
+    # Incremented on logout and password reset to immediately revoke all previously issued JWTs (S6).
+    token_version = Column(Integer, default=1, nullable=False)
     shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     subscription_status = Column(String(20), default="ACTIVE")
     is_active = Column(Boolean, default=True)
@@ -133,7 +151,7 @@ class PriceList(Base):
     __tablename__ = "price_lists"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     name = Column(String(150), nullable=False, index=True)
     description = Column(String(500), nullable=True)
     adjustment_type = Column(String(20), nullable=False, default="DISCOUNT")   # "DISCOUNT" or "INCREMENT"
@@ -150,7 +168,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     product_code = Column(String(50), index=True)
     product_name = Column(String(200), nullable=False, index=True)
     company_name = Column(String(200), index=True)
@@ -158,18 +176,21 @@ class Product(Base):
     category = Column(String(100), default="Fertilizer", index=True)
     batch_number = Column(String(100), nullable=True, index=True)
     net_content = Column(Numeric(10, 3))
-    unit = Column(SAEnum(UnitType), default=UnitType.ML)
+    unit = Column(String(30), default="Bags")
     purchase_price = Column(Numeric(12, 2), default=0)
     base_selling_price = Column(Numeric(12, 2), nullable=True)
     selling_price = Column(Numeric(12, 2), nullable=False)
     price_list_id = Column(Integer, ForeignKey("price_lists.id", ondelete="SET NULL"), nullable=True, index=True)
     gst_rate = Column(Numeric(5, 2), default=18)
-    manufacture_date = Column(String(10))   # stored as YYYY-MM
-    expiry_date = Column(String(10))        # stored as YYYY-MM
+    manufacture_date = Column(String(10))   # stored as YYYY-MM or YYYY-MM-DD (also Date of Test for Seeds)
+    expiry_date = Column(String(10))        # stored as YYYY-MM or YYYY-MM-DD (also Valid Upto for Seeds)
     current_stock = Column(Numeric(12, 3), default=0)
     minimum_stock = Column(Numeric(12, 3), default=5)
-    barcode = Column(String(100), unique=True, index=True, nullable=True)
+    # Barcodes are unique PER SHOP (see uq_product_shop_barcode), never table-wide:
+    # every tenant's sequential generator starts at 10001.
+    barcode = Column(String(100), index=True, nullable=True)
     hsn_code = Column(String(50), nullable=True)
+    category_attributes = Column(Text, nullable=True)  # JSON dict of category-specific compliance metadata
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=_utc_now)
     updated_at = Column(DateTime, default=_utc_now, onupdate=_utc_now)
@@ -185,6 +206,7 @@ class Product(Base):
         Index("ix_product_name_company", "product_name", "company_name"),
         Index("ix_product_shop_active", "shop_id", "is_active"),
         Index("ix_product_shop_trade", "shop_id", "trade_name"),
+        Index("uq_product_shop_barcode", "shop_id", "barcode", unique=True),
     )
 
 
@@ -196,8 +218,8 @@ class ProductBatch(Base):
     batch_number = Column(String(100), nullable=False, index=True)
     trade_name = Column(String(200), nullable=True, index=True)
     company_name = Column(String(200), nullable=True)
-    manufacture_date = Column(String(10))   # YYYY-MM
-    expiry_date = Column(String(10), nullable=False, index=True)        # YYYY-MM
+    manufacture_date = Column(String(10))   # YYYY-MM or YYYY-MM-DD
+    expiry_date = Column(String(10), nullable=True, index=True)  # nullable for non-expiring categories (SC7)
     purchase_price = Column(Numeric(12, 2), default=0)
     selling_price = Column(Numeric(12, 2), nullable=False)
     mrp = Column(Numeric(12, 2), nullable=True)
@@ -232,13 +254,20 @@ class Sale(Base):
     __tablename__ = "sales"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     invoice_number = Column(String(50), nullable=False, index=True)
-    idempotency_key = Column(String(100), unique=True)  # duplicate prevention
+    idempotency_key = Column(String(100), nullable=True, index=True)  # unique per shop via uq_sale_shop_idempotency
     customer_name = Column(String(200))
     customer_phone = Column(String(20))
+    customer_address = Column(String(300), nullable=True)
+    customer_aadhar = Column(String(20), nullable=True)
+    customer_gstin = Column(String(20), nullable=True)
+    is_interstate = Column(Boolean, default=False)
     subtotal = Column(Numeric(14, 2), default=0)
+    total_discount = Column(Numeric(14, 2), default=0)
     gst_amount = Column(Numeric(14, 2), default=0)
+    total_igst = Column(Numeric(14, 2), default=0)
+    round_off = Column(Numeric(8, 2), default=0)
     grand_total = Column(Numeric(14, 2), default=0)
     payment_method = Column(SAEnum(PaymentMethod), default=PaymentMethod.CASH)
     notes = Column(Text)
@@ -252,6 +281,8 @@ class Sale(Base):
 
     __table_args__ = (
         Index("ix_sale_shop_date", "shop_id", "sale_date"),
+        Index("uq_sale_shop_invoice", "shop_id", "invoice_number", unique=True),
+        Index("uq_sale_shop_idempotency", "shop_id", "idempotency_key", unique=True),
     )
 
 
@@ -267,9 +298,17 @@ class SaleItem(Base):
     product_name = Column(String(200), nullable=False)
     company_name = Column(String(200))
     trade_name = Column(String(200), nullable=True)
+    hsn_code = Column(String(50), nullable=True)
+    unit = Column(String(30), nullable=True)
     net_content = Column(String(50))
     quantity = Column(Numeric(10, 3), nullable=False)
     price = Column(Numeric(12, 2), nullable=False)      # per unit selling price
+    mrp = Column(Numeric(12, 2), nullable=True)
+    discount_percent = Column(Numeric(5, 2), default=0)
+    discount_amount = Column(Numeric(14, 2), default=0)
+    # Snapshot of the unit purchase cost at the moment of sale so historical P&L never
+    # changes when the product is later refilled at a different rate.
+    cost_price = Column(Numeric(12, 2), nullable=True)
     gst_rate = Column(Numeric(5, 2), default=0)
     gst_amount = Column(Numeric(14, 2), default=0)
     total = Column(Numeric(14, 2), default=0)           # including GST
@@ -285,8 +324,9 @@ class Purchase(Base):
     __tablename__ = "purchases"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     supplier_name = Column(String(200))
+    supplier_gstin = Column(String(20), nullable=True)
     invoice_number = Column(String(100))
     purchase_date = Column(DateTime, default=_utc_now, index=True)
     subtotal = Column(Numeric(14, 2), default=0)
@@ -304,7 +344,7 @@ class PurchaseItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     purchase_id = Column(Integer, ForeignKey("purchases.id", ondelete="CASCADE"), nullable=False, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True, index=True)  # nullable: never fall back to product_id=1 (SC4)
     product_name = Column(String(200))
     company_name = Column(String(200), nullable=True)
     trade_name = Column(String(200), nullable=True)
@@ -357,11 +397,12 @@ class Expense(Base):
     __tablename__ = "expenses"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
     expense_name = Column(String(200), nullable=False)
     category = Column(SAEnum(ExpenseCategory), default=ExpenseCategory.OTHER)
     amount = Column(Numeric(12, 2), nullable=False)
     expense_date = Column(Date, nullable=False, index=True)
+    payment_mode = Column(String(30), default="Cash")
     description = Column(Text)
     created_at = Column(DateTime, default=_utc_now)
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -371,6 +412,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     action = Column(SAEnum(AuditAction), nullable=False)
     reference_id = Column(Integer)
@@ -386,8 +428,8 @@ class SalesReturn(Base):
     __tablename__ = "sales_returns"
 
     id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, ForeignKey("shop_settings.id"), default=1, nullable=False, index=True)
-    return_number = Column(String(50), unique=True, nullable=False, index=True)
+    shop_id = Column(Integer, ForeignKey("shop_settings.id"), nullable=False, index=True)
+    return_number = Column(String(50), nullable=False, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False, index=True)
     invoice_number = Column(String(50), nullable=False, index=True)
     customer_name = Column(String(200))
@@ -406,6 +448,10 @@ class SalesReturn(Base):
     items = relationship("SalesReturnItem", back_populates="sales_return", cascade="all, delete-orphan")
     creator = relationship("User")
 
+    __table_args__ = (
+        Index("uq_sales_return_shop_number", "shop_id", "return_number", unique=True),
+    )
+
 
 class SalesReturnItem(Base):
     __tablename__ = "sales_return_items"
@@ -421,6 +467,7 @@ class SalesReturnItem(Base):
     net_content = Column(String(50))
     returned_quantity = Column(Numeric(10, 3), nullable=False)
     unit_price = Column(Numeric(12, 2), nullable=False)
+    cost_price = Column(Numeric(12, 2), nullable=True)  # Snapshot for COGS reversal (SD2)
     gst_rate = Column(Numeric(5, 2), default=0)
     refund_taxable = Column(Numeric(14, 2), default=0)
     refund_gst = Column(Numeric(14, 2), default=0)
@@ -455,51 +502,22 @@ class PasswordResetCode(Base):
     user = relationship("User")
 
 
-def _ensure_schema_columns():
-    """Ensure new tables and columns exist even when legacy seed.py runs before main.py."""
-    try:
-        from sqlalchemy import inspect, text
-        from app.database.base import engine
-        Base.metadata.create_all(bind=engine)
-        inspector = inspect(engine)
-        existing_tables = set(inspector.get_table_names())
-        column_migrations = [
-            ("users", "email", "VARCHAR(150)"),
-            ("users", "phone", "VARCHAR(20)"),
-            ("users", "shop_id", "INTEGER"),
-            ("users", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-            ("shop_settings", "proprietor_name", "VARCHAR(200)"),
-            ("shop_settings", "address_line1", "VARCHAR(500)"),
-            ("shop_settings", "address_line2", "VARCHAR(500)"),
-            ("shop_settings", "fertilizer_license_no", "VARCHAR(100)"),
-            ("shop_settings", "pesticide_license_no", "VARCHAR(100)"),
-            ("shop_settings", "seed_license_no", "VARCHAR(100)"),
-            ("shop_settings", "bank_name", "VARCHAR(200)"),
-            ("shop_settings", "bank_account_no", "VARCHAR(50)"),
-            ("shop_settings", "bank_ifsc", "VARCHAR(20)"),
-            ("shop_settings", "bank_branch", "VARCHAR(200)"),
-            ("shop_settings", "upi_id", "VARCHAR(100)"),
-            ("shop_settings", "terms_conditions", "TEXT"),
-            ("shop_settings", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-            ("products", "trade_name", "VARCHAR(200)"),
-            ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
-            ("products", "batch_number", "VARCHAR(100)"),
-            ("products", "base_selling_price", "NUMERIC(12, 2)"),
-            ("products", "price_list_id", "INTEGER"),
-            ("product_batches", "trade_name", "VARCHAR(200)"),
-            ("product_batches", "company_name", "VARCHAR(200)"),
-            ("sale_items", "trade_name", "VARCHAR(200)"),
-            ("purchase_items", "company_name", "VARCHAR(200)"),
-            ("purchase_items", "trade_name", "VARCHAR(200)"),
-        ]
-        with engine.begin() as conn:
-            for table_name, col_name, col_type in column_migrations:
-                if table_name in existing_tables:
-                    cols = {c["name"] for c in inspector.get_columns(table_name)}
-                    if col_name not in cols:
-                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
-    except Exception:
-        pass
+class UsedCaptchaNonce(Base):
+    """Consumed CAPTCHA nonces. Shared by every Lambda worker so a solved CAPTCHA cannot be replayed."""
+    __tablename__ = "used_captcha_nonces"
+
+    nonce = Column(String(64), primary_key=True)
+    expires_at = Column(DateTime, nullable=False, index=True)
 
 
-_ensure_schema_columns()
+class RateLimitEvent(Base):
+    """One row per throttled action (login, register, OTP...) keyed by bucket, e.g. ``login:ip:1.2.3.4``."""
+    __tablename__ = "rate_limit_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bucket = Column(String(200), nullable=False, index=True)
+    created_at = Column(DateTime, default=_utc_now, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("ix_rate_limit_bucket_created", "bucket", "created_at"),
+    )

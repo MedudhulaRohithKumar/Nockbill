@@ -1,4 +1,4 @@
-FROM python:3.11.10-slim
+FROM python:3.11.15-slim
 
 WORKDIR /app
 
@@ -26,4 +26,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-server-header"]

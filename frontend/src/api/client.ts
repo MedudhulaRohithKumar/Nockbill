@@ -23,13 +23,9 @@ const api = axios.create({
   },
 });
 
-// Interceptor for JWT auth token (supports fallback Bearer tokens; browser uses HttpOnly cookies)
+// Browser auth relies exclusively on the HttpOnly session cookie (no token in Web Storage).
 api.interceptors.request.use((config) => {
   config.withCredentials = true;
-  const token = localStorage.getItem('token');
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
   return config;
 }, (error) => {
   return Promise.reject(error);

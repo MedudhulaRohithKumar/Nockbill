@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Sprout, User, Lock, Phone, Mail, Building, MapPin, 
   FileText, CreditCard, ShieldCheck, Download, CheckCircle2, 
-  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff, X
+  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff, X, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
-import { getErrorMessage } from '../api';
+import { authApi, getErrorMessage } from '../api';
 import {
   sanitizeTextInput,
   sanitizeCodeInput,
@@ -18,6 +18,13 @@ import {
   isValidGstin,
   isValidIfsc,
 } from '../utils/formatters';
+import {
+  CAPTCHA_LENGTH,
+  GeneratedCredentials,
+  buildRegisterPayload,
+  mergeGeneratedCredentials,
+  sanitizeCaptchaCode,
+} from '../utils/registerPayload';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -75,7 +82,35 @@ export const RegisterPage: React.FC = () => {
   });
 
   // Post-registration credentials state
-  const [generatedCreds, setGeneratedCreds] = useState<any | null>(null);
+  const [generatedCreds, setGeneratedCreds] = useState<GeneratedCredentials | null>(null);
+
+  // Server-side CAPTCHA state (final submit step), mirrors LoginPage
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+
+  const fetchCaptcha = async () => {
+    setCaptchaLoading(true);
+    try {
+      const data = await authApi.getCaptcha();
+      setCaptchaToken(data.captcha_token);
+      setCaptchaImage(data.captcha_image);
+      setCaptchaCode('');
+    } catch (err) {
+      console.error('Failed to load security CAPTCHA:', err);
+      setCaptchaToken('');
+      setCaptchaImage('');
+    } finally {
+      setCaptchaLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 3) {
+      void fetchCaptcha();
+    }
+  }, [step]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -282,51 +317,31 @@ export const RegisterPage: React.FC = () => {
       setError('IFSC code must be 11 characters (e.g., SBIN0001234)');
       return;
     }
+    const cleanCaptcha = sanitizeCaptchaCode(captchaCode);
+    if (cleanCaptcha.length !== CAPTCHA_LENGTH) {
+      setError('Please enter all 6 characters shown in the security CAPTCHA image.');
+      return;
+    }
+    if (!captchaToken) {
+      await fetchCaptcha();
+      setError('Security challenge expired. Please enter the new code shown.');
+      return;
+    }
     setIsLoading(true);
 
     try {
-      const payload = {
-        owner_name: formData.owner_name,
-        username: formData.username.toLowerCase().trim(),
-        email: formData.email.trim(),
-        phone: formData.phone.trim(),
-        password: formData.password,
-        shop_name: formData.shop_name.trim(),
-        proprietor_name: formData.proprietor_name || formData.owner_name,
-        address_line1: formData.address_line1.trim(),
-        address_line2: formData.address_line2.trim() || undefined,
-        city: formData.city.trim(),
-        state: formData.state.trim(),
-        pincode: formData.pincode.trim(),
-        gstin: formData.gstin.trim().toUpperCase() || undefined,
-        invoice_prefix: (formData.invoice_prefix || 'KSK').trim().toUpperCase(),
-        fertilizer_license_no: formData.fertilizer_license_no.trim() || undefined,
-        pesticide_license_no: formData.pesticide_license_no.trim() || undefined,
-        seed_license_no: formData.seed_license_no.trim() || undefined,
-        bank_name: formData.bank_name.trim() || undefined,
-        bank_account_no: formData.bank_account_no.trim() || undefined,
-        bank_ifsc: formData.bank_ifsc.trim().toUpperCase() || undefined,
-        bank_branch: formData.bank_branch.trim() || undefined,
-        upi_id: formData.upi_id.trim() || undefined,
-      };
+      const payload = buildRegisterPayload(formData, captchaToken, cleanCaptcha);
 
       const res = await register(payload);
       await refreshSettings();
-      setGeneratedCreds(res.credentials || {
-        account_id: `SHOP-${res.user_id || '001'}`,
-        shop_name: formData.shop_name,
-        owner_name: formData.owner_name,
-        username: formData.username,
-        email: formData.email,
-        phone: formData.phone,
-        initial_password: formData.password,
-        console_login_url: `${window.location.origin}/login`,
-        gstin: formData.gstin || 'UNREGISTERED',
-        fertilizer_license: formData.fertilizer_license_no || 'N/A',
-        created_at: new Date().toISOString()
-      });
+      // The server never echoes the password; merge the typed one client-side (memory only, never persisted)
+      setGeneratedCreds(
+        mergeGeneratedCredentials(res.credentials, formData, res.user_id, window.location.origin)
+      );
       setStep(4);
     } catch (err: any) {
+      // Each attempt burns the single-use CAPTCHA nonce — always issue a fresh one
+      void fetchCaptcha();
       setError(getErrorMessage(err, 'Failed to register shop account. Please verify all details.'));
     } finally {
       setIsLoading(false);
@@ -950,6 +965,65 @@ passwords across unencrypted emails or chat messages.
                 </div>
               </div>
 
+              {/* Server-Side Cryptographic CAPTCHA Verification */}
+              <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="reg-captcha" className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Security Verification (CAPTCHA)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { void fetchCaptcha(); }}
+                    disabled={captchaLoading}
+                    className="text-[10px] font-bold text-brand-700 hover:text-brand-800 flex items-center gap-1 disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-12 gap-2.5 items-center">
+                  <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shadow-inner select-none">
+                    {captchaImage ? (
+                      <img
+                        src={captchaImage}
+                        alt="Security CAPTCHA Challenge"
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                        className={`w-full h-full object-cover select-none pointer-events-none transition-opacity duration-200 ${
+                          captchaLoading ? 'opacity-40' : 'opacity-100'
+                        }`}
+                      />
+                    ) : (
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {captchaLoading ? 'Generating...' : 'Unavailable'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-5 relative">
+                    <input
+                      id="reg-captcha"
+                      type="text"
+                      required
+                      maxLength={CAPTCHA_LENGTH}
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={captchaCode}
+                      onChange={(e) => setCaptchaCode(sanitizeCaptchaCode(e.target.value))}
+                      className="clay-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-slate-900 uppercase"
+                      placeholder="6-CHAR"
+                    />
+                    {captchaCode.length === CAPTCHA_LENGTH && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1.5 pointer-events-none" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span>Type the 6 characters shown in the image</span>
+                  <span className="font-mono font-semibold text-slate-600">{captchaCode.length}/{CAPTCHA_LENGTH}</span>
+                </div>
+              </div>
+
               <div className="pt-4 flex items-center justify-between">
                 <button
                   type="button"
@@ -961,7 +1035,7 @@ passwords across unencrypted emails or chat messages.
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || captchaCode.length !== CAPTCHA_LENGTH}
                   className="clay-btn-primary px-8 py-3 text-sm flex items-center gap-2 disabled:opacity-70"
                 >
                   {isLoading ? (

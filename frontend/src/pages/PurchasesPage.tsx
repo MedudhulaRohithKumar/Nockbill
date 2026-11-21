@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ShoppingBag, Truck, Check, X, FileText } from 'lucide-react';
-import { purchasesApi, productsApi } from '../api';
+import { Plus, ShoppingBag, Truck, Check, X, FileText, AlertCircle } from 'lucide-react';
+import { purchasesApi, productsApi, getErrorMessage } from '../api';
 import { Purchase, Product, PurchaseItem } from '../types';
 import {
   safeNumber,
@@ -16,48 +16,49 @@ export const PurchasesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // New Purchase Form
-  const [supplierName, setSupplierName] = useState('IFFCO State Marketing Federation');
-  const [supplierGstin, setSupplierGstin] = useState('24AABCI1234E1Z0');
-  const [billNumber, setBillNumber] = useState('INV-IFFCO-8821');
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierGstin, setSupplierGstin] = useState('');
+  const [billNumber, setBillNumber] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [items, setItems] = useState<Partial<PurchaseItem>[]>([
     {
-      product_id: 1,
-      product_name: 'IFFCO Neem Coated Urea (45 Kg)',
-      company_name: 'IFFCO',
-      trade_name: 'IFFCO Neem Urea',
-      batch_number: 'NCU-2024-99',
-      expiry_date: '2027-06-30',
-      quantity: 100,
-      purchase_price: 245.0,
-      mrp: 266.5,
-      selling_price: 266.5,
+      product_id: undefined,
+      product_name: '',
+      company_name: '',
+      trade_name: '',
+      batch_number: '',
+      expiry_date: '',
+      quantity: 1,
+      purchase_price: 0,
+      mrp: 0,
+      selling_price: 0,
       gst_rate: 5,
-      taxable_amount: 23333.33,
-      cgst_amount: 583.33,
-      sgst_amount: 583.33,
+      taxable_amount: 0,
+      cgst_amount: 0,
+      sgst_amount: 0,
       igst_amount: 0,
-      total_amount: 24500.0,
+      total_amount: 0,
     }
   ]);
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       const [purchasesList, productsList] = await Promise.all([
         purchasesApi.getAll(),
         productsApi.getAll()
       ]);
-      setPurchases(purchasesList);
-      setProducts(productsList);
-    } catch {
-      setPurchases([
-        { id: 1, supplier_name: 'IFFCO Regional Depot', supplier_gstin: '24AABCI1234E1Z0', supplier_phone: '02692-234567', bill_number: 'DEPOT-9982', bill_date: '2024-08-15', total_amount: 145000.0, total_tax: 6900.0, status: 'Received', items: [] },
-        { id: 2, supplier_name: 'Gujarat State Fertilizers & Chemicals (GSFC)', supplier_gstin: '24AAACG1234A1Z9', bill_number: 'GSFC-8812', bill_date: '2024-08-28', total_amount: 135000.0, total_tax: 6428.0, status: 'Received', items: [] },
-      ]);
+      setPurchases(Array.isArray(purchasesList) ? purchasesList : []);
+      setProducts(Array.isArray(productsList) ? productsList : []);
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err, 'Failed to load purchases from server. Please refresh and try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -67,25 +68,29 @@ export const PurchasesPage: React.FC = () => {
 
   const handleAddItemRow = () => {
     const firstProd = products[0];
-    const pName = firstProd?.name || firstProd?.product_name || 'Fertilizer Product';
+    const pName = firstProd?.name || firstProd?.product_name || '';
     const pComp = firstProd?.company_name || '';
     const pTrade = firstProd?.trade_name || resolveTradeName(pName, pComp, products).suggested;
     setItems([...items, {
-      product_id: firstProd?.id || 1,
+      product_id: firstProd?.id,
       product_name: pName,
       company_name: pComp,
       trade_name: pTrade,
-      batch_number: 'B-' + Math.floor(1000 + Math.random() * 9000),
-      quantity: 50, purchase_price: 1000, mrp: 1100, selling_price: 1100,
-      gst_rate: 5, total_amount: 50000,
+      batch_number: `B-${(Date.now() % 9000) + 1000}`,
+      quantity: 1, purchase_price: 0, mrp: 0, selling_price: 0,
+      gst_rate: 5, total_amount: 0,
     }]);
   };
 
   const handleSavePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const cleanSupplier = sanitizeText(supplierName, 150);
     const cleanBillNo = sanitizeCode(billNumber, 60);
-    if (!cleanSupplier || !cleanBillNo) return;
+    if (!cleanSupplier || !cleanBillNo) {
+      setFormError('Supplier name and invoice number are required.');
+      return;
+    }
 
     const total = items.reduce((sum, item) => sum + (item.total_amount || 0), 0);
     const payload = {
@@ -101,8 +106,14 @@ export const PurchasesPage: React.FC = () => {
         const resolvedTrade =
           sanitizeText(it.trade_name || '', 150) ||
           resolveTradeName(cleanProdName, cleanCompName, products).suggested;
+        const matchedProd = it.product_id
+          ? products.find(p => p.id === it.product_id)
+          : products.find(
+              p => (p.product_name || p.name || '').toLowerCase() === cleanProdName.toLowerCase()
+            );
         return {
           ...it,
+          product_id: matchedProd?.id,
           product_name: cleanProdName,
           company_name: cleanCompName || undefined,
           trade_name: resolvedTrade || undefined,
@@ -115,13 +126,16 @@ export const PurchasesPage: React.FC = () => {
       })
     };
 
+    setIsSaving(true);
     try {
       await purchasesApi.create(payload);
       setIsModalOpen(false);
+      setFormError(null);
       void loadData();
-    } catch {
-      setPurchases([{ id: Date.now(), supplier_name: supplierName, supplier_gstin: supplierGstin, bill_number: billNumber, bill_date: billDate, total_amount: total, total_tax: Math.round(total * 0.05), status: 'Received', items: items as PurchaseItem[] }, ...purchases]);
-      setIsModalOpen(false);
+    } catch (err) {
+      setFormError(getErrorMessage(err, 'Could not save inward purchase. Please check the fields and retry.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -139,13 +153,21 @@ export const PurchasesPage: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          type="button"
+          onClick={() => { setFormError(null); setIsModalOpen(true); }}
           className="w-full sm:w-auto bg-brand-700 hover:bg-brand-600 text-white font-bold py-3 sm:py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs shadow-md transition-all active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Record Inward Stock</span>
         </button>
       </div>
+
+      {errorMsg && (
+        <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       {/* Inward Invoices */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -276,12 +298,18 @@ export const PurchasesPage: React.FC = () => {
                 <ShoppingBag className="w-4 h-4 text-brand-300" />
                 <h3 className="font-bold text-sm">Record Inward Stock</h3>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-brand-200 hover:text-white p-1">
+              <button type="button" onClick={() => setIsModalOpen(false)} aria-label="Close modal" className="text-brand-200 hover:text-white p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={(e) => { void handleSavePurchase(e); }} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1">
+              {formError && (
+                <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
               {/* Supplier Info — stacked on mobile, 2-col on sm */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -461,9 +489,10 @@ export const PurchasesPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-brand-700 hover:bg-brand-600 text-white px-5 py-2.5 rounded-xl font-bold shadow transition-all text-sm"
+                  disabled={isSaving}
+                  className="flex-1 bg-brand-700 hover:bg-brand-600 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl font-bold shadow transition-all text-sm"
                 >
-                  Confirm &amp; Inward
+                  {isSaving ? 'Saving...' : 'Confirm & Inward'}
                 </button>
               </div>
             </form>

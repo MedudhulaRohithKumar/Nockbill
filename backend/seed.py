@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
-from sqlalchemy import inspect, text
-from app.database.base import SessionLocal, engine, Base
+from app.database.base import SessionLocal, engine
+from app.database.migrations import ensure_schema
 from app.models.models import (
     User, UserRole, ShopSettings, Product, UnitType,
     Sale, SaleItem, PaymentMethod,
@@ -22,35 +22,8 @@ from app.models.models import (
 from app.utils.auth import hash_password
 
 
-def _run_schema_migrations(db_engine):
-    try:
-        inspector = inspect(db_engine)
-        existing_tables = set(inspector.get_table_names())
-        column_migrations = [
-            ("products", "trade_name", "VARCHAR(200)"),
-            ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
-            ("products", "batch_number", "VARCHAR(100)"),
-            ("products", "base_selling_price", "NUMERIC(12, 2)"),
-            ("products", "price_list_id", "INTEGER"),
-            ("product_batches", "trade_name", "VARCHAR(200)"),
-            ("product_batches", "company_name", "VARCHAR(200)"),
-            ("sale_items", "trade_name", "VARCHAR(200)"),
-            ("purchase_items", "company_name", "VARCHAR(200)"),
-            ("purchase_items", "trade_name", "VARCHAR(200)"),
-        ]
-        with db_engine.begin() as conn:
-            for table_name, col_name, col_type in column_migrations:
-                if table_name in existing_tables:
-                    cols = {c["name"] for c in inspector.get_columns(table_name)}
-                    if col_name not in cols:
-                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
-    except Exception as e:
-        print(f"Migration error in seed: {e}")
-
-
 def seed():
-    Base.metadata.create_all(bind=engine)
-    _run_schema_migrations(engine)
+    ensure_schema(engine, raise_on_error=True)
     db = SessionLocal()
 
     seed_demo_enabled = os.environ.get("SEED_DEMO_DATA", "false").strip().lower() in ("true", "1", "yes")
@@ -117,32 +90,48 @@ def seed():
 
         product_objs = []
         for p in products_data:
-            if not db.query(Product).filter(Product.product_code == p["product_code"]).first():
-                product = Product(**p)
+            row_data = dict(p)
+            row_data["shop_id"] = shop.id
+            if hasattr(row_data.get("unit"), "value"):
+                row_data["unit"] = row_data["unit"].value
+            if not db.query(Product).filter(
+                Product.shop_id == shop.id,
+                Product.product_code == row_data["product_code"],
+            ).first():
+                product = Product(**row_data)
                 db.add(product)
                 product_objs.append(product)
 
         db.commit()
         print(f"Created {len(product_objs)} products")
 
-        # Reload products
-        all_products = db.query(Product).filter(Product.is_active == True).all()
-        if len(all_products) < 2:
+        # Reload products for this shop
+        all_products = db.query(Product).filter(
+            Product.shop_id == shop.id,
+            Product.is_active == True,
+        ).all()
+        if len(all_products) < 4:
             print("Skipping sample transactions (products missing)")
             return
 
-        p1, p2, p3, p4 = all_products[0], all_products[1], all_products[2], all_products[3]
+        p1, _p2, _p3, p4 = all_products[0], all_products[1], all_products[2], all_products[3]
 
         # ── Sample sale ──────────────────────────────────────────
-        shop = db.query(ShopSettings).first()
-        owner = db.query(User).filter(User.username == "admin").first()
+        owner = (
+            db.query(User).filter(User.shop_id == shop.id, User.username == "demo_admin").first()
+            or db.query(User).filter(User.shop_id == shop.id, User.role == UserRole.OWNER).first()
+        )
+        if not owner:
+            print("Skipping sample transactions (demo owner missing)")
+            return
 
-        if db.query(Sale).count() == 0:
+        if db.query(Sale).filter(Sale.shop_id == shop.id).count() == 0:
             sale_date = datetime.now(timezone.utc) - timedelta(days=1)
             invoice_number = f"GFA-{sale_date.strftime('%Y%m')}-00001"
             shop.invoice_counter = 2
 
             sale = Sale(
+                shop_id=shop.id,
                 invoice_number=invoice_number,
                 customer_name="Ramesh Kumar",
                 customer_phone="9900112233",
@@ -167,13 +156,15 @@ def seed():
                 total = taxable + gst_amount
                 subtotal += taxable
                 total_gst += gst_amount
+                unit_label = product.unit.value if hasattr(product.unit, "value") else str(product.unit or "Bags")
 
                 db.add(SaleItem(
                     sale_id=sale.id, product_id=product.id,
                     product_name=product.product_name, company_name=product.company_name,
-                    net_content=f"{product.net_content} {product.unit.value}",
-                    quantity=qty, price=price, gst_rate=gst_rate,
-                    gst_amount=gst_amount, total=total,
+                    unit=unit_label,
+                    net_content=f"{product.net_content} {unit_label}",
+                    quantity=qty, price=price, cost_price=product.purchase_price,
+                    gst_rate=gst_rate, gst_amount=gst_amount, total=total,
                     expiry_date=product.expiry_date,
                 ))
 
@@ -181,6 +172,7 @@ def seed():
                 prev_stock = product.current_stock
                 product.current_stock -= qty
                 db.add(InventoryTransaction(
+                    shop_id=shop.id,
                     product_id=product.id, transaction_type=InventoryTxType.SALE,
                     quantity=qty, previous_stock=prev_stock,
                     new_stock=product.current_stock, reference_id=sale.id,
@@ -199,6 +191,7 @@ def seed():
 
             for rate, bucket in gst_buckets.items():
                 db.add(GstTransaction(
+                    shop_id=shop.id,
                     sale_id=sale.id, invoice_number=invoice_number,
                     taxable_amount=bucket["taxable"], gst_rate=rate,
                     gst_amount=bucket["gst"], transaction_date=sale_date,
@@ -208,11 +201,11 @@ def seed():
             print(f"Created sample sale: {invoice_number}")
 
         # ── Sample expenses ───────────────────────────────────────
-        if db.query(Expense).count() == 0:
+        if db.query(Expense).filter(Expense.shop_id == shop.id).count() == 0:
             expenses = [
-                Expense(expense_name="Shop Rent", category=ExpenseCategory.RENT, amount=Decimal("8000"), expense_date=date(2026, 9, 1), created_by=owner.id),
-                Expense(expense_name="Electricity Bill", category=ExpenseCategory.ELECTRICITY, amount=Decimal("1500"), expense_date=date(2026, 9, 1), created_by=owner.id),
-                Expense(expense_name="Staff Salary", category=ExpenseCategory.SALARY, amount=Decimal("12000"), expense_date=date(2026, 9, 1), created_by=owner.id),
+                Expense(shop_id=shop.id, expense_name="Shop Rent", category=ExpenseCategory.RENT, amount=Decimal("8000"), expense_date=date(2026, 9, 1), created_by=owner.id),
+                Expense(shop_id=shop.id, expense_name="Electricity Bill", category=ExpenseCategory.ELECTRICITY, amount=Decimal("1500"), expense_date=date(2026, 9, 1), created_by=owner.id),
+                Expense(shop_id=shop.id, expense_name="Staff Salary", category=ExpenseCategory.SALARY, amount=Decimal("12000"), expense_date=date(2026, 9, 1), created_by=owner.id),
             ]
             for exp in expenses:
                 db.add(exp)

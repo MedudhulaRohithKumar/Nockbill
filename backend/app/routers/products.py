@@ -1,67 +1,162 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, func, desc
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-import time
+import json
+import logging
 
 from app.database.base import get_db
 from app.models.models import (
-    Product, ProductVariant, ProductBatch, UnitType, User, AuditLog, AuditAction,
+    Product, ProductVariant, ProductBatch, User, AuditLog, AuditAction,
     InventoryTransaction, InventoryTxType, Purchase, PurchaseItem,
     Sale, SaleItem, ShopSettings
 )
 from app.schemas.schemas import ProductCreate, ProductUpdate, ProductResponse, ProductSearchResult, ProductRefillRequest
-from app.utils.auth import get_current_user
-from app.utils.helpers import resolve_trade_name, AGRO_TRADE_NAME_CATALOG
+from app.utils.auth import get_current_user, require_owner
+from app.utils.errors import internal_server_error
+from app.utils.helpers import resolve_trade_name, sanitize_download_filename, AGRO_TRADE_NAME_CATALOG
+from app.utils.stock_sync import sync_variant_stock
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
+_UNIT_CANONICAL_MAP: Dict[str, str] = {
+    "ml": "ml",
+    "millilitre": "ml",
+    "millilitres": "ml",
+    "l": "Litre",
+    "ltr": "Litre",
+    "liter": "Litre",
+    "liters": "Litre",
+    "litre": "Litre",
+    "litres": "Litre",
+    "g": "Grams",
+    "gm": "Grams",
+    "gms": "Grams",
+    "gram": "Grams",
+    "grams": "Grams",
+    "kg": "Kg",
+    "kgs": "Kg",
+    "kilogram": "Kg",
+    "kilograms": "Kg",
+    "bag": "Bags",
+    "bags": "Bags",
+    "packet": "Packets",
+    "packets": "Packets",
+    "pkt": "Packets",
+    "pouch": "Pouches",
+    "pouches": "Pouches",
+    "ton": "Tons",
+    "tons": "Tons",
+    "tonne": "Tons",
+    "tonnes": "Tons",
+    "bottle": "Bottles",
+    "bottles": "Bottles",
+    "pc": "Pieces",
+    "pcs": "Pieces",
+    "piece": "Pieces",
+    "pieces": "Pieces",
+    "no": "Nos",
+    "nos": "Nos",
+    "set": "Sets",
+    "sets": "Sets",
+    "m": "Meters",
+    "meter": "Meters",
+    "meters": "Meters",
+    "metre": "Meters",
+    "metres": "Meters",
+    "roll": "Rolls",
+    "rolls": "Rolls",
+}
 
-def _generate_code(db: Session, shop_id: int = 1) -> str:
-    all_codes = db.query(Product.product_code).filter(
-        Product.shop_id == shop_id,
-        Product.product_code.isnot(None)
-    ).all()
-    nums = []
-    for (c,) in all_codes:
-        if c and c.startswith("PRD"):
-            try:
-                nums.append(int(c.replace("PRD", "")))
-            except ValueError:
-                pass
-    next_num = max(nums, default=0) + 1
+
+def _normalize_unit(unit_raw: Any) -> str:
+    """Normalize unit strings and legacy UnitType enums into canonical display labels."""
+    if unit_raw is None:
+        return "Bags"
+    raw = unit_raw.value if hasattr(unit_raw, "value") else str(unit_raw)
+    cleaned = raw.strip()
+    if not cleaned:
+        return "Bags"
+    return _UNIT_CANONICAL_MAP.get(cleaned.lower(), cleaned[:30])
+
+
+def _parse_category_attributes(raw: Optional[str]) -> Dict[str, Any]:
+    """Parse JSON-encoded category_attributes column into a dictionary."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _dump_category_attributes(attrs: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Serialize category_attributes dictionary into compact JSON for storage."""
+    if not attrs:
+        return None
+    if isinstance(attrs, str):
+        return attrs
+    return json.dumps(attrs, ensure_ascii=False)
+
+
+def _generate_code(db: Session, shop_id: int = 1, offset: int = 0) -> str:
+    """Generate the next shop-scoped PRDxxxxx code using a bounded SQL MAX query."""
+    max_code = (
+        db.query(func.max(Product.product_code))
+        .filter(
+            Product.shop_id == shop_id,
+            Product.product_code.like("PRD%"),
+            func.length(Product.product_code) == 8,
+        )
+        .scalar()
+    )
+    next_num = 1
+    if max_code and max_code.startswith("PRD"):
+        try:
+            next_num = int(max_code[3:]) + 1
+        except ValueError:
+            next_num = 1
+    next_num += offset
     candidate = f"PRD{str(next_num).zfill(5)}"
-    while db.query(Product).filter(Product.shop_id == shop_id, Product.product_code == candidate).first():
+    while db.query(Product.id).filter(Product.shop_id == shop_id, Product.product_code == candidate).first():
         next_num += 1
         candidate = f"PRD{str(next_num).zfill(5)}"
     return candidate
 
 
-def _generate_barcode(db: Session, shop_id: int = 1) -> str:
-    """Generate a clean 5-digit barcode number (e.g. 10001, 10002, 10003...) for fast desktop typing."""
-    all_codes = db.query(Product.barcode).filter(
-        Product.shop_id == shop_id,
-        Product.barcode.isnot(None)
-    ).all()
-    numeric_codes = []
-    for (b,) in all_codes:
-        if b and b.isdigit() and len(b) == 5:
-            numeric_codes.append(int(b))
-
-    next_num = max(numeric_codes) + 1 if numeric_codes else 10001
-    if next_num < 10001:
-        next_num = 10001
+def _generate_barcode(db: Session, shop_id: int = 1, offset: int = 0) -> str:
+    """Generate a shop-scoped sequential 5-digit barcode (10001, 10002...) via SQL MAX."""
+    max_barcode = (
+        db.query(func.max(Product.barcode))
+        .filter(
+            Product.shop_id == shop_id,
+            Product.barcode.isnot(None),
+            func.length(Product.barcode) == 5,
+            Product.barcode >= "10001",
+            Product.barcode <= "99999",
+        )
+        .scalar()
+    )
+    next_num = 10001
+    if max_barcode and max_barcode.isdigit():
+        next_num = max(10001, int(max_barcode) + 1)
+    next_num += offset
     candidate = str(next_num)
-    while db.query(Product).filter(Product.shop_id == shop_id, Product.barcode == candidate).first():
+    while db.query(Product.id).filter(Product.shop_id == shop_id, Product.barcode == candidate).first():
         next_num += 1
         candidate = str(next_num)
     return candidate
 
 
 def serialize_product(p: Product) -> dict:
-    unit_str = p.unit.value if hasattr(p.unit, "value") else str(p.unit or "Bags")
+    unit_str = _normalize_unit(p.unit)
     barcode_val = p.barcode or str(10000 + p.id)
     hsn_val = p.hsn_code or ""
 
@@ -149,7 +244,7 @@ def serialize_product(p: Product) -> dict:
             "trade_name": resolved_trade,
             "company_name": p.company_name,
             "manufacture_date": p.manufacture_date,
-            "expiry_date": p.expiry_date or "2028-06",
+            "expiry_date": p.expiry_date or "",
             "purchase_price": float(p.purchase_price or 0),
             "selling_price": float(p.selling_price or 0),
             "mrp": float(p.selling_price or 0),
@@ -167,6 +262,8 @@ def serialize_product(p: Product) -> dict:
     cat_val = getattr(p, "category", None)
     if not cat_val or (p.company_name and cat_val == p.company_name):
         cat_val = "Fertilizer"
+    elif cat_val.strip().lower() == "bio-fertilizer":
+        cat_val = "Bio-Fertilizer"
     batch_val = getattr(p, "batch_number", None) or (active_batches[0]["batch_number"] if active_batches else "")
 
     return {
@@ -196,6 +293,7 @@ def serialize_product(p: Product) -> dict:
         "batch_number": batch_val,
         "hsn_code": hsn_val,
         "barcode": barcode_val,
+        "category_attributes": _parse_category_attributes(getattr(p, "category_attributes", None)),
         "current_stock": float(p.current_stock or 0),
         "minimum_stock": float(p.minimum_stock or 0),
         "min_stock_level": float(p.minimum_stock or 0),
@@ -332,12 +430,23 @@ def get_by_barcode(
             "matched_variant": p_data["variants"][0] if p_data["variants"] else None
         }
 
-    # 2. Match variant barcode
-    variant = db.query(ProductVariant).filter(
-        ProductVariant.barcode == barcode_clean,
-        ProductVariant.is_active == True
-    ).first()
-    if variant and variant.product and variant.product.is_active:
+    # 2. Match variant barcode strictly within the authenticated tenant's shop (C1)
+    variant = (
+        db.query(ProductVariant)
+        .join(Product, Product.id == ProductVariant.product_id)
+        .options(
+            selectinload(ProductVariant.product).selectinload(Product.variants),
+            selectinload(ProductVariant.product).selectinload(Product.batches),
+        )
+        .filter(
+            Product.shop_id == shop_id,
+            Product.is_active == True,
+            ProductVariant.barcode == barcode_clean,
+            ProductVariant.is_active == True,
+        )
+        .first()
+    )
+    if variant and variant.product:
         prod_data = serialize_product(variant.product)
         matched_v = next((v for v in prod_data["variants"] if v["id"] == variant.id), None)
         return {
@@ -353,23 +462,34 @@ def get_by_barcode(
                 "selling_price": float(variant.selling_price or 0),
                 "mrp": float(variant.mrp or variant.selling_price or 0),
                 "stock": float(variant.stock or 0),
-                "barcode": variant.barcode
-            }
+                "barcode": variant.barcode,
+            },
         }
 
-    # 3. Match batch number
-    batch = db.query(ProductBatch).filter(
-        ProductBatch.batch_number == barcode_clean,
-        ProductBatch.is_active == True
-    ).first()
-    if batch and batch.product and batch.product.is_active:
+    # 3. Match batch number strictly within the authenticated tenant's shop (C1)
+    batch = (
+        db.query(ProductBatch)
+        .join(Product, Product.id == ProductBatch.product_id)
+        .options(
+            selectinload(ProductBatch.product).selectinload(Product.variants),
+            selectinload(ProductBatch.product).selectinload(Product.batches),
+        )
+        .filter(
+            Product.shop_id == shop_id,
+            Product.is_active == True,
+            ProductBatch.batch_number == barcode_clean,
+            ProductBatch.is_active == True,
+        )
+        .first()
+    )
+    if batch and batch.product:
         prod_data = serialize_product(batch.product)
         matched_b = next((b for b in prod_data["batches"] if b["id"] == batch.id), None)
         return {
             "found": True,
             "product": prod_data,
             "matched_variant": prod_data["variants"][0] if prod_data["variants"] else None,
-            "matched_batch": matched_b
+            "matched_batch": matched_b,
         }
 
     raise HTTPException(status_code=404, detail="No product found matching this barcode")
@@ -434,7 +554,10 @@ def get_barcode_label_pdf(
     )
 
     clean_name = product.product_name.replace(" ", "_")[:20]
-    filename = f"Barcode_{clean_name}_{barcode_val}.pdf"
+    filename = sanitize_download_filename(
+        f"Barcode_{clean_name}_{barcode_val}.pdf",
+        fallback=f"Barcode_{product.id}.pdf",
+    )
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -444,6 +567,7 @@ def get_barcode_label_pdf(
 
 @router.get("/recommend-refill")
 def get_refill_recommendations(
+    limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -452,35 +576,41 @@ def get_refill_recommendations(
     1. Stock <= minimum_stock (Critical)
     2. High sales frequency / run rate in the last 30 days
     3. Days of stock remaining < 7 days
+    Uses lightweight product projections without eager-loading nested variant/batch trees.
     """
     shop_id = getattr(current_user, "shop_id", 1) or 1
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    
-    # Calculate sales velocity per product in last 30 days
+
     sales_stats = db.query(
         SaleItem.product_id,
         func.sum(SaleItem.quantity).label("units_sold"),
-        func.count(SaleItem.id).label("times_sold")
+        func.count(SaleItem.id).label("times_sold"),
     ).join(Sale, Sale.id == SaleItem.sale_id).filter(
         Sale.shop_id == shop_id,
-        Sale.sale_date >= thirty_days_ago
+        Sale.sale_date >= thirty_days_ago,
     ).group_by(SaleItem.product_id).all()
 
     sales_map = {
         s.product_id: {
             "units_sold": float(s.units_sold or 0),
             "times_sold": int(s.times_sold or 0),
-            "daily_velocity": float(s.units_sold or 0) / 30.0
+            "daily_velocity": float(s.units_sold or 0) / 30.0,
         }
         for s in sales_stats if s.product_id
     }
 
-    products = db.query(Product).options(
-        selectinload(Product.variants),
-        selectinload(Product.batches),
-    ).filter(
+    sold_ids = list(sales_map.keys())
+    candidate_filter = [
+        Product.current_stock <= Product.minimum_stock,
+        Product.current_stock <= 0,
+    ]
+    if sold_ids:
+        candidate_filter.append(Product.id.in_(sold_ids))
+
+    products = db.query(Product).filter(
         Product.shop_id == shop_id,
-        Product.is_active == True
+        Product.is_active == True,
+        or_(*candidate_filter),
     ).all()
     recommendations = []
 
@@ -489,7 +619,7 @@ def get_refill_recommendations(
         m_stock = float(p.minimum_stock or 5)
         stat = sales_map.get(p.id, {"units_sold": 0.0, "times_sold": 0, "daily_velocity": 0.0})
         daily_vel = stat["daily_velocity"]
-        
+
         if daily_vel > 0:
             days_left = round(c_stock / daily_vel, 1)
         else:
@@ -511,36 +641,67 @@ def get_refill_recommendations(
             urgency = "MEDIUM"
             reason = f"High demand product with {days_left} days remaining."
 
-        if urgency in ["CRITICAL", "HIGH", "MEDIUM"]:
+        if urgency in ("CRITICAL", "HIGH", "MEDIUM"):
             rec_qty = max(m_stock * 2, round(daily_vel * 30 + m_stock - c_stock))
             if rec_qty <= 0:
                 rec_qty = m_stock * 2
 
-            prod_data = serialize_product(p)
+            unit_str = _normalize_unit(p.unit)
+            trade_str = p.trade_name or resolve_trade_name(p.product_name, p.company_name)
+            barcode_str = p.barcode or str(10000 + p.id)
+            p_price = float(p.purchase_price or 0)
+            s_price = float(p.selling_price or 0)
+            lightweight_product = {
+                "id": p.id,
+                "product_code": p.product_code,
+                "product_name": p.product_name,
+                "name": p.product_name,
+                "company_name": p.company_name,
+                "trade_name": trade_str,
+                "category": p.category or "Fertilizer",
+                "unit": unit_str,
+                "purchase_price": p_price,
+                "cost_price": p_price,
+                "selling_price": s_price,
+                "mrp": s_price,
+                "current_stock": c_stock,
+                "minimum_stock": m_stock,
+                "min_stock_level": m_stock,
+                "barcode": barcode_str,
+                "batch_number": p.batch_number or p.product_code or f"BAT-{p.id}",
+                "expiry_date": p.expiry_date,
+                "gst_rate": float(p.gst_rate or 0),
+                "hsn_code": p.hsn_code or "",
+                "is_active": bool(p.is_active),
+            }
             recommendations.append({
                 "product_id": p.id,
                 "product_name": p.product_name,
                 "company_name": p.company_name,
-                "trade_name": prod_data["trade_name"],
+                "trade_name": trade_str,
                 "current_stock": c_stock,
                 "minimum_stock": m_stock,
-                "unit": prod_data["unit"],
-                "purchase_price": prod_data["purchase_price"],
-                "selling_price": prod_data["selling_price"],
-                "barcode": prod_data["barcode"],
+                "unit": unit_str,
+                "purchase_price": p_price,
+                "selling_price": s_price,
+                "barcode": barcode_str,
                 "units_sold_30d": stat["units_sold"],
                 "times_sold_30d": stat["times_sold"],
                 "daily_velocity": round(daily_vel, 2),
+                "sales_velocity_per_day": round(daily_vel, 2),
                 "days_stock_remaining": days_left,
+                "days_of_stock_left": days_left,
                 "urgency": urgency,
                 "reason": reason,
+                "urgency_reason": reason,
                 "recommended_refill_quantity": rec_qty,
-                "product": prod_data
+                "suggested_refill_quantity": rec_qty,
+                "product": lightweight_product,
             })
 
     priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
     recommendations.sort(key=lambda x: (priority_order[x["urgency"]], x["days_stock_remaining"]))
-    return recommendations
+    return recommendations[:limit]
 
 
 @router.post("/refill")
@@ -567,6 +728,7 @@ def refill_stock(
     qty = Decimal(str(payload.additional_quantity if payload.additional_quantity is not None else payload.quantity))
     prev_stock = product.current_stock or Decimal("0")
     product.current_stock = prev_stock + qty
+    sync_variant_stock(db, product, qty)
 
     if payload.purchase_price is not None and payload.purchase_price > 0:
         product.purchase_price = Decimal(str(payload.purchase_price))
@@ -594,7 +756,10 @@ def refill_stock(
 
     batch_no = (payload.new_batch_number or payload.batch_number or "").strip() or product.batch_number or product.product_code or f"BAT-{product.id}"
     product.batch_number = batch_no
-    expiry_dt = (payload.new_expiry_date or payload.expiry_date or "").strip() or product.expiry_date or "2028-12"
+    mfg_dt = (payload.manufacture_date or "").strip() or product.manufacture_date
+    if mfg_dt:
+        product.manufacture_date = mfg_dt
+    expiry_dt = (payload.new_expiry_date or payload.expiry_date or "").strip() or product.expiry_date or None
 
     if expiry_dt:
         product.expiry_date = expiry_dt
@@ -618,6 +783,8 @@ def refill_stock(
 
     if batch:
         batch.current_stock = (batch.current_stock or Decimal("0")) + qty
+        if mfg_dt:
+            batch.manufacture_date = mfg_dt
         batch.expiry_date = expiry_dt
         batch.purchase_price = p_price
         batch.selling_price = s_price
@@ -631,6 +798,7 @@ def refill_stock(
             batch_number=batch_no,
             trade_name=effective_trade_name,
             company_name=effective_company,
+            manufacture_date=mfg_dt,
             expiry_date=expiry_dt,
             purchase_price=p_price,
             selling_price=s_price,
@@ -655,7 +823,7 @@ def refill_stock(
     db.flush()
 
     # Create Purchase voucher / bill
-    unit_str = payload.unit or (product.unit.value if hasattr(product.unit, "value") else str(product.unit))
+    unit_str = _normalize_unit(payload.unit or product.unit)
     gst_rate = product.gst_rate or Decimal("0")
     taxable = qty * p_price
     gst_amount = (taxable * gst_rate / Decimal("100")).quantize(Decimal("0.01"))
@@ -693,6 +861,7 @@ def refill_stock(
 
     db.add(AuditLog(
         user_id=current_user.id,
+        shop_id=shop_id,
         action=AuditAction.INVENTORY_ADJUST,
         reference_id=product.id,
         reference_type="Product",
@@ -701,9 +870,9 @@ def refill_stock(
 
     try:
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save refill: {str(e)}")
+        raise internal_server_error(logger, "Failed to save stock refill")
 
     db.refresh(product)
 
@@ -740,6 +909,7 @@ def search_products(
             Product.company_name.ilike(search),
             Product.barcode.ilike(search),
             Product.batch_number.ilike(search),
+            Product.category_attributes.ilike(search),
         )
     )
     products = query.limit(100).all()
@@ -748,8 +918,9 @@ def search_products(
 
 @router.get("")
 def list_products(
-    skip: int = 0,
-    limit: int = 200,
+    response: Response,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
     search: Optional[str] = None,
     category: Optional[str] = None,
     active_only: bool = True,
@@ -757,18 +928,14 @@ def list_products(
     current_user: User = Depends(get_current_user),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
-    query = db.query(Product).options(
-        selectinload(Product.variants),
-        selectinload(Product.batches),
-        selectinload(Product.price_list),
-    ).filter(Product.shop_id == shop_id)
+    base_query = db.query(Product).filter(Product.shop_id == shop_id)
     if active_only:
-        query = query.filter(Product.is_active == True)
+        base_query = base_query.filter(Product.is_active == True)
     if category and category.strip().upper() != "ALL":
-        query = query.filter(Product.category.ilike(category.strip()))
+        base_query = base_query.filter(Product.category.ilike(category.strip()))
     if search:
         like = f"%{search.strip()}%"
-        query = query.filter(
+        base_query = base_query.filter(
             or_(
                 Product.product_name.ilike(like),
                 Product.trade_name.ilike(like),
@@ -777,9 +944,22 @@ def list_products(
                 Product.barcode.ilike(like),
                 Product.product_code.ilike(like),
                 Product.batch_number.ilike(like),
+                Product.category_attributes.ilike(like),
             )
         )
-    products = query.order_by(Product.product_name).offset(skip).limit(limit).all()
+    total_count = base_query.count()
+    response.headers["X-Total-Count"] = str(total_count)
+    products = (
+        base_query.options(
+            selectinload(Product.variants),
+            selectinload(Product.batches),
+            selectinload(Product.price_list),
+        )
+        .order_by(Product.product_name)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return [serialize_product(p) for p in products]
 
 
@@ -841,44 +1021,46 @@ def create_product(
             }
         )
 
-    # 2. Product code and Barcode generation scoped to shop
-    code = payload.product_code or _generate_code(db, shop_id)
-    while db.query(Product).filter(Product.shop_id == shop_id, Product.product_code == code).first():
-        code = _generate_code(db, shop_id)
-
-    barcode = payload.barcode.strip() if payload.barcode and payload.barcode.strip() else _generate_barcode(db, shop_id)
-
-    # 3. Model creation
+    # 2. Product code and Barcode generation scoped to shop, with IntegrityError retry on concurrent creation (B1/B9)
+    user_supplied_barcode = bool(payload.barcode and payload.barcode.strip())
     valid_cols = {c.name for c in Product.__table__.columns}
     raw_dict = payload.model_dump()
-    p_dict = {
+    base_dict = {
         k: v for k, v in raw_dict.items()
         if k in valid_cols and k not in {"id", "created_at", "updated_at"}
     }
-    p_dict["shop_id"] = shop_id
-    p_dict["product_code"] = code
-    p_dict["barcode"] = barcode
-    p_dict["category"] = payload.category or "Fertilizer"
-    p_dict["batch_number"] = payload.batch_number
-    p_dict["base_selling_price"] = payload.selling_price
+    base_dict["shop_id"] = shop_id
+    base_dict["category"] = payload.category or "Fertilizer"
+    base_dict["batch_number"] = payload.batch_number
+    base_dict["base_selling_price"] = payload.selling_price
+    base_dict["category_attributes"] = _dump_category_attributes(payload.category_attributes)
     if payload.hsn_code:
-        p_dict["hsn_code"] = payload.hsn_code
+        base_dict["hsn_code"] = payload.hsn_code
+    base_dict["unit"] = _normalize_unit(base_dict.get("unit"))
 
-    if "unit" in p_dict and p_dict["unit"] is not None:
-        unit_raw = str(p_dict["unit"]).strip()
-        matched_unit = None
-        for ut in UnitType:
-            if ut.value.lower() == unit_raw.lower() or ut.name.lower() == unit_raw.lower():
-                matched_unit = ut
-                break
-        p_dict["unit"] = matched_unit or UnitType.BAGS
-
-    product = Product(**p_dict)
-    db.add(product)
-    db.flush()
+    product = None
+    barcode = ""
+    for attempt in range(5):
+        code = payload.product_code if (payload.product_code and attempt == 0) else _generate_code(db, shop_id, offset=attempt)
+        barcode = payload.barcode.strip() if user_supplied_barcode else _generate_barcode(db, shop_id, offset=attempt)
+        p_dict = dict(base_dict)
+        p_dict["product_code"] = code
+        p_dict["barcode"] = barcode
+        product = Product(**p_dict)
+        db.add(product)
+        try:
+            db.flush()
+            break
+        except IntegrityError:
+            db.rollback()
+            if user_supplied_barcode or attempt == 4:
+                raise HTTPException(
+                    status_code=409,
+                    detail="A product with this barcode or code already exists in your shop.",
+                )
 
     # 4. Packaging variants creation (e.g. 250ml: Rs 500, 500ml: Rs 1000)
-    unit_str = product.unit.value if hasattr(product.unit, "value") else str(product.unit or "Bags")
+    unit_str = _normalize_unit(product.unit)
     if payload.variants and len(payload.variants) > 0:
         for idx, v_data in enumerate(payload.variants, 1):
             v_name = v_data.get("variant_name") or f"{v_data.get('unit_size', 1)} {v_data.get('unit', unit_str)}"
@@ -937,7 +1119,7 @@ def create_product(
         trade_name=resolved_trade,
         company_name=product.company_name,
         manufacture_date=product.manufacture_date,
-        expiry_date=product.expiry_date or "2028-12",
+        expiry_date=product.expiry_date or None,
         purchase_price=product.purchase_price or Decimal("0"),
         selling_price=initial_selling,
         mrp=Decimal(str(payload.mrp)) if payload.mrp else initial_selling,
@@ -947,7 +1129,7 @@ def create_product(
     db.add(initial_batch)
 
     db.add(AuditLog(
-        user_id=current_user.id, action=AuditAction.PRODUCT_CREATE,
+        user_id=current_user.id, shop_id=shop_id, action=AuditAction.PRODUCT_CREATE,
         reference_id=product.id, reference_type="Product",
         description=f"Created product: {product.product_name} with barcode {barcode} for shop {shop_id}",
     ))
@@ -977,13 +1159,9 @@ def update_product(
         if k in valid_cols and k not in {"id", "created_at", "updated_at", "shop_id"}
     }
     if "unit" in update_data and update_data["unit"] is not None:
-        unit_raw = str(update_data["unit"]).strip()
-        matched_unit = None
-        for ut in UnitType:
-            if ut.value.lower() == unit_raw.lower() or ut.name.lower() == unit_raw.lower():
-                matched_unit = ut
-                break
-        update_data["unit"] = matched_unit or UnitType.BAGS
+        update_data["unit"] = _normalize_unit(update_data["unit"])
+    if "category_attributes" in update_data:
+        update_data["category_attributes"] = _dump_category_attributes(update_data["category_attributes"])
 
     for field, value in update_data.items():
         if field == "barcode" and value:
@@ -1012,7 +1190,7 @@ def update_product(
     if payload.variants is not None:
         for old_v in product.variants:
             db.delete(old_v)
-        unit_str = product.unit.value if hasattr(product.unit, "value") else str(product.unit or "Bags")
+        unit_str = _normalize_unit(product.unit)
         for idx, v_data in enumerate(payload.variants, 1):
             v_name = v_data.get("variant_name") or f"{v_data.get('unit_size', 1)} {v_data.get('unit', unit_str)}"
             v_barcode = v_data.get("barcode") or f"{product.barcode or product.product_code}-{idx}"
@@ -1033,7 +1211,7 @@ def update_product(
     db.refresh(product)
 
     db.add(AuditLog(
-        user_id=current_user.id, action=AuditAction.PRODUCT_UPDATE,
+        user_id=current_user.id, shop_id=shop_id, action=AuditAction.PRODUCT_UPDATE,
         reference_id=product.id, reference_type="Product",
         description=f"Updated product: {product.product_name}",
     ))
@@ -1045,7 +1223,7 @@ def update_product(
 def delete_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
     product = db.query(Product).filter(
@@ -1058,7 +1236,7 @@ def delete_product(
     db.commit()
 
     db.add(AuditLog(
-        user_id=current_user.id, action=AuditAction.PRODUCT_DELETE,
+        user_id=current_user.id, shop_id=shop_id, action=AuditAction.PRODUCT_DELETE,
         reference_id=product.id, reference_type="Product",
     ))
     db.commit()

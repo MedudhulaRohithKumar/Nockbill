@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
@@ -6,8 +7,11 @@ from decimal import Decimal
 from datetime import date, datetime
 from app.database.base import get_db
 from app.models.models import Expense, AuditLog, AuditAction, User, ExpenseCategory
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_owner
+from app.utils.errors import internal_server_error
+from app.utils.helpers import sanitize_text
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 
 # ── Category normalizer ──────────────────────────────────────────────────────
@@ -24,8 +28,8 @@ _CAT_MAP = {
     "freight": ExpenseCategory.TRANSPORTATION,
     "internet": ExpenseCategory.INTERNET,
     "maintenance": ExpenseCategory.MAINTENANCE,
-    "packaging": ExpenseCategory.OTHER,
-    "office": ExpenseCategory.OTHER,
+    "packaging": ExpenseCategory.PACKAGING,
+    "office": ExpenseCategory.OFFICE,
     "misc": ExpenseCategory.OTHER,
     "miscellaneous": ExpenseCategory.OTHER,
     "other": ExpenseCategory.OTHER,
@@ -104,8 +108,10 @@ def _serialize_expense(e: Expense) -> dict:
         "ELECTRICITY": "Electricity",
         "SALARY": "Labor",
         "TRANSPORTATION": "Transport",
-        "INTERNET": "Office",
+        "INTERNET": "Internet",
         "MAINTENANCE": "Maintenance",
+        "PACKAGING": "Packaging",
+        "OFFICE": "Office",
         "OTHER": "Misc",
     }
     return {
@@ -142,26 +148,30 @@ def create_expense(
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
     try:
+        clean_mode = sanitize_text(payload.payment_mode, 30) if payload.payment_mode else "Cash"
         expense = Expense(
             shop_id=shop_id,
-            expense_name=payload.expense_name or payload.description or "Expense",
+            expense_name=sanitize_text(payload.expense_name or payload.description or "Expense", 200) or "Expense",
             category=payload.resolved_category(),
             amount=payload.amount,
             expense_date=payload.resolved_date(),
-            description=payload.description or payload.notes,
+            payment_mode=clean_mode or "Cash",
+            description=sanitize_text(payload.description or payload.notes, 500) if (payload.description or payload.notes) else None,
             created_by=current_user.id,
         )
         db.add(expense)
         db.add(AuditLog(
-            user_id=current_user.id, action=AuditAction.EXPENSE_CREATE,
+            user_id=current_user.id,
+            shop_id=shop_id,
+            action=AuditAction.EXPENSE_CREATE,
             description=f"Expense: {expense.expense_name} ₹{expense.amount}",
         ))
         db.commit()
         db.refresh(expense)
         return _serialize_expense(expense)
-    except Exception as ex:
+    except Exception:
         db.rollback()
-        raise HTTPException(500, f"Failed to save expense: {str(ex)}")
+        raise internal_server_error(logger, "Failed to save expense")
 
 
 @router.put("/{expense_id}")
@@ -178,12 +188,14 @@ def update_expense(
     ).first()
     if not expense:
         raise HTTPException(404, "Expense not found")
-    expense.expense_name = payload.expense_name or payload.description or expense.expense_name
+    expense.expense_name = sanitize_text(payload.expense_name or payload.description or expense.expense_name, 200) or expense.expense_name
     expense.category = payload.resolved_category()
     expense.amount = payload.amount
     expense.expense_date = payload.resolved_date()
-    expense.description = payload.description or payload.notes
-    db.add(AuditLog(user_id=current_user.id, action=AuditAction.EXPENSE_UPDATE, reference_id=expense_id))
+    if payload.payment_mode is not None:
+        expense.payment_mode = sanitize_text(payload.payment_mode, 30) or "Cash"
+    expense.description = sanitize_text(payload.description or payload.notes, 500) if (payload.description or payload.notes) else None
+    db.add(AuditLog(user_id=current_user.id, shop_id=shop_id, action=AuditAction.EXPENSE_UPDATE, reference_id=expense_id))
     db.commit()
     db.refresh(expense)
     return _serialize_expense(expense)
@@ -193,7 +205,7 @@ def update_expense(
 def delete_expense(
     expense_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
     shop_id = getattr(current_user, "shop_id", 1) or 1
     expense = db.query(Expense).filter(
@@ -203,5 +215,5 @@ def delete_expense(
     if not expense:
         raise HTTPException(404, "Expense not found")
     db.delete(expense)
-    db.add(AuditLog(user_id=current_user.id, action=AuditAction.EXPENSE_DELETE, reference_id=expense_id))
+    db.add(AuditLog(user_id=current_user.id, shop_id=shop_id, action=AuditAction.EXPENSE_DELETE, reference_id=expense_id))
     db.commit()

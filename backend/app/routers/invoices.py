@@ -21,6 +21,7 @@ from app.services.s3_service import (
     ReportCategory,
 )
 from app.utils.auth import get_current_user
+from app.utils.helpers import sanitize_download_filename
 
 router = APIRouter(prefix="/api/invoices", tags=["Invoices"])
 
@@ -41,11 +42,12 @@ def download_invoice_pdf(
     if not shop:
         shop = ShopSettings(shop_name="NockBill Solutions")
 
-    filename = f"Invoice_{sale.invoice_number}.pdf"
+    filename = sanitize_download_filename(f"Invoice_{sale.invoice_number}.pdf", f"Invoice_{sale.id}.pdf")
     file_date = sale.sale_date or datetime.now(timezone.utc)
     disposition = "inline" if inline else "attachment"
 
     # If S3 is enabled, upload to scoped customer folder and optionally redirect to presigned URL
+    pdf_bytes: Optional[bytes] = None
     if settings.s3_enabled:
         key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
         if regenerate or not check_report_exists_in_s3(key, ReportCategory.SALES_INVOICE):
@@ -71,8 +73,9 @@ def download_invoice_pdf(
             if presigned_url:
                 return RedirectResponse(url=presigned_url, status_code=307)
 
-    # In-memory streaming fallback
-    pdf_bytes = generate_invoice_pdf(sale, shop)
+    # Reuse already-rendered PDF bytes when S3 upload ran on this request (B7)
+    if pdf_bytes is None:
+        pdf_bytes = generate_invoice_pdf(sale, shop)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -98,7 +101,7 @@ def get_invoice_s3_url(
     if not shop:
         shop = ShopSettings(shop_name="NockBill Solutions")
 
-    filename = f"Invoice_{sale.invoice_number}.pdf"
+    filename = sanitize_download_filename(f"Invoice_{sale.invoice_number}.pdf", f"Invoice_{sale.id}.pdf")
     file_date = sale.sale_date or datetime.now(timezone.utc)
     key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=sale.id)
 
@@ -148,9 +151,10 @@ def download_purchase_pdf(
         shop = ShopSettings(shop_name="NockBill Solutions")
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
-    filename = f"Purchase_{inv_name}.pdf"
+    filename = sanitize_download_filename(f"Purchase_{inv_name}.pdf", f"Purchase_{purchase.id}.pdf")
     file_date = purchase.purchase_date or datetime.now(timezone.utc)
 
+    pdf_bytes: Optional[bytes] = None
     if settings.s3_enabled:
         key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
         if not check_report_exists_in_s3(key, ReportCategory.PURCHASE_BILL):
@@ -176,7 +180,8 @@ def download_purchase_pdf(
             if presigned_url:
                 return RedirectResponse(url=presigned_url, status_code=307)
 
-    pdf_bytes = generate_purchase_pdf(purchase, shop)
+    if pdf_bytes is None:
+        pdf_bytes = generate_purchase_pdf(purchase, shop)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -202,7 +207,7 @@ def get_purchase_s3_url(
         shop = ShopSettings(shop_name="NockBill Solutions")
 
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
-    filename = f"Purchase_{inv_name}.pdf"
+    filename = sanitize_download_filename(f"Purchase_{inv_name}.pdf", f"Purchase_{purchase.id}.pdf")
     file_date = purchase.purchase_date or datetime.now(timezone.utc)
     key = build_date_wise_key(filename, file_date, shop_id=current_user.shop_id, record_id=purchase.id)
 

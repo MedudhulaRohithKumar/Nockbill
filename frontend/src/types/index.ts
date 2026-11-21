@@ -32,6 +32,12 @@ export interface ShopSettings {
   bank_branch?: string;
   upi_id?: string;
   invoice_prefix: string;
+  invoice_counter?: number;
+  default_gst_rate?: number;
+  currency?: string;
+  thermal_print?: boolean;
+  logo_path?: string | null;
+  subscription_status?: string;
   terms_conditions?: string;
 }
 
@@ -42,7 +48,7 @@ export interface ProductBatch {
   trade_name?: string;
   company_name?: string;
   manufacture_date?: string;
-  expiry_date: string;
+  expiry_date?: string | null;
   purchase_price: number;
   selling_price: number;
   mrp?: number;
@@ -74,7 +80,7 @@ export interface Product {
   category: string;
   hsn_code: string;
   unit: string;
-  net_content?: string;
+  net_content?: number | string | null;
   barcode?: string;
   current_stock: number;
   cost_price: number;
@@ -90,7 +96,9 @@ export interface Product {
   mrp: number;
   gst_rate: number;
   batch_number: string;
+  manufacture_date?: string;
   expiry_date?: string;
+  category_attributes?: Record<string, string | number | boolean | undefined>;
   manufacturer?: string;
   min_stock_level: number;
   minimum_stock?: number;
@@ -166,12 +174,21 @@ export interface RefillRecommendation {
   unit: string;
   current_stock: number;
   minimum_stock: number;
+  purchase_price?: number;
+  selling_price?: number;
+  barcode?: string;
   units_sold_30d: number;
+  times_sold_30d?: number;
   sales_velocity_per_day: number;
+  daily_velocity?: number;
   days_of_stock_left: number;
+  days_stock_remaining?: number;
   urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM';
   urgency_reason: string;
+  reason?: string;
   suggested_refill_quantity: number;
+  recommended_refill_quantity?: number;
+  product?: Partial<Product>;
 }
 
 export interface AnalyticsData {
@@ -182,6 +199,7 @@ export interface AnalyticsData {
   };
   summary: {
     total_revenue: number;
+    total_returns?: number;
     total_taxable: number;
     total_gst: number;
     total_bills: number;
@@ -289,7 +307,7 @@ export interface Sale {
 
 export interface PurchaseItem {
   id?: number;
-  product_id: number;
+  product_id?: number | null;
   product_name?: string;
   company_name?: string;
   trade_name?: string;
@@ -323,7 +341,7 @@ export interface Purchase {
 
 export interface Expense {
   id: number;
-  category: 'Rent' | 'Electricity' | 'Transport' | 'Labor' | 'Packaging' | 'Office' | 'Misc';
+  category: 'Rent' | 'Electricity' | 'Transport' | 'Labor' | 'Packaging' | 'Office' | 'Internet' | 'Maintenance' | 'Misc';
   amount: number;
   expense_date: string;
   description: string;

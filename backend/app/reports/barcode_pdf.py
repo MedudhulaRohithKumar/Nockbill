@@ -14,6 +14,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor, black, lightgrey
+from app.utils.helpers import escape_pdf_text as _esc
 
 
 GREEN = HexColor("#1B5E20")
@@ -72,12 +73,12 @@ def generate_barcode_label_pdf(
         def make_cell():
             elements = []
             if include_shop and shop_name:
-                elements.append(Paragraph(shop_name[:28], p_shop))
-            
+                elements.append(Paragraph(_esc(shop_name[:28]), p_shop))
+
             p_title = f"{product_name[:24]}"
             if net_content:
                 p_title += f" ({net_content})"
-            elements.append(Paragraph(p_title, p_prod))
+            elements.append(Paragraph(_esc(p_title), p_prod))
 
             bc = createBarcodeDrawing(
                 'Code128',
@@ -95,7 +96,7 @@ def generate_barcode_label_pdf(
             if include_price and price:
                 info_parts.append(f"MRP: ₹{price:,.2f}")
             if include_batch and batch_number:
-                info_parts.append(f"B: {batch_number}")
+                info_parts.append(f"B: {_esc(batch_number)}")
             if info_parts:
                 elements.append(Paragraph(" | ".join(info_parts), p_sub))
 
@@ -146,13 +147,13 @@ def generate_barcode_label_pdf(
     for i in range(copies):
         # 1. Shop Header
         if include_shop and shop_name:
-            story.append(Paragraph(shop_name[:28], p_shop))
+            story.append(Paragraph(_esc(shop_name[:28]), p_shop))
 
         # 2. Product Name
         prod_title = product_name[:24]
         if net_content and len(prod_title) < 18:
             prod_title += f" {net_content}"
-        story.append(Paragraph(prod_title, p_prod))
+        story.append(Paragraph(_esc(prod_title), p_prod))
 
         # 3. Code128 Barcode Graphic
         bc = createBarcodeDrawing(
@@ -174,7 +175,7 @@ def generate_barcode_label_pdf(
         if gst_rate and gst_rate > 0:
             details.append(f"GST {gst_rate}%")
         if include_batch and batch_number:
-            details.append(f"B:{batch_number}")
+            details.append(f"B:{_esc(batch_number)}")
 
         if details:
             story.append(Paragraph(" | ".join(details), p_info))

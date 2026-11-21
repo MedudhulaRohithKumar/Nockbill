@@ -1,6 +1,8 @@
+import html
 import re
 from decimal import Decimal
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
+from xml.sax.saxutils import escape as _xml_escape
 
 
 # ─── Date normalizers ────────────────────────────────────────────────────────
@@ -326,3 +328,43 @@ def resolve_trade_name(
         return f"{c_clean} {p_clean}"[:200]
 
     return p_clean or c_clean or None
+
+
+# ─── Output Escaping & Injection Defenses (S3, S7) ───────────────────────────
+
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+_SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def escape_pdf_text(value: Any) -> str:
+    """Escape XML special characters (&, <, >, quotes) before ReportLab Paragraph rendering (S3)."""
+    if value is None:
+        return ""
+    return _xml_escape(str(value), {'"': "&quot;", "'": "&apos;"})
+
+
+def escape_html_text(value: Any) -> str:
+    """Escape HTML special characters before embedding untrusted text in SES HTML emails (S3)."""
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=True)
+
+
+def sanitize_excel_cell(value: Any) -> Any:
+    """Neutralize Excel/CSV formula injection (=, +, -, @, tab, CR) in string cells (S3)."""
+    if not isinstance(value, str):
+        return value
+    stripped = value.lstrip(" ")
+    if stripped and stripped[0] in _FORMULA_PREFIXES:
+        return "'" + value
+    return value
+
+
+def sanitize_download_filename(filename: str, fallback: str = "document.pdf") -> str:
+    """Strip CR/LF, quotes, path separators, and unsafe header characters for Content-Disposition (S7)."""
+    if not filename:
+        return fallback
+    base = str(filename).replace("\\", "/").rsplit("/", 1)[-1]
+    cleaned = _SAFE_FILENAME_RE.sub("_", base).strip("._")
+    return cleaned[:120] if cleaned else fallback
+

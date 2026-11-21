@@ -10,7 +10,9 @@ import os
 import logging
 import mimetypes
 import base64
-from typing import Dict, Any
+import json
+import uuid
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -38,6 +40,23 @@ MIME_OVERRIDES = {
 
 BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".ico", ".woff", ".woff2", ".ttf", ".eot"}
 
+def _build_connect_src() -> str:
+    """connect-src: 'self', exact ALLOWED_ORIGINS entries and Google auth endpoints (no blanket https:)."""
+    sources = ["'self'"]
+    for origin in os.environ.get("ALLOWED_ORIGINS", "").split(","):
+        origin = origin.strip().rstrip("/")
+        if origin and origin != "*" and origin not in sources:
+            sources.append(origin)
+    for google in ("https://accounts.google.com", "https://oauth2.googleapis.com", "https://www.googleapis.com"):
+        if google not in sources:
+            sources.append(google)
+    return " ".join(sources)
+
+
+_CONNECT_SRC = _build_connect_src()
+
+# NOTE (accepted risk): style-src keeps 'unsafe-inline' because React inline style attributes
+# cannot be nonced/hashed. Scripts remain restricted to 'self' + Google/jsdelivr hosts.
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -53,7 +72,7 @@ SECURITY_HEADERS = {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
-        "connect-src 'self' https: https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; "
+        f"connect-src {_CONNECT_SRC}; "
         "frame-src 'self' https://accounts.google.com; "
         "frame-ancestors 'none'; "
         "object-src 'none'; "
@@ -61,6 +80,52 @@ SECURITY_HEADERS = {
         "form-action 'self';"
     )
 }
+
+
+def _allowed_origins() -> set:
+    """Exact-match CORS allowlist from env ALLOWED_ORIGINS (comma separated). No wildcards."""
+    raw = os.environ.get("ALLOWED_ORIGINS", "")
+    return {o.strip().rstrip("/") for o in raw.split(",") if o.strip() and o.strip() != "*"}
+
+
+def _get_header(event: Dict[str, Any], name: str) -> str:
+    for key, value in (event.get("headers") or {}).items():
+        if key.lower() == name.lower():
+            return value or ""
+    return ""
+
+
+def resolve_cors_origin(event: Dict[str, Any]) -> Optional[str]:
+    """Return the request Origin only if it is allowlisted (or is this function's own origin)."""
+    origin = _get_header(event, "origin").strip().rstrip("/")
+    if not origin or origin == "*":
+        return None
+    allowed = _allowed_origins()
+    own_domain = (event.get("requestContext") or {}).get("domainName")
+    if own_domain:
+        allowed.add(f"https://{own_domain}")
+    return origin if origin in allowed else None
+
+
+def cors_headers(event: Dict[str, Any], allow_credentials: bool = True) -> Dict[str, str]:
+    """CORS response headers. Always sets Vary: Origin; allow headers only for allowlisted origins."""
+    headers = {"Vary": "Origin"}
+    origin = resolve_cors_origin(event)
+    if origin:
+        headers["Access-Control-Allow-Origin"] = origin
+        if allow_credentials:
+            headers["Access-Control-Allow-Credentials"] = "true"
+    return headers
+
+
+def error_response(status: int, event: Dict[str, Any], message: str, request_id: str) -> Dict[str, Any]:
+    """Generic JSON error: never leak exception text to clients."""
+    return {
+        "statusCode": status,
+        "headers": {"Content-Type": "application/json", **cors_headers(event), **SECURITY_HEADERS},
+        "body": json.dumps({"detail": message, "request_id": request_id}),
+        "isBase64Encoded": False,
+    }
 
 
 def get_content_type(file_path: str) -> str:
@@ -103,7 +168,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # Google OAuth Verification Bridge (runs in Frontend Lambda outside VPC with direct internet)
     if clean_path == "oauth/google-verify":
-        import json
         import hmac
         import hashlib
         import time
@@ -116,13 +180,28 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {
                 "statusCode": 204,
                 "headers": {
-                    "Access-Control-Allow-Origin": "*",
+                    **cors_headers(event, allow_credentials=False),
                     "Access-Control-Allow-Methods": "POST, OPTIONS",
                     "Access-Control-Allow-Headers": "Content-Type, Authorization",
                 },
                 "body": "",
                 "isBase64Encoded": False,
             }
+
+        # Reject unallowlisted cross-origin calls and include allowlisted CORS headers on POST (S8)
+        raw_origin = _get_header(event, "origin").strip()
+        if raw_origin and not resolve_cors_origin(event):
+            return {
+                "statusCode": 403,
+                "headers": {"Content-Type": "application/json", "Vary": "Origin", **SECURITY_HEADERS},
+                "body": json.dumps({"detail": "Origin not allowed."}),
+                "isBase64Encoded": False,
+            }
+        bridge_headers = {
+            "Content-Type": "application/json",
+            **cors_headers(event, allow_credentials=False),
+            **SECURITY_HEADERS,
+        }
 
         try:
             raw_body = event.get("body") or "{}"
@@ -136,7 +215,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if not token_str:
             return {
                 "statusCode": 400,
-                "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+                "headers": bridge_headers,
                 "body": json.dumps({"detail": "Google credential token is missing."}),
                 "isBase64Encoded": False,
             }
@@ -247,7 +326,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         sig = hmac.new(bridge_secret, claims_b64.encode("ascii"), hashlib.sha256).hexdigest()
         return {
             "statusCode": 200,
-            "headers": {"Content-Type": "application/json", **SECURITY_HEADERS},
+            "headers": bridge_headers,
             "body": json.dumps({"verified_credential": f"nockbill_gauth.{claims_b64}.{sig}"}),
             "isBase64Encoded": False,
         }
@@ -273,14 +352,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Fast preflight response
         if method == "OPTIONS":
-            req_origin = event.get("headers", {}).get("origin") or event.get("headers", {}).get("Origin") or "*"
             return {
                 "statusCode": 204,
                 "headers": {
-                    "Access-Control-Allow-Origin": req_origin,
+                    **cors_headers(event),
                     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
                     "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept, X-Requested-With",
-                    "Access-Control-Allow-Credentials": "true",
                 },
                 "body": "",
                 "isBase64Encoded": False,
@@ -300,10 +377,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Set-Cookie headers are returned via Lambda payload format 2.0 top-level 'cookies' key.
                 if kl in HOP_BY_HOP or kl.startswith("x-amzn-") or kl.startswith("x-amz-") or kl == "set-cookie":
                     continue
+                # Drop any upstream CORS headers; the allowlist below is authoritative.
+                if kl.startswith("access-control-") or kl == "vary":
+                    continue
                 out[k] = v
-            req_origin = event.get("headers", {}).get("origin") or event.get("headers", {}).get("Origin") or "*"
-            out["access-control-allow-origin"] = req_origin
-            out["access-control-allow-credentials"] = "true"
+            out.update(cors_headers(event))
             return out
 
         def get_response_cookies(header_obj):
@@ -349,17 +427,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if cookie_list:
                 out_resp["cookies"] = cookie_list
             return out_resp
-        except Exception as err:
-            return {
-                "statusCode": 502,
-                "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
-                "body": f'{{"error": "Backend Function URL proxy failed: {str(err)}"}}',
-                "isBase64Encoded": False,
-            }
+        except Exception:
+            request_id = uuid.uuid4().hex[:12]
+            logger.exception("Backend proxy failed [request_id=%s]", request_id)
+            return error_response(502, event, "Upstream service unavailable.", request_id)
 
-    # Check if target is a concrete static asset in dist/
-    target_file = os.path.join(DIST_DIR, clean_path)
-    is_static_file = os.path.isfile(target_file) and not os.path.isdir(target_file)
+    # Check if target is a concrete static asset strictly inside DIST_DIR (S8 realpath containment)
+    dist_real = os.path.realpath(DIST_DIR)
+    target_file = os.path.realpath(os.path.join(dist_real, clean_path))
+    is_contained = target_file == dist_real or target_file.startswith(dist_real + os.sep)
+    is_static_file = is_contained and os.path.isfile(target_file) and not os.path.isdir(target_file)
 
     if is_static_file and clean_path:
         content_type = get_content_type(target_file)
@@ -390,12 +467,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "body": content.decode("utf-8", errors="replace"),
                     "isBase64Encoded": False,
                 }
-        except Exception as e:
-            return {
-                "statusCode": 500,
-                "headers": {"Content-Type": "text/plain"},
-                "body": f"Error reading asset: {str(e)}",
-            }
+        except Exception:
+            request_id = uuid.uuid4().hex[:12]
+            logger.exception("Error reading asset [request_id=%s]", request_id)
+            return error_response(500, event, "Internal server error.", request_id)
 
     # SPA Client-side Route fallback: Serve index.html
     index_path = os.path.join(DIST_DIR, "index.html")
@@ -424,9 +499,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "body": html_content,
             "isBase64Encoded": False,
         }
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "text/plain"},
-            "body": f"Internal Server Error: {str(e)}",
-        }
+    except Exception:
+        request_id = uuid.uuid4().hex[:12]
+        logger.exception("Error serving index.html [request_id=%s]", request_id)
+        return error_response(500, event, "Internal server error.", request_id)

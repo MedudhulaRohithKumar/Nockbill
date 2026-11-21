@@ -1,4 +1,4 @@
-FROM python:3.11.10-slim
+FROM python:3.11.15-slim
 
 # Install system dependencies including Tesseract OCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,5 +26,6 @@ COPY alembic /var/task/alembic
 RUN useradd -m -u 1000 appuser && chmod -R a+rX /var/task
 USER appuser
 
+# Note: Lambda runs via awslambdaric (no uvicorn process, hence no Server header / --no-server-header).
 ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
 CMD ["app.lambda_handler.handler"]

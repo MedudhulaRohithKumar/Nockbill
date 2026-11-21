@@ -1,27 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
-  Filter, 
   AlertTriangle, 
   Clock, 
   Edit, 
-  Trash2, 
-  Layers, 
   ArrowUpDown,
-  CheckCircle2,
   X,
   Package,
   Barcode,
   RotateCcw,
-  Sparkles,
   Zap,
-  Printer,
-  ChevronRight,
-  TrendingUp,
-  Info,
-  Tag
+  Tag,
+  ShieldCheck
 } from 'lucide-react';
 import { productsApi, inventoryApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, RefillRecommendation } from '../types';
@@ -34,27 +26,95 @@ import {
   clampNonNegative,
   resolveTradeName,
 } from '../utils/formatters';
+import { INVENTORY_PAGE_SIZE, clampPage, getPageRange, getTotalPages } from '../utils/pagination';
+import { filterByAlert, mergeProductsById } from '../utils/inventoryFilters';
 import { CustomSelect } from '../components/common/CustomSelect';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import { BarcodePrintModal } from '../components/inventory/BarcodePrintModal';
+import { ProductFormModal } from '../components/inventory/ProductFormModal';
+import {
+  INVENTORY_CATEGORIES,
+  INVENTORY_CATEGORY_CONFIGS,
+  InventoryCategoryId,
+  normalizeCategory,
+  normalizeUnit,
+  getCategoryConfig,
+  getAllowedVariantUnits,
+  getCategoryAttributeBadges,
+} from '../config/inventoryCategories';
+
+function toDateInputValue(raw?: string | null): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  if (/^\d{4}-\d{2}$/.test(trimmed)) return `${trimmed}-01`;
+  return trimmed;
+}
 
 export const InventoryPage: React.FC = () => {
   const { settings } = useShop();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // `catalog` backs modal helpers (refill typeahead, trade-name resolution); `pageItems` backs the table.
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [pageItems, setPageItems] = useState<Product[]>([]);
+  const [pageTotal, setPageTotal] = useState(0);
+  const [alertItems, setAlertItems] = useState<Product[] | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const requestSeq = useRef(0);
   const [recommendations, setRecommendations] = useState<RefillRecommendation[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const initialCategoryParam = searchParams.get('category');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialCategoryParam && initialCategoryParam.toUpperCase() !== 'ALL'
+      ? normalizeCategory(initialCategoryParam)
+      : 'ALL'
+  );
   const [filterType, setFilterType] = useState<'ALL' | 'LOW_STOCK' | 'NEAR_EXPIRY'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Debounce server-side search; any change of search/category/alert-filter resets to page 1.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [search]);
+  const filterKey = `${debouncedSearch}|${selectedCategory}|${filterType}`;
+  const [pageState, setPageState] = useState({ key: filterKey, page: 1 });
+  const page = pageState.key === filterKey ? pageState.page : 1;
+  const setPage = (next: number) => setPageState({ key: filterKey, page: next });
+
+  // Merge of everything known client-side (used by modals / lookups)
+  const products = useMemo(() => mergeProductsById(pageItems, catalog), [pageItems, catalog]);
+
+  // Keep selectedCategory synchronized with sidebar dropdown URL (?category=...)
+  useEffect(() => {
+    const paramCat = searchParams.get('category');
+    if (!paramCat || paramCat.toUpperCase() === 'ALL') {
+      setSelectedCategory('ALL');
+    } else {
+      setSelectedCategory(normalizeCategory(paramCat));
+    }
+  }, [searchParams]);
+
+  const handleCategorySelect = (cat: string) => {
+    const normalized = cat === 'ALL' ? 'ALL' : normalizeCategory(cat);
+    setSelectedCategory(normalized);
+    if (normalized === 'ALL') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ category: normalized }, { replace: true });
+    }
+  };
 
   // Add / Edit Modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   const [tradeNameManuallyEdited, setTradeNameManuallyEdited] = useState(false);
+  const [enableVariantsForOthers, setEnableVariantsForOthers] = useState(false);
 
   // Duplicate Check State
   const [duplicateAlert, setDuplicateAlert] = useState<{
@@ -80,6 +140,7 @@ export const InventoryPage: React.FC = () => {
   const [refillQty, setRefillQty] = useState<number>(10);
   const [refillUnit, setRefillUnit] = useState<string>('Bags');
   const [refillBatch, setRefillBatch] = useState<string>('');
+  const [refillMfgDate, setRefillMfgDate] = useState<string>('');
   const [refillExpiry, setRefillExpiry] = useState<string>('');
   const [refillPurchasePrice, setRefillPurchasePrice] = useState<number>(0);
   const [refillSellingPrice, setRefillSellingPrice] = useState<number>(0);
@@ -94,70 +155,212 @@ export const InventoryPage: React.FC = () => {
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
 
-  const loadProducts = async () => {
+  // Active category rules for Add/Edit modal
+  const activeEditCategoryConfig = useMemo(
+    () => getCategoryConfig(editingProduct?.category),
+    [editingProduct?.category]
+  );
+
+  const allowedEditVariantUnits = useMemo(
+    () => getAllowedVariantUnits(editingProduct?.unit, editingProduct?.category),
+    [editingProduct?.unit, editingProduct?.category]
+  );
+
+  const openAddProductModal = (categoryOverride?: string) => {
+    const targetCategory: InventoryCategoryId =
+      categoryOverride && categoryOverride !== 'ALL'
+        ? normalizeCategory(categoryOverride)
+        : selectedCategory !== 'ALL'
+        ? normalizeCategory(selectedCategory)
+        : 'Fertilizer';
+    const cfg = getCategoryConfig(targetCategory);
+    setEditingProduct({
+      name: '',
+      company_name: '',
+      trade_name: '',
+      category: cfg.id,
+      hsn_code: '',
+      unit: cfg.defaultUnit,
+      current_stock: 0,
+      cost_price: 0,
+      selling_price: 0,
+      mrp: 0,
+      gst_rate: cfg.defaultGstRate,
+      batch_number: '',
+      manufacture_date: '',
+      expiry_date: '',
+      category_attributes: {},
+      min_stock_level: 20,
+    });
+    setTradeNameManuallyEdited(false);
+    setProductVariants([]);
+    setEnableVariantsForOthers(false);
+    setDuplicateAlert(null);
+    setIsEditModalOpen(true);
+  };
+
+  const openEditProductModal = (p: Product) => {
+    const normalizedCat = normalizeCategory(p.category);
+    const normalizedUnitVal = normalizeUnit(p.unit);
+    const existingVariants = (p.variants || []).map((v) => ({
+      ...v,
+      unit: normalizeUnit(v.unit),
+    }));
+    setEditingProduct({
+      ...p,
+      category: normalizedCat,
+      unit: normalizedUnitVal,
+      manufacture_date: toDateInputValue(p.manufacture_date),
+      expiry_date: toDateInputValue(p.expiry_date),
+      category_attributes: { ...(p.category_attributes || {}) },
+    });
+    setTradeNameManuallyEdited(Boolean(p.trade_name));
+    setProductVariants(existingVariants);
+    setEnableVariantsForOthers(normalizedCat !== 'Others' || existingVariants.length > 1);
+    setDuplicateAlert(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditCategoryChange = (newCategory: string) => {
+    if (!editingProduct) return;
+    const nextCfg = getCategoryConfig(newCategory);
+    const currentUnitNorm = normalizeUnit(editingProduct.unit);
+    const nextUnit = nextCfg.allowedUnits.includes(currentUnitNorm)
+      ? currentUnitNorm
+      : nextCfg.defaultUnit;
+    const nextAllowedVariantUnits = getAllowedVariantUnits(nextUnit, nextCfg.id);
+
+    setEditingProduct({
+      ...editingProduct,
+      category: nextCfg.id,
+      unit: nextUnit,
+      gst_rate: nextCfg.defaultGstRate,
+      expiry_date: nextCfg.dateFields.showExpiryDate ? editingProduct.expiry_date || '' : '',
+      manufacture_date: nextCfg.dateFields.showMfgDate ? editingProduct.manufacture_date || '' : '',
+    });
+
+    if (nextCfg.packagingVariantsMode === 'optional_collapsed') {
+      setEnableVariantsForOthers(productVariants.length > 1);
+    }
+
+    if (productVariants.length > 0) {
+      setProductVariants(
+        productVariants.map((v) => ({
+          ...v,
+          unit: nextAllowedVariantUnits.includes(normalizeUnit(v.unit))
+            ? normalizeUnit(v.unit)
+            : nextAllowedVariantUnits[0],
+        }))
+      );
+    }
+  };
+
+  const handleEditUnitChange = (newUnit: string) => {
+    if (!editingProduct) return;
+    const nextUnit = normalizeUnit(newUnit);
+    const nextAllowedVariantUnits = getAllowedVariantUnits(nextUnit, editingProduct.category);
+    setEditingProduct({ ...editingProduct, unit: nextUnit });
+    if (productVariants.length > 0) {
+      setProductVariants(
+        productVariants.map((v) => ({
+          ...v,
+          unit: nextAllowedVariantUnits.includes(normalizeUnit(v.unit))
+            ? normalizeUnit(v.unit)
+            : nextAllowedVariantUnits[0],
+        }))
+      );
+    }
+  };
+
+  // Load the visible table page (server-side pagination, or all pages when an alert filter needs client-side filtering)
+  const loadPage = async () => {
+    const seq = ++requestSeq.current;
     setIsLoading(true);
+    try {
+      const category = selectedCategory === 'ALL' ? undefined : selectedCategory;
+      if (filterType === 'ALL') {
+        const { items, total } = await productsApi.getPage({
+          skip: (page - 1) * INVENTORY_PAGE_SIZE,
+          limit: INVENTORY_PAGE_SIZE,
+          search: debouncedSearch || undefined,
+          category,
+        });
+        if (seq !== requestSeq.current) return;
+        if (items.length === 0 && total > 0 && page > 1) {
+          setPage(clampPage(page, total, INVENTORY_PAGE_SIZE));
+          return;
+        }
+        setPageItems(items);
+        setPageTotal(total);
+        setAlertItems(null);
+      } else {
+        const all = await productsApi.getAllPages({ search: debouncedSearch || undefined, category });
+        if (seq !== requestSeq.current) return;
+        const matched = filterByAlert(all, filterType);
+        setAlertItems(matched);
+        setPageTotal(matched.length);
+      }
+    } catch {
+      // Keep the previous page on transient failures
+    } finally {
+      if (seq === requestSeq.current) setIsLoading(false);
+    }
+  };
+
+  // Per-category totals via X-Total-Count (limit=1 requests) so tabs stay accurate beyond one page
+  const loadCategoryCounts = async () => {
+    try {
+      const [all, ...perCategory] = await Promise.all([
+        productsApi.getPage({ limit: 1 }),
+        ...INVENTORY_CATEGORIES.map((cat) => productsApi.getPage({ limit: 1, category: cat })),
+      ]);
+      const counts: Record<string, number> = { ALL: all.total };
+      INVENTORY_CATEGORIES.forEach((cat, idx) => {
+        counts[cat] = perCategory[idx].total;
+      });
+      setCategoryCounts(counts);
+    } catch {
+      // Counts are cosmetic; ignore failures
+    }
+  };
+
+  const loadCatalog = async () => {
     try {
       const [data, recs] = await Promise.all([
         productsApi.getAll(),
         productsApi.getRefillRecommendations().catch(() => [])
       ]);
-      setProducts(data);
+      setCatalog(data);
       setRecommendations(recs || []);
     } catch {
       // Local fallback
-    } finally {
-      setIsLoading(false);
     }
   };
 
+  const loadProducts = async () => {
+    await Promise.all([loadCatalog(), loadPage(), loadCategoryCounts()]);
+  };
+
   useEffect(() => {
-    void loadProducts();
+    void loadPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filterKey]);
+
+  useEffect(() => {
+    void loadCatalog();
+    void loadCategoryCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fast memoized filter including Trade Name search
+  // Rows rendered in the table (server page, or a local slice when an alert filter is active)
   const filteredProducts = useMemo(() => {
-    let list = [...products];
+    if (alertItems === null) return pageItems;
+    const start = (page - 1) * INVENTORY_PAGE_SIZE;
+    return alertItems.slice(start, start + INVENTORY_PAGE_SIZE);
+  }, [pageItems, alertItems, page]);
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(p => {
-        const pName = safeString(p.name || p.product_name).toLowerCase();
-        const pTrade = safeString(p.trade_name).toLowerCase();
-        const pCategory = safeString(p.category).toLowerCase();
-        const pBatch = safeString(p.batch_number || p.product_code).toLowerCase();
-        const pHsn = safeString(p.hsn_code).toLowerCase();
-        const pBarcode = safeString(p.barcode).toLowerCase();
-        const pCompany = safeString(p.company_name).toLowerCase();
-        return (
-          pName.includes(q) ||
-          pTrade.includes(q) ||
-          pCategory.includes(q) ||
-          pBatch.includes(q) ||
-          pHsn.includes(q) ||
-          pBarcode.includes(q) ||
-          pCompany.includes(q)
-        );
-      });
-    }
-
-    if (selectedCategory !== 'ALL') {
-      list = list.filter(p => safeString(p.category).toLowerCase() === selectedCategory.toLowerCase());
-    }
-
-    if (filterType === 'LOW_STOCK') {
-      list = list.filter(p => safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20));
-    } else if (filterType === 'NEAR_EXPIRY') {
-      const ninetyDaysFromNow = new Date();
-      ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
-      list = list.filter(p => {
-        if (!p.expiry_date) return false;
-        const expTime = new Date(p.expiry_date).getTime();
-        return !Number.isNaN(expTime) && expTime <= ninetyDaysFromNow.getTime();
-      });
-    }
-
-    return list;
-  }, [products, search, selectedCategory, filterType]);
+  const totalPages = getTotalPages(pageTotal, INVENTORY_PAGE_SIZE);
+  const pageRange = getPageRange(page, pageTotal, INVENTORY_PAGE_SIZE);
 
   // Resolve Trade Name suggestions for Add/Edit Product Modal
   const editTradeResolution = useMemo(() => {
@@ -170,6 +373,11 @@ export const InventoryPage: React.FC = () => {
   const selectedRefillProduct = useMemo(
     () => products.find(p => p.id === refillProductId) || null,
     [products, refillProductId]
+  );
+
+  const refillCategoryConfig = useMemo(
+    () => getCategoryConfig(selectedRefillProduct?.category),
+    [selectedRefillProduct?.category]
   );
 
   const refillTradeResolution = useMemo(() => {
@@ -217,12 +425,13 @@ export const InventoryPage: React.FC = () => {
     setRefillCompanyName(compName);
     setRefillTradeName(resolved);
     setRefillTradeManuallyEdited(false);
-    setRefillUnit(prod.unit || 'Bags');
+    setRefillUnit(normalizeUnit(prod.unit));
     setRefillPurchasePrice(prod.purchase_price ?? prod.cost_price ?? 0);
     setRefillSellingPrice(prod.selling_price ?? 0);
     setRefillMrp(prod.mrp ?? prod.selling_price ?? 0);
     setRefillBatch(prod.batch_number || '');
-    setRefillExpiry(prod.expiry_date || '');
+    setRefillMfgDate(toDateInputValue(prod.manufacture_date));
+    setRefillExpiry(toDateInputValue(prod.expiry_date));
     setRefillSupplier(prod.company_name || 'Stock Refill Supplier');
   };
 
@@ -239,6 +448,7 @@ export const InventoryPage: React.FC = () => {
       setRefillQty(suggestedQty);
       setRefillUnit('Bags');
       setRefillBatch('');
+      setRefillMfgDate('');
       setRefillExpiry('');
       setRefillPurchasePrice(0);
       setRefillSellingPrice(0);
@@ -259,16 +469,59 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
+    const catConfig = getCategoryConfig(editingProduct.category);
     const prodName = sanitizeTextInput(editingProduct.name || (editingProduct as any).product_name || '', 200).trim();
     if (!prodName) {
       alert('Please enter a valid Product Name.');
       return;
     }
+
+    const cleanBatch = sanitizeCodeInput(editingProduct.batch_number || '', 60).trim();
+    if (catConfig.batchField.required && !cleanBatch) {
+      alert(`${catConfig.batchField.label} is mandatory for ${catConfig.label} products.`);
+      return;
+    }
+
+    const cleanMfgDate = (editingProduct.manufacture_date || '').trim();
+    const cleanExpiryDate = catConfig.dateFields.showExpiryDate
+      ? (editingProduct.expiry_date || '').trim()
+      : '';
+
+    if (catConfig.dateFields.showMfgDate && catConfig.dateFields.mfgRequired && !cleanMfgDate) {
+      alert(`${catConfig.dateFields.mfgLabel} is mandatory for ${catConfig.label} products.`);
+      return;
+    }
+    if (catConfig.dateFields.showExpiryDate && catConfig.dateFields.expiryRequired && !cleanExpiryDate) {
+      alert(`${catConfig.dateFields.expiryLabel} is mandatory for ${catConfig.label} products.`);
+      return;
+    }
+
     const compName = sanitizeTextInput(editingProduct.company_name || '', 200).trim();
     const tradeName = sanitizeTextInput(
       editingProduct.trade_name || editTradeResolution.suggested || `${compName} ${prodName}`.trim(),
       200
     ).trim();
+
+    // Keep only category-relevant compliance attributes
+    const allowedExtraKeys = new Set<string>([
+      ...catConfig.extraFields.map((f) => f.key),
+      ...(catConfig.dateFields.showWarrantyField ? ['warranty_months'] : []),
+    ]);
+    const cleanedAttrs: Record<string, string | number | boolean> = {};
+    if (editingProduct.category_attributes) {
+      for (const [k, v] of Object.entries(editingProduct.category_attributes)) {
+        if (!allowedExtraKeys.has(k) || v === undefined || v === null) continue;
+        const valStr = typeof v === 'string' ? sanitizeTextInput(v, 150).trim() : v;
+        if (valStr !== '') {
+          cleanedAttrs[k] = valStr;
+        }
+      }
+    }
+
+    const effectiveVariants =
+      catConfig.packagingVariantsMode === 'optional_collapsed' && !enableVariantsForOthers
+        ? []
+        : productVariants;
 
     const payload = {
       ...editingProduct,
@@ -276,16 +529,20 @@ export const InventoryPage: React.FC = () => {
       name: prodName,
       company_name: compName,
       trade_name: tradeName,
-      category: editingProduct.category || 'Fertilizer',
+      category: catConfig.id,
+      unit: normalizeUnit(editingProduct.unit || catConfig.defaultUnit),
       hsn_code: sanitizeCodeInput(editingProduct.hsn_code || '', 30),
-      batch_number: sanitizeCodeInput(editingProduct.batch_number || '', 60),
+      batch_number: cleanBatch,
+      manufacture_date: catConfig.dateFields.showMfgDate ? cleanMfgDate : '',
+      expiry_date: cleanExpiryDate,
+      category_attributes: cleanedAttrs,
       purchase_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
       cost_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
       selling_price: clampNonNegative(editingProduct.selling_price ?? 0),
       current_stock: clampNonNegative(editingProduct.current_stock ?? 0),
       minimum_stock: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
       min_stock_level: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
-      variants: productVariants,
+      variants: effectiveVariants,
     };
 
     try {
@@ -326,11 +583,12 @@ export const InventoryPage: React.FC = () => {
       await productsApi.refillStock({
         product_id: refillProductId,
         quantity: clampNonNegative(refillQty),
-        unit: refillUnit,
+        unit: normalizeUnit(refillUnit),
         company_name: cleanCompany || undefined,
         trade_name: cleanTrade || undefined,
         batch_number: sanitizeCodeInput(refillBatch, 60),
-        expiry_date: refillExpiry,
+        manufacture_date: refillCategoryConfig.dateFields.showMfgDate ? refillMfgDate || undefined : undefined,
+        expiry_date: refillCategoryConfig.dateFields.showExpiryDate ? refillExpiry : undefined,
         purchase_price: clampNonNegative(refillPurchasePrice),
         selling_price: clampNonNegative(refillSellingPrice),
         mrp: clampNonNegative(refillMrp),
@@ -372,12 +630,13 @@ export const InventoryPage: React.FC = () => {
   };
 
   const addVariantRow = () => {
+    const defaultVariantUnit = allowedEditVariantUnits[0] || normalizeUnit(editingProduct?.unit);
     setProductVariants([
       ...productVariants,
       {
         variant_name: '',
         unit_size: 1,
-        unit: editingProduct?.unit || 'Kg',
+        unit: defaultVariantUnit,
         purchase_price: editingProduct?.cost_price || 0,
         selling_price: editingProduct?.selling_price || 0,
         mrp: editingProduct?.mrp || 0,
@@ -396,6 +655,8 @@ export const InventoryPage: React.FC = () => {
     setProductVariants(productVariants.filter((_, i) => i !== index));
   };
 
+  const activeFilterCategoryConfig = selectedCategory !== 'ALL' ? getCategoryConfig(selectedCategory) : null;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Top Banner & Header */}
@@ -406,11 +667,22 @@ export const InventoryPage: React.FC = () => {
               <Package className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                Fertilizer Inventory & Warehouse
-              </h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                  {activeFilterCategoryConfig
+                    ? `${activeFilterCategoryConfig.label} Inventory`
+                    : 'Agri Inventory & Warehouse'}
+                </h1>
+                {activeFilterCategoryConfig && (
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${activeFilterCategoryConfig.badgeClass}`}>
+                    {activeFilterCategoryConfig.regulationTag}
+                  </span>
+                )}
+              </div>
               <p className="text-xs sm:text-sm text-slate-500">
-                Barcodes, multi-unit packagings, batch lifecycle, duplicate checks & intelligent refills
+                {activeFilterCategoryConfig
+                  ? `${activeFilterCategoryConfig.shortDescription} • ${activeFilterCategoryConfig.gstHint}`
+                  : 'FCO, Insecticides Act & Seeds Act compliant inventory, dynamic fields, smart units & refills'}
               </p>
             </div>
           </div>
@@ -420,6 +692,7 @@ export const InventoryPage: React.FC = () => {
           {/* Price Lists Button (Owner Only) */}
           {user?.role === 'owner' && (
             <button
+              type="button"
               onClick={() => navigate('/price-lists')}
               className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-xs transition-all active:scale-95"
             >
@@ -430,6 +703,7 @@ export const InventoryPage: React.FC = () => {
 
           {/* Refill Button */}
           <button
+            type="button"
             onClick={() => {
               openRefillModal(null);
             }}
@@ -441,31 +715,14 @@ export const InventoryPage: React.FC = () => {
 
           {/* Add Product Button */}
           <button
-            onClick={() => {
-              setEditingProduct({
-                name: '',
-                company_name: '',
-                trade_name: '',
-                category: 'Fertilizer',
-                hsn_code: '',
-                unit: 'Bags',
-                current_stock: 0,
-                cost_price: 0,
-                selling_price: 0,
-                mrp: 0,
-                gst_rate: 5,
-                batch_number: '',
-                min_stock_level: 20,
-              });
-              setTradeNameManuallyEdited(false);
-              setProductVariants([]);
-              setDuplicateAlert(null);
-              setIsEditModalOpen(true);
-            }}
+            type="button"
+            onClick={() => openAddProductModal()}
             className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>Add New Product</span>
+            <span>
+              {activeFilterCategoryConfig ? `Add ${activeFilterCategoryConfig.label}` : 'Add New Product'}
+            </span>
           </button>
         </div>
       </div>
@@ -555,24 +812,44 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filter Tabs & Search Bar */}
+      {/* Filter Tabs, Category Dropdown & Search Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          {/* Search box */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product, category (Fertilizer, Seeds, Others...), barcode, batch, or company..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-none"
-            />
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
+            {/* Search box */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search product, CIB/NPK/Lot, category, barcode, batch, or company..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            {/* Category Selector Dropdown */}
+            <div className="w-full sm:w-56 shrink-0">
+              <CustomSelect
+                size="sm"
+                value={selectedCategory}
+                onChange={(val) => handleCategorySelect(val)}
+                placeholder="Filter by Category"
+                options={[
+                  { value: 'ALL', label: `All Categories (${categoryCounts.ALL || 0})` },
+                  ...INVENTORY_CATEGORIES.map((catId) => ({
+                    value: catId,
+                    label: `${INVENTORY_CATEGORY_CONFIGS[catId].label} (${categoryCounts[catId] || 0})`,
+                  })),
+                ]}
+              />
+            </div>
           </div>
 
           {/* Alert Filter Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
+              type="button"
               onClick={() => setFilterType('ALL')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 filterType === 'ALL'
@@ -580,9 +857,10 @@ export const InventoryPage: React.FC = () => {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              All ({products.length})
+              All ({categoryCounts.ALL ?? pageTotal})
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('LOW_STOCK')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 filterType === 'LOW_STOCK'
@@ -594,6 +872,7 @@ export const InventoryPage: React.FC = () => {
               Low Stock
             </button>
             <button
+              type="button"
               onClick={() => setFilterType('NEAR_EXPIRY')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                 filterType === 'NEAR_EXPIRY'
@@ -607,22 +886,72 @@ export const InventoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Pills */}
+        {/* Category Pills with Live Counts */}
         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs">
-          {['ALL', 'Fertilizer', 'Pesticide', 'Seeds', 'Micronutrients', 'Bio-fertilizer', 'Organic', 'Others'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all ${
-                selectedCategory === cat
-                  ? 'bg-brand-900 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => handleCategorySelect('ALL')}
+            className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all ${
+              selectedCategory === 'ALL'
+                ? 'bg-brand-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            All ({categoryCounts.ALL || 0})
+          </button>
+          {INVENTORY_CATEGORIES.map((catId) => {
+            const cfg = INVENTORY_CATEGORY_CONFIGS[catId];
+            const isSelected = selectedCategory === catId;
+            return (
+              <button
+                key={catId}
+                type="button"
+                onClick={() => handleCategorySelect(catId)}
+                className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all inline-flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-brand-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotClass}`} />
+                <span>{cfg.label}</span>
+                <span className={`text-[10px] ${isSelected ? 'text-emerald-300' : 'text-slate-400'}`}>
+                  ({categoryCounts[catId] || 0})
+                </span>
+              </button>
+            );
+          })}
         </div>
+
+        {/* Active Category Compliance Strip */}
+        {activeFilterCategoryConfig && (
+          <div className={`rounded-xl border px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] ${activeFilterCategoryConfig.accentBgClass}`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <ShieldCheck className="w-4 h-4 text-slate-700 shrink-0" />
+              <span className="font-bold text-slate-900">{activeFilterCategoryConfig.label} Rules:</span>
+              <span className="text-slate-700">
+                Units: <strong className="font-mono">{activeFilterCategoryConfig.allowedUnits.join(', ')}</strong>
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-700">
+                Tracking: <strong>{activeFilterCategoryConfig.batchField.label}</strong>
+                {activeFilterCategoryConfig.dateFields.showWarrantyField
+                  ? ' + Warranty (Months)'
+                  : ` + ${activeFilterCategoryConfig.dateFields.mfgLabel.replace(' (Optional)', '')} & ${activeFilterCategoryConfig.dateFields.expiryLabel.replace(' (Optional)', '')}`}
+              </span>
+              <span className="text-slate-400">•</span>
+              <span className="text-slate-700 font-semibold">{activeFilterCategoryConfig.gstHint}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openAddProductModal(activeFilterCategoryConfig.id)}
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold inline-flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              New {activeFilterCategoryConfig.label}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Product List - Responsive Dual View */}
@@ -635,13 +964,21 @@ export const InventoryPage: React.FC = () => {
             </div>
           ) : (
             filteredProducts.map((p) => {
+              const catCfg = getCategoryConfig(p.category);
+              const attrBadges = getCategoryAttributeBadges(p.category, p.category_attributes);
               const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20);
               const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
               const sellingPrice = safeNumber(p.selling_price);
               const prodName = p.name || p.product_name || 'Fertilizer Product';
               const batchNo = p.batch_number || p.product_code || 'N/A';
-              const unitStr = p.unit || 'Bags';
+              const unitStr = normalizeUnit(p.unit);
               const barcodeStr = p.barcode || String(10000 + p.id);
+              const warrantyVal = p.category_attributes?.warranty_months;
+              const dateSummary = catCfg.dateFields.showWarrantyField
+                ? warrantyVal
+                  ? `Warranty: ${warrantyVal}M`
+                  : 'No Expiry'
+                : `${catCfg.dateFields.expiryShortLabel}: ${p.expiry_date || (catCfg.dateFields.expiryRequired ? '-' : 'N/A')}`;
 
               return (
                 <div
@@ -652,8 +989,8 @@ export const InventoryPage: React.FC = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                          {p.category}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${catCfg.badgeClass}`}>
+                          {catCfg.label}
                         </span>
                         <button
                           type="button"
@@ -680,6 +1017,15 @@ export const InventoryPage: React.FC = () => {
                           <span className="text-[11px] text-slate-500">{p.company_name}</span>
                         )}
                       </div>
+                      {attrBadges.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          {attrBadges.map((b, i) => (
+                            <span key={i} className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${b.toneClass}`}>
+                              {b.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Stock level badge */}
@@ -727,8 +1073,8 @@ export const InventoryPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Batch: <strong className="font-mono text-slate-700">{batchNo}</strong></span>
-                      <span>Exp: {p.expiry_date || '-'}</span>
+                      <span>{catCfg.batchField.shortLabel}: <strong className="font-mono text-slate-700">{batchNo}</strong></span>
+                      <span>{dateSummary}</span>
                     </div>
                   </div>
 
@@ -758,13 +1104,7 @@ export const InventoryPage: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingProduct(p);
-                        setTradeNameManuallyEdited(Boolean(p.trade_name));
-                        setProductVariants(p.variants || []);
-                        setDuplicateAlert(null);
-                        setIsEditModalOpen(true);
-                      }}
+                      onClick={() => openEditProductModal(p)}
                       className="p-2 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition"
                       title="Edit Product"
                     >
@@ -782,10 +1122,10 @@ export const InventoryPage: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
               <tr>
-                <th className="py-3 px-4">Fertilizer / Product</th>
+                <th className="py-3 px-4">Product &amp; Compliance Info</th>
                 <th className="py-3 px-3">Barcode</th>
-                <th className="py-3 px-3">Category</th>
-                <th className="py-3 px-3 text-center">Batch / Expiry</th>
+                <th className="py-3 px-3">Category / GST</th>
+                <th className="py-3 px-3 text-center">Batch / Lot &amp; Validity</th>
                 <th className="py-3 px-3 text-right">Cost Price</th>
                 <th className="py-3 px-3 text-right">Selling Rate</th>
                 <th className="py-3 px-4 text-center">Stock Level</th>
@@ -794,13 +1134,25 @@ export const InventoryPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.map((p) => {
+                const catCfg = getCategoryConfig(p.category);
+                const attrBadges = getCategoryAttributeBadges(p.category, p.category_attributes);
                 const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20);
                 const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
                 const sellingPrice = safeNumber(p.selling_price);
                 const prodName = p.name || p.product_name || 'Fertilizer Product';
                 const batchNo = p.batch_number || p.product_code || 'N/A';
-                const unitStr = p.unit || 'Bags';
+                const unitStr = normalizeUnit(p.unit);
                 const barcodeStr = p.barcode || String(10000 + p.id);
+                const warrantyVal = p.category_attributes?.warranty_months;
+                const validityText = catCfg.dateFields.showWarrantyField
+                  ? warrantyVal
+                    ? `Warranty: ${warrantyVal}M`
+                    : 'No Expiry'
+                  : p.expiry_date
+                  ? `${catCfg.dateFields.expiryShortLabel}: ${p.expiry_date}`
+                  : catCfg.dateFields.expiryRequired
+                  ? `${catCfg.dateFields.expiryShortLabel}: -`
+                  : 'No Expiry';
 
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
@@ -818,13 +1170,24 @@ export const InventoryPage: React.FC = () => {
                           <p className="text-[10px] text-slate-400 font-mono">
                             {p.company_name ? `${p.company_name} • ` : ''}
                             Unit: {unitStr}
-                            {p.variants && p.variants.length > 1 ? ` • ${p.variants.length} packaging variants` : ''}
+                            {p.hsn_code ? ` • HSN: ${p.hsn_code}` : ''}
+                            {p.variants && p.variants.length > 1 ? ` • ${p.variants.length} pack sizes` : ''}
                           </p>
+                          {attrBadges.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              {attrBadges.map((b, i) => (
+                                <span key={i} className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${b.toneClass}`}>
+                                  {b.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-3">
                       <button
+                        type="button"
                         onClick={() => {
                           setSelectedBarcodeProduct({ ...p, barcode: barcodeStr });
                           setIsBarcodeModalOpen(true);
@@ -837,13 +1200,20 @@ export const InventoryPage: React.FC = () => {
                       </button>
                     </td>
                     <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
-                        {p.category}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${catCfg.badgeClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${catCfg.dotClass}`} />
+                        {catCfg.label}
+                      </span>
+                      <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                        GST {safeNumber(p.gst_rate)}%
                       </span>
                     </td>
                     <td className="py-3 px-3 text-center">
-                      <span className="font-mono text-slate-700 text-[11px] font-semibold block">{batchNo}</span>
-                      <span className="text-[10px] text-slate-400">{p.expiry_date || '-'}</span>
+                      <span className="font-mono text-slate-700 text-[11px] font-semibold block">
+                        <span className="text-[10px] font-sans text-slate-400 mr-1">{catCfg.batchField.shortLabel}:</span>
+                        {batchNo}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{validityText}</span>
                     </td>
                     <td className="py-3 px-3 text-right font-medium text-slate-600">
                       {formatCurrency(costPrice)}
@@ -880,6 +1250,7 @@ export const InventoryPage: React.FC = () => {
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
+                          type="button"
                           onClick={() => openRefillModal(p)}
                           className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Refill Stock"
@@ -887,6 +1258,7 @@ export const InventoryPage: React.FC = () => {
                           <RotateCcw className="w-4 h-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setAdjustingProduct(p);
                             setAdjustQty(0);
@@ -899,13 +1271,8 @@ export const InventoryPage: React.FC = () => {
                           <ArrowUpDown className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => {
-                            setEditingProduct(p);
-                            setTradeNameManuallyEdited(Boolean(p.trade_name));
-                            setProductVariants(p.variants || []);
-                            setDuplicateAlert(null);
-                            setIsEditModalOpen(true);
-                          }}
+                          type="button"
+                          onClick={() => openEditProductModal(p)}
                           className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Edit Product"
                         >
@@ -918,6 +1285,32 @@ export const InventoryPage: React.FC = () => {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 bg-slate-50/60 text-xs text-slate-600">
+          <span data-testid="inventory-page-summary">
+            Showing <strong>{pageRange.start}–{pageRange.end}</strong> of <strong>{pageTotal}</strong>
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage(clampPage(page - 1, pageTotal, INVENTORY_PAGE_SIZE))}
+              disabled={page <= 1 || isLoading}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold hover:bg-slate-100 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="font-mono font-semibold">Page {page} / {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage(clampPage(page + 1, pageTotal, INVENTORY_PAGE_SIZE))}
+              disabled={page >= totalPages || isLoading}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold hover:bg-slate-100 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1132,45 +1525,64 @@ export const InventoryPage: React.FC = () => {
                   <label className="block font-semibold text-slate-700">
                     <span className="block mb-1">Unit of Measure</span>
                     <CustomSelect
-                      value={refillUnit}
+                      value={normalizeUnit(refillUnit)}
                       onChange={(val) => setRefillUnit(val)}
-                      options={[
-                        { value: 'Bags', label: 'Bags' },
-                        { value: 'Kg', label: 'Kg (Kilograms)' },
-                        { value: 'Grams', label: 'Grams' },
-                        { value: 'Litres', label: 'Litres' },
-                        { value: 'ml', label: 'ml (Millilitres)' },
-                        { value: 'Bottles', label: 'Bottles' },
-                        { value: 'Packets', label: 'Packets' },
-                      ]}
+                      options={(() => {
+                        const allowed = selectedRefillProduct
+                          ? refillCategoryConfig.allowedUnits
+                          : ['Bags', 'Kg', 'Grams', 'Litre', 'ml', 'Packets', 'Pouches', 'Tons', 'Pieces', 'Nos', 'Sets', 'Meters', 'Rolls'];
+                        const current = normalizeUnit(refillUnit);
+                        const list = allowed.includes(current) ? allowed : [current, ...allowed];
+                        return list.map((u) => ({ value: u, label: u }));
+                      })()}
                     />
                   </label>
                 </div>
               </div>
 
-              {/* Batch & Expiry */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Dynamic Batch / Lot & Dates */}
+              <div className={`grid grid-cols-1 ${refillCategoryConfig.dateFields.showExpiryDate ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
                 <div>
-                  <label htmlFor="refill-batch" className="block font-semibold text-slate-700 mb-1">New / Current Batch No.</label>
+                  <label htmlFor="refill-batch" className="block font-semibold text-slate-700 mb-1">
+                    New / Current {refillCategoryConfig.batchField.label}
+                  </label>
                   <input
                     id="refill-batch"
                     type="text"
                     value={refillBatch}
                     onChange={(e) => setRefillBatch(e.target.value)}
-                    placeholder="e.g. BATCH-2026-01"
+                    placeholder={refillCategoryConfig.batchField.placeholder}
                     className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label htmlFor="refill-expiry" className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
-                  <input
-                    id="refill-expiry"
-                    type="date"
-                    value={refillExpiry}
-                    onChange={(e) => setRefillExpiry(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
+                {refillCategoryConfig.dateFields.showMfgDate && (
+                  <div>
+                    <label htmlFor="refill-mfg-date" className="block font-semibold text-slate-700 mb-1">
+                      {refillCategoryConfig.dateFields.mfgLabel}
+                    </label>
+                    <input
+                      id="refill-mfg-date"
+                      type="date"
+                      value={refillMfgDate}
+                      onChange={(e) => setRefillMfgDate(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+                {refillCategoryConfig.dateFields.showExpiryDate && (
+                  <div>
+                    <label htmlFor="refill-expiry" className="block font-semibold text-slate-700 mb-1">
+                      {refillCategoryConfig.dateFields.expiryLabel}
+                    </label>
+                    <input
+                      id="refill-expiry"
+                      type="date"
+                      value={refillExpiry}
+                      onChange={(e) => setRefillExpiry(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Pricing */}
@@ -1269,386 +1681,34 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Add / Edit Product Modal */}
-      {isEditModalOpen && editingProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden my-4 max-h-[92vh] flex flex-col">
-            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <h3 className="font-bold text-sm">
-                {editingProduct.id ? 'Edit Product Details' : 'Add New Product (Generates Barcode & Packaging)'}
-              </h3>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={(e) => { void handleSaveProduct(e); }} className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto">
-              {/* Duplicate Prevention Alert */}
-              {duplicateAlert?.exists && !editingProduct.id && (
-                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-bold text-amber-900 text-xs">
-                        Product Already Exists in Database!
-                      </h4>
-                      <p className="text-[11px] text-amber-800 mt-0.5">
-                        {duplicateAlert.message}
-                      </p>
-                      <p className="text-[10px] text-amber-700 mt-1">
-                        Creating another product will generate a duplicate barcode and cause confusion. Please refill the existing stock instead.
-                      </p>
-                    </div>
-                  </div>
-
-                  {duplicateAlert.product && (
-                    <div className="flex justify-end pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const existing = duplicateAlert.product!;
-                          setIsEditModalOpen(false);
-                          openRefillModal(existing);
-                        }}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        Refill This Product Instead
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Product Basic Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="edit-prod-name" className="block font-semibold text-slate-700 mb-1">Product / Technical Name *</label>
-                  <input
-                    id="edit-prod-name"
-                    type="text"
-                    required
-                    maxLength={150}
-                    value={editingProduct.name || ''}
-                    onChange={(e) => {
-                      const nextName = e.target.value;
-                      const nextTrade = !tradeNameManuallyEdited
-                        ? resolveTradeName(nextName, editingProduct.company_name || '', products).suggested
-                        : editingProduct.trade_name;
-                      setEditingProduct({
-                        ...editingProduct,
-                        name: nextName,
-                        trade_name: nextTrade,
-                      });
-                    }}
-                    placeholder="e.g. Imidacloprid 17.8% SL or Chlorpyrifos 20% EC"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                  {checkingDuplicate && (
-                    <span className="text-[10px] text-slate-400">Checking duplicate...</span>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="edit-prod-company" className="block font-semibold text-slate-700 mb-1">Company / Brand</label>
-                  <input
-                    id="edit-prod-company"
-                    type="text"
-                    maxLength={120}
-                    value={editingProduct.company_name || ''}
-                    onChange={(e) => {
-                      const nextComp = e.target.value;
-                      const nextTrade = !tradeNameManuallyEdited
-                        ? resolveTradeName(editingProduct.name || '', nextComp, products).suggested
-                        : editingProduct.trade_name;
-                      setEditingProduct({
-                        ...editingProduct,
-                        company_name: nextComp,
-                        trade_name: nextTrade,
-                      });
-                    }}
-                    placeholder="e.g. Bayer, Tata Rallis, Dhanuka"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Trade Name (Combination of Product & Company/Brand) */}
-              <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <label htmlFor="edit-prod-trade" className="block font-bold text-emerald-900 text-xs">
-                    Trade Name (Product + Company/Brand Combination)
-                  </label>
-                  <span className="text-[10px] text-emerald-700 font-medium">
-                    Auto-mapped from Product &amp; Company (editable)
-                  </span>
-                </div>
-                <input
-                  id="edit-prod-trade"
-                  type="text"
-                  maxLength={150}
-                  value={editingProduct.trade_name || ''}
-                  onChange={(e) => {
-                    setTradeNameManuallyEdited(true);
-                    setEditingProduct({ ...editingProduct, trade_name: e.target.value });
-                  }}
-                  placeholder="e.g. Confidor (Bayer) or Tatamida (Tata Rallis)"
-                  className="w-full px-3 py-2 bg-white font-bold text-emerald-950 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-                {editTradeResolution.relatedMappings.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                    <span className="text-[10px] font-bold text-emerald-800">Brand Mappings for this Product:</span>
-                    {editTradeResolution.relatedMappings.map((m, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setTradeNameManuallyEdited(true);
-                          setEditingProduct({
-                            ...editingProduct,
-                            company_name: m.company,
-                            trade_name: m.trade_name,
-                          });
-                        }}
-                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition"
-                      >
-                        {m.company} → <strong>{m.trade_name}</strong>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700">
-                    <span className="block mb-1">Category</span>
-                    <CustomSelect
-                      value={editingProduct.category || 'Fertilizer'}
-                      onChange={(val) => setEditingProduct({ ...editingProduct, category: val })}
-                      options={[
-                        { value: 'Fertilizer', label: 'Fertilizer' },
-                        { value: 'Pesticide', label: 'Pesticide' },
-                        { value: 'Seeds', label: 'Seeds' },
-                        { value: 'Micronutrients', label: 'Micronutrients' },
-                        { value: 'Bio-fertilizer', label: 'Bio-fertilizer' },
-                        { value: 'Organic', label: 'Organic' },
-                        { value: 'Others', label: 'Others' },
-                      ]}
-                    />
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700">
-                    <span className="block mb-1">Primary Unit</span>
-                    <CustomSelect
-                      value={editingProduct.unit || 'Bags'}
-                      onChange={(val) => setEditingProduct({ ...editingProduct, unit: val })}
-                      options={[
-                        { value: 'Bags', label: 'Bags' },
-                        { value: 'Kg', label: 'Kg' },
-                        { value: 'Grams', label: 'Grams' },
-                        { value: 'Litres', label: 'Litres' },
-                        { value: 'ml', label: 'ml' },
-                        { value: 'Bottles', label: 'Bottles' },
-                        { value: 'Packets', label: 'Packets' },
-                      ]}
-                    />
-                  </label>
-                </div>
-
-                <div>
-                  <label htmlFor="edit-prod-hsn" className="block font-semibold text-slate-700 mb-1">HSN Code</label>
-                  <input
-                    id="edit-prod-hsn"
-                    type="text"
-                    value={editingProduct.hsn_code ?? ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, hsn_code: e.target.value })}
-                    placeholder="e.g. 31021000"
-                    className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Batch & Expiry */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="edit-prod-batch" className="block font-semibold text-slate-700 mb-1">Batch Number</label>
-                  <input
-                    id="edit-prod-batch"
-                    type="text"
-                    value={editingProduct.batch_number ?? ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, batch_number: e.target.value })}
-                    placeholder="e.g. BATCH-2026-01"
-                    className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="edit-prod-expiry" className="block font-semibold text-slate-700 mb-1">Expiry Date</label>
-                  <input
-                    id="edit-prod-expiry"
-                    type="date"
-                    value={editingProduct.expiry_date || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, expiry_date: e.target.value })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Default Pricing & Stock */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div>
-                  <label htmlFor="edit-prod-purchase-price" className="block font-semibold text-slate-700 mb-1">Purchase (₹)</label>
-                  <input
-                    id="edit-prod-purchase-price"
-                    type="number"
-                    step="0.5"
-                    value={editingProduct.cost_price ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, cost_price: Number.parseFloat(e.target.value) || 0 })}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="edit-prod-selling-price" className="block font-semibold text-slate-700 mb-1">Selling (₹)</label>
-                  <input
-                    id="edit-prod-selling-price"
-                    type="number"
-                    step="0.5"
-                    value={editingProduct.selling_price ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, selling_price: Number.parseFloat(e.target.value) || 0 })}
-                    className="w-full px-2.5 py-1.5 font-bold text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700">
-                    <span className="block mb-1">GST Rate %</span>
-                    <CustomSelect
-                      value={String(editingProduct.gst_rate ?? 5)}
-                      onChange={(val) => setEditingProduct({ ...editingProduct, gst_rate: Number.parseInt(val, 10) })}
-                      options={[
-                        { value: '0', label: '0% (Exempt)' },
-                        { value: '5', label: '5% (Fertilizers)' },
-                        { value: '12', label: '12%' },
-                        { value: '18', label: '18% (Pesticides)' },
-                        { value: '28', label: '28%' },
-                      ]}
-                    />
-                  </label>
-                </div>
-
-                <div>
-                  <label htmlFor="edit-prod-stock" className="block font-semibold text-slate-700 mb-1">Opening Stock</label>
-                  <input
-                    id="edit-prod-stock"
-                    type="number"
-                    value={editingProduct.current_stock ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, current_stock: Number.parseInt(e.target.value, 10) || 0 })}
-                    className="w-full px-2.5 py-1.5 font-black border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Multi-Unit Packaging Variants Section */}
-              <div className="border border-slate-200 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-xs">
-                      Packaging & Size Variants (e.g. 250ml, 500ml, 1 Litre)
-                    </h4>
-                    <p className="text-[10px] text-slate-500">
-                      Configure different bottle/packet sizes with individual selling rates
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={addVariantRow}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold text-xs flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add Packaging
-                  </button>
-                </div>
-
-                {productVariants.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    {productVariants.map((v, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg text-xs">
-                        <input
-                          type="text"
-                          placeholder="Pack Name (e.g. 250ml Bottle)"
-                          value={v.variant_name}
-                          onChange={(e) => updateVariantRow(idx, 'variant_name', e.target.value)}
-                          className="w-1/3 px-2 py-1 bg-white border border-slate-300 rounded text-xs"
-                          required
-                        />
-                        <input
-                          type="number"
-                          placeholder="Size (250)"
-                          value={v.unit_size}
-                          onChange={(e) => updateVariantRow(idx, 'unit_size', Number.parseFloat(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 bg-white border border-slate-300 rounded text-xs"
-                          required
-                        />
-                        <input
-                          type="text"
-                          placeholder="Unit (ml/kg)"
-                          value={v.unit}
-                          onChange={(e) => updateVariantRow(idx, 'unit', e.target.value)}
-                          className="w-20 px-2 py-1 bg-white border border-slate-300 rounded text-xs"
-                          required
-                        />
-                        <input
-                          type="number"
-                          placeholder="Selling ₹"
-                          value={v.selling_price}
-                          onChange={(e) => updateVariantRow(idx, 'selling_price', Number.parseFloat(e.target.value) || 0)}
-                          className="w-24 px-2 py-1 bg-white border border-slate-300 rounded text-xs font-bold text-slate-900"
-                          required
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeVariantRow(idx)}
-                          className="p-1 text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={duplicateAlert?.exists && !editingProduct.id}
-                  className={`px-5 py-2 rounded-xl font-bold shadow transition-all ${
-                    duplicateAlert?.exists && !editingProduct.id
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-emerald-700 hover:bg-emerald-800 text-white'
-                  }`}
-                >
-                  Save Product
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Add / Edit Product Modal (Category-Driven Dynamic Fields) */}
+      <ProductFormModal
+        isOpen={isEditModalOpen}
+        editingProduct={editingProduct}
+        setEditingProduct={setEditingProduct}
+        products={products}
+        categoryConfig={activeEditCategoryConfig}
+        allowedVariantUnits={allowedEditVariantUnits}
+        productVariants={productVariants}
+        enableVariantsForOthers={enableVariantsForOthers}
+        setEnableVariantsForOthers={setEnableVariantsForOthers}
+        tradeNameManuallyEdited={tradeNameManuallyEdited}
+        setTradeNameManuallyEdited={setTradeNameManuallyEdited}
+        editTradeResolution={editTradeResolution}
+        duplicateAlert={duplicateAlert}
+        checkingDuplicate={checkingDuplicate}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveProduct}
+        onCategoryChange={handleEditCategoryChange}
+        onUnitChange={handleEditUnitChange}
+        onAddVariant={addVariantRow}
+        onUpdateVariant={updateVariantRow}
+        onRemoveVariant={removeVariantRow}
+        onRefillExisting={(existing) => {
+          setIsEditModalOpen(false);
+          openRefillModal(existing);
+        }}
+      />
 
       {/* Barcode Print Modal */}
       {isBarcodeModalOpen && selectedBarcodeProduct && (

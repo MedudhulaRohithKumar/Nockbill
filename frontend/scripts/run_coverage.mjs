@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
+import * as esbuild from 'esbuild';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +26,35 @@ function walkFiles(dir, exts = ['.ts', '.tsx']) {
   return results.sort((a, b) => a.localeCompare(b));
 }
 
-function runFrontendSuite() {
+async function runRuntimeUnitTests() {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nockbill-fe-tests-'));
+  try {
+    const suites = [
+      { file: 'src/__tests__/inventoryCategories.test.ts', exportName: 'runInventoryCategoryTests' },
+      { file: 'src/__tests__/securityAndPagination.test.ts', exportName: 'runSecurityAndPaginationTests' },
+    ];
+    let runtimeAssertions = 0;
+    for (const suite of suites) {
+      const outFile = path.join(tmpDir, `${suite.exportName}.mjs`);
+      await esbuild.build({
+        entryPoints: [path.join(FRONTEND_DIR, suite.file)],
+        bundle: true,
+        format: 'esm',
+        platform: 'node',
+        outfile: outFile,
+      });
+      const mod = await import(pathToFileURL(outFile).href);
+      const count = mod[suite.exportName]();
+      assert.ok(count > 0, `Expected runtime assertions from ${suite.file}`);
+      runtimeAssertions += count;
+    }
+    return runtimeAssertions;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+async function runFrontendSuite() {
   console.log('=== Running NockBill Frontend Test & Quality Suite ===');
   const srcFiles = walkFiles(SRC_DIR);
   assert.ok(srcFiles.length > 0, 'Expected frontend source files in src/');
@@ -61,7 +91,7 @@ function runFrontendSuite() {
   }
   console.log('✓ [Test 2] All <label> elements are associated with form controls');
 
-  // Test 3: No sensitive token storage in localStorage/sessionStorage (tssecurity:S8475)
+  // Test 3: No sensitive token storage in localStorage/sessionStorage or query-string JWTs (S8475 / H4)
   for (const file of srcFiles) {
     const content = fs.readFileSync(file, 'utf8');
     const rel = path.relative(FRONTEND_DIR, file);
@@ -69,9 +99,30 @@ function runFrontendSuite() {
       !content.includes('localStorage.setItem(') && !content.includes('sessionStorage.setItem('),
       `Disallowed Web Storage write in ${rel}`
     );
-    totalAssertions += 1;
+    assert.ok(
+      !content.includes("localStorage.getItem('token')") && !content.includes('localStorage.getItem("token")'),
+      `Disallowed token read from localStorage in ${rel}`
+    );
+    assert.ok(
+      !content.includes('?token='),
+      `Disallowed query-string JWT parameter in ${rel}`
+    );
+    totalAssertions += 3;
   }
-  console.log('✓ [Test 3] Zero sensitive Web Storage writes across frontend');
+  console.log('✓ [Test 3] Zero sensitive Web Storage writes, token reads, or ?token= query auth across frontend');
+
+  // Test 3b: Vite config restricts allowedHosts by default and enables vendor chunk splitting (M7 / B11)
+  const viteCfg = fs.readFileSync(path.join(FRONTEND_DIR, 'vite.config.ts'), 'utf8');
+  assert.ok(!viteCfg.includes('allowedHosts: true'), 'vite.config.ts must not set allowedHosts: true');
+  assert.ok(viteCfg.includes('manualChunks'), 'vite.config.ts must configure manualChunks');
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(FRONTEND_DIR, 'package.json'), 'utf8'));
+  assert.equal(pkgJson.dependencies['@tanstack/react-query'], undefined, 'Unused @tanstack/react-query must be removed');
+  totalAssertions += 3;
+  console.log('✓ [Test 3b] Vite security & bundle chunking config + clean dependency manifest verified');
+
+  const runtimeAssertions = await runRuntimeUnitTests();
+  totalAssertions += runtimeAssertions;
+  console.log(`✓ [Test 3c] Executed frontend TypeScript runtime unit tests (${runtimeAssertions} assertions passed)`);
 
   // Test 4: Generate LCOV coverage report for SonarCloud
   fs.mkdirSync(COVERAGE_DIR, { recursive: true });
@@ -114,4 +165,4 @@ function runFrontendSuite() {
   console.log(`✓ [Test 4] Generated LCOV coverage report (${srcFiles.length} files, ${totalAssertions} assertions) at ${path.relative(FRONTEND_DIR, lcovPath)}`);
 }
 
-runFrontendSuite();
+await runFrontendSuite();

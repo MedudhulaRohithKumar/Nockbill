@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Kisan Seva Kendra - Phase 2 Custom Domain & CDN Architecture:
   Amazon CloudFront Distribution with Custom Domain, Route53, ACM SSL,
-  Unified Path-Based Routing (/api/* to Backend, /* to Frontend),
+  Unified Path-Based Routing (/api/* and /uploads/* DIRECTLY to Backend Lambda Function URL,
+  /* to Frontend SPA Lambda),
   Edge Caching, Security Headers, and WAF.
 
 Parameters:
@@ -38,6 +39,8 @@ Resources:
       ResponseHeadersPolicyConfig:
         Name: KisanSevaEdgeSecurityPolicy
         Comment: Enforces Strict CSP, HSTS, and hides origin server fingerprints
+        # CSP: connect-src has no blanket https: (API is same-origin via /api/*). style-src keeps
+        # 'unsafe-inline' as an accepted risk (React inline style attributes cannot be nonced).
         SecurityHeadersConfig:
           StrictTransportSecurity:
             AccessControlMaxAgeSec: 31536000
@@ -53,7 +56,7 @@ Resources:
             ReferrerPolicy: strict-origin-when-cross-origin
             Override: true
           ContentSecurityPolicy:
-            ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
             Override: true
         RemoveHeadersConfig:
           Items:
@@ -84,46 +87,12 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: none
 
-  # Dynamic API Cache Policy (No CDN caching, passes headers & query parameters)
-  ApiNoCachePolicy:
-    Type: AWS::CloudFront::CachePolicy
-    Properties:
-      CachePolicyConfig:
-        Name: KisanSevaApiNoCachePolicy
-        Comment: Bypass CDN cache for transactional REST API
-        DefaultTTL: 0
-        MaxTTL: 0
-        MinTTL: 0
-        ParametersInCacheKeyAndForwardedToOrigin:
-          EnableAcceptEncodingGzip: true
-          EnableAcceptEncodingBrotli: true
-          CookiesConfig:
-            CookieBehavior: all
-          HeadersConfig:
-            HeaderBehavior: whitelist
-            Headers:
-              - Authorization
-              - Content-Type
-              - Accept
-          QueryStringsConfig:
-            QueryStringBehavior: all
-
-  # Origin Request Policy for API (Forward Authorization and Query parameters)
-  ApiOriginRequestPolicy:
-    Type: AWS::CloudFront::OriginRequestPolicy
-    Properties:
-      OriginRequestPolicyConfig:
-        Name: KisanSevaApiOriginRequestPolicy
-        CookiesConfig:
-          CookieBehavior: all
-        HeadersConfig:
-          HeaderBehavior: whitelist
-          Headers:
-            - Authorization
-            - Content-Type
-            - Accept
-        QueryStringsConfig:
-          QueryStringBehavior: all
+  # Dynamic API traffic (/api/*, /uploads/*) uses AWS managed policies:
+  #   Cache policy:          CachingDisabled           (4135ea2d-6df8-47a0-a0da-92f2a2a5f3b5)
+  #   Origin request policy: AllViewerExceptHostHeader (b689b0a8-53d0-40ab-baf2-68738e2966ac)
+  # AllViewerExceptHostHeader forwards ALL viewer headers (Authorization, Origin, Content-Type,
+  # Accept...), all cookies and all query strings, but NOT Host, which is required because a
+  # Lambda Function URL rejects a Host header that differs from its own domain.
 
   # ============================================================================
   # 3. CLOUDFRONT LOGGING & DISTRIBUTION (Unified Origin)
@@ -198,6 +167,9 @@ Resources:
           CachePolicyId: !Ref StaticAssetCachePolicy
           ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
 
+        # Request flow (B4): API traffic goes Viewer -> CloudFront -> Backend Lambda Function URL
+        # directly (no Frontend Lambda hop). The Frontend Lambda serves ONLY the SPA / static
+        # assets (default behavior and /assets/*).
         # Cache Behavior 1: Backend API (/api/*)
         CacheBehaviors:
           - PathPattern: /api/*
@@ -206,8 +178,19 @@ Resources:
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
             CachedMethods: [GET, HEAD]
             Compress: true
-            CachePolicyId: !Ref ApiNoCachePolicy
-            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            CachePolicyId: 4135ea2d-6df8-47a0-a0da-92f2a2a5f3b5
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
+
+          # Cache Behavior 1b: Uploaded files served by the backend (/uploads/*)
+          - PathPattern: /uploads/*
+            TargetOriginId: BackendApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-47a0-a0da-92f2a2a5f3b5
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
             ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
 
           # Cache Behavior 2: Static Hashed Assets (/assets/*)

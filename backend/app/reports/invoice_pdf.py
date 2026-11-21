@@ -15,6 +15,7 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.lib.colors import HexColor
+from app.utils.helpers import escape_pdf_text as _esc
 
 
 GREEN = HexColor("#1B5E20")
@@ -54,14 +55,14 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "NockBill Solutions", _header_style(18)))
+    elements.append(Paragraph(_esc(shop.shop_name or "NockBill Solutions"), _header_style(18)))
     if shop.address:
-        elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
+        elements.append(Paragraph(_esc(shop.address), _header_style(9, bold=False, color=DARK_TEXT)))
     contact_parts = []
     if shop.phone:
-        contact_parts.append(f"Phone: {shop.phone}")
+        contact_parts.append(f"Phone: {_esc(shop.phone)}")
     if shop.gstin:
-        contact_parts.append(f"GSTIN: {shop.gstin}")
+        contact_parts.append(f"GSTIN: {_esc(shop.gstin)}")
     if contact_parts:
         elements.append(Paragraph(" | ".join(contact_parts), _header_style(9, bold=False, color=DARK_TEXT)))
 
@@ -81,15 +82,15 @@ def generate_invoice_pdf(sale, shop) -> bytes:
 
     invoice_data = [
         [
-            Paragraph(f"<b>Bill / Invoice No:</b> <font color='#1B5E20'><b>{inv_num}</b></font>", styles["Normal"]),
-            Paragraph(f"<b>Date & Time:</b> {s_date_str}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Bill / Invoice No:</b> <font color='#1B5E20'><b>{_esc(inv_num)}</b></font>", styles["Normal"]),
+            Paragraph(f"<b>Date &amp; Time:</b> {_esc(s_date_str)}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
         [
-            Paragraph(f"<b>Customer Name:</b> {sale.customer_name or 'Walk-in Farmer'}", styles["Normal"]),
-            Paragraph(f"<b>Phone:</b> {sale.customer_phone or '-'}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Customer Name:</b> {_esc(sale.customer_name or 'Walk-in Farmer')}", styles["Normal"]),
+            Paragraph(f"<b>Phone:</b> {_esc(sale.customer_phone or '-')}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
         [
-            Paragraph(f"<b>Payment Mode:</b> {pm_display} <font color='#2E7D32'>(PAID)</font>", styles["Normal"]),
+            Paragraph(f"<b>Payment Mode:</b> {_esc(pm_display)} <font color='#2E7D32'>(PAID)</font>", styles["Normal"]),
             Paragraph(f"<b>Bill Ref ID:</b> #{sale.id:05d}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
     ]
@@ -106,7 +107,7 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     computed_grand_total = Decimal("0")
 
     for i, item in enumerate(sale.items, 1):
-        comp = f"\n<font color='#616161'>{item.company_name}</font>" if item.company_name else ""
+        comp = f"\n{item.company_name}" if item.company_name else ""
         qty = Decimal(str(item.quantity or 0))
         unit_p = Decimal(str(item.price or 0))
         gst_r = Decimal(str(item.gst_rate or 0))
@@ -197,8 +198,8 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     # ── Terms & Authorized Signatory ──────────────────────────
     footer_data = [
         [
-            Paragraph("<b>Terms & Conditions:</b><br/>1. Certified quality products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
-            Paragraph(f"For <b>{shop.shop_name or 'NockBill Solutions'}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            Paragraph("<b>Terms &amp; Conditions:</b><br/>1. Certified quality products.<br/>2. Goods once sold will not be returned without bill.<br/>3. Subject to local jurisdiction.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+            Paragraph(f"For <b>{_esc(shop.shop_name or 'NockBill Solutions')}</b><br/><br/><br/><b>Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
         ]
     ]
     footer_table = Table(footer_data, colWidths=["60%", "40%"])
@@ -232,16 +233,16 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "Fertilizer Shop", _header_style(18)))
+    elements.append(Paragraph(_esc(shop.shop_name or "Fertilizer Shop"), _header_style(18)))
     if shop.address:
-        elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
+        elements.append(Paragraph(_esc(shop.address), _header_style(9, bold=False, color=DARK_TEXT)))
     if shop.phone:
-        elements.append(Paragraph(f"Phone: {shop.phone}", _header_style(9, bold=False, color=DARK_TEXT)))
+        elements.append(Paragraph(f"Phone: {_esc(shop.phone)}", _header_style(9, bold=False, color=DARK_TEXT)))
     if shop.gstin:
-        elements.append(Paragraph(f"GSTIN: {shop.gstin}", _header_style(9, bold=False, color=DARK_TEXT)))
+        elements.append(Paragraph(f"GSTIN: {_esc(shop.gstin)}", _header_style(9, bold=False, color=DARK_TEXT)))
 
     elements.append(HRFlowable(width="100%", thickness=1, color=HexColor("#1565C0"), spaceAfter=4))
-    elements.append(Paragraph("<b>GOODS INWARD & PURCHASE RECEIPT</b>", _header_style(12, bold=True, color=HexColor("#1565C0"))))
+    elements.append(Paragraph("<b>GOODS INWARD &amp; PURCHASE RECEIPT</b>", _header_style(12, bold=True, color=HexColor("#1565C0"))))
     elements.append(Spacer(1, 4))
 
     # ── Bill Details ──────────────────────────────────────────
@@ -251,11 +252,11 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
 
     purchase_data = [
         [
-            Paragraph(f"<b>Inward / Bill No:</b> {inv_num}", styles["Normal"]),
-            Paragraph(f"<b>Date:</b> {p_date}", _header_style(9, align=TA_RIGHT)),
+            Paragraph(f"<b>Inward / Bill No:</b> {_esc(inv_num)}", styles["Normal"]),
+            Paragraph(f"<b>Date:</b> {_esc(p_date)}", _header_style(9, align=TA_RIGHT)),
         ],
         [
-            Paragraph(f"<b>Supplier:</b> {supp_name}", styles["Normal"]),
+            Paragraph(f"<b>Supplier:</b> {_esc(supp_name)}", styles["Normal"]),
             Paragraph("<b>Type:</b> Stock Refill / Inward Entry", _header_style(9, align=TA_RIGHT)),
         ]
     ]
@@ -325,12 +326,12 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
 
     if purchase.notes:
         elements.append(Spacer(1, 6))
-        elements.append(Paragraph(f"<b>Notes:</b> {purchase.notes}", styles["Normal"]))
+        elements.append(Paragraph(f"<b>Notes:</b> {_esc(purchase.notes)}", styles["Normal"]))
 
     elements.append(Spacer(1, 14))
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
     elements.append(Paragraph(
-        f"Stock verified and entered into {shop.shop_name or 'NockBill Solutions'} inventory.",
+        f"Stock verified and entered into {_esc(shop.shop_name or 'NockBill Solutions')} inventory.",
         _header_style(9, bold=False, color=colors.grey),
     ))
 

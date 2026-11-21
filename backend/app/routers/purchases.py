@@ -1,4 +1,7 @@
+import io
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field, model_validator
@@ -10,9 +13,19 @@ from app.models.models import (
     InventoryTransaction, InventoryTxType,
     AuditLog, AuditAction, User, ShopSettings
 )
+from app.reports.invoice_pdf import generate_purchase_pdf
 from app.utils.auth import get_current_user
-from app.utils.helpers import sanitize_text, sanitize_code, validate_gstin, resolve_trade_name
+from app.utils.errors import internal_server_error
+from app.utils.helpers import (
+    sanitize_text,
+    sanitize_code,
+    sanitize_download_filename,
+    validate_gstin,
+    resolve_trade_name,
+)
+from app.utils.stock_sync import sync_variant_stock
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
 
 
@@ -109,7 +122,8 @@ def serialize_purchase(p: Purchase) -> dict:
                 "id": it.id,
                 "product_id": it.product_id,
                 "product_name": it.product_name or (
-                    it.product.product_name if getattr(it, "product", None) else f"Product #{it.product_id}"
+                    it.product.product_name if getattr(it, "product", None)
+                    else (f"Product #{it.product_id}" if it.product_id else "Unlinked Item")
                 ),
                 "company_name": getattr(it, "company_name", None) or "",
                 "trade_name": getattr(it, "trade_name", None) or "",
@@ -164,14 +178,12 @@ def create_purchase(
         purchase = Purchase(
             shop_id=shop_id,
             supplier_name=payload.supplier_name,
+            supplier_gstin=payload.supplier_gstin,
             invoice_number=payload.invoice_number or payload.bill_number,
             purchase_date=p_date,
             notes=payload.notes,
             created_by=current_user.id,
         )
-        # Store supplier GSTIN in notes if no column exists
-        if payload.supplier_gstin and not hasattr(Purchase, "supplier_gstin"):
-            purchase.notes = f"GSTIN: {payload.supplier_gstin}" + (f"\n{payload.notes}" if payload.notes else "")
 
         db.add(purchase)
         db.flush()  # get purchase.id
@@ -186,8 +198,13 @@ def create_purchase(
             subtotal += taxable
             total_gst += gst_amount
 
-            # Try to find matching product in this shop
+            # Try to find matching product in this shop; never fall back to product_id=1 (SC4)
             product = _resolve_product(db, item_data, shop_id, prelocked_map)
+            if item_data.product_id and not product:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product ID {item_data.product_id} not found in your shop",
+                )
             p_name = item_data.product_name or (product.product_name if product else "Unknown Product")
             c_name = item_data.company_name or (product.company_name if product else payload.supplier_name)
             t_name = resolve_trade_name(
@@ -198,7 +215,7 @@ def create_purchase(
 
             p_item = PurchaseItem(
                 purchase_id=purchase.id,
-                product_id=product.id if product else (item_data.product_id or 1),
+                product_id=product.id if product else None,
                 product_name=p_name,
                 company_name=c_name,
                 trade_name=t_name,
@@ -221,6 +238,9 @@ def create_purchase(
                     product.trade_name = t_name
                 if item_data.company_name and item_data.company_name.strip():
                     product.company_name = item_data.company_name.strip()
+
+                # Keep ProductVariant stock synchronized with inward purchase (SD3)
+                sync_variant_stock(db, product, qty)
 
                 # Create/update ProductBatch for this inward
                 if item_data.batch_number:
@@ -246,7 +266,7 @@ def create_purchase(
                             batch_number=item_data.batch_number,
                             trade_name=t_name,
                             company_name=c_name,
-                            expiry_date=item_data.expiry_date or product.expiry_date or "2028-06",
+                            expiry_date=item_data.expiry_date or product.expiry_date or None,
                             purchase_price=price,
                             selling_price=sell_price,
                             mrp=item_data.mrp or sell_price,
@@ -274,6 +294,7 @@ def create_purchase(
 
         db.add(AuditLog(
             user_id=current_user.id,
+            shop_id=shop_id,
             action=AuditAction.PURCHASE_CREATE,
             reference_id=purchase.id,
             reference_type="Purchase",
@@ -286,9 +307,9 @@ def create_purchase(
     except HTTPException:
         db.rollback()
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(500, f"Failed to save purchase: {str(e)}")
+        raise internal_server_error(logger, "Failed to save purchase")
 
 
 @router.get("")
@@ -325,11 +346,6 @@ def get_purchase(
     return serialize_purchase(purchase)
 
 
-import io
-from fastapi.responses import StreamingResponse
-from app.reports.invoice_pdf import generate_purchase_pdf
-
-
 @router.get("/{purchase_id}/pdf")
 def download_purchase_pdf(
     purchase_id: int,
@@ -349,7 +365,7 @@ def download_purchase_pdf(
 
     pdf_bytes = generate_purchase_pdf(purchase, shop)
     inv_name = purchase.invoice_number or f"PO-{purchase.id}"
-    filename = f"Purchase_{inv_name}.pdf"
+    filename = sanitize_download_filename(f"Purchase_{inv_name}.pdf", fallback=f"Purchase_{purchase.id}.pdf")
     disposition = "inline" if inline else "attachment"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

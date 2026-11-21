@@ -82,6 +82,8 @@ class ShopRegistrationRequest(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
     email: Optional[str] = None
     phone: Optional[str] = None
+    captcha_token: str = Field(..., min_length=10, description="Cryptographically signed server CAPTCHA token")
+    captcha_code: str = Field(..., min_length=6, max_length=6, description="6-character CAPTCHA code")
 
     # Shop Info
     shop_name: str = Field(..., min_length=2, max_length=200)
@@ -102,6 +104,14 @@ class ShopRegistrationRequest(BaseModel):
     upi_id: Optional[str] = None
     default_gst_rate: Optional[Decimal] = Decimal("18.00")
     invoice_prefix: Optional[str] = "INV"
+
+    @field_validator("captcha_code")
+    @classmethod
+    def clean_register_captcha_code(cls, v: str) -> str:
+        cleaned = "".join(ch for ch in (v or "").strip().upper() if ch.isalnum())
+        if len(cleaned) != 6:
+            raise ValueError("CAPTCHA code must be exactly 6 alphanumeric characters")
+        return cleaned
 
     @model_validator(mode="after")
     def sanitize_registration(self) -> "ShopRegistrationRequest":
@@ -126,7 +136,7 @@ class ShopRegistrationRequest(BaseModel):
         self.bank_ifsc = validate_ifsc(self.bank_ifsc) if self.bank_ifsc else None
         self.bank_branch = sanitize_text(self.bank_branch, 150)
         self.upi_id = sanitize_text(self.upi_id, 100)
-        self.invoice_prefix = (sanitize_code(self.invoice_prefix, 15, uppercase=True) or "INV")
+        self.invoice_prefix = (sanitize_code(self.invoice_prefix, 10, uppercase=True) or "INV")
         return self
 
 
@@ -150,6 +160,13 @@ class SubscriptionPaymentRequest(BaseModel):
     amount: float
     payment_method: str = "UPI"
     payment_ref: str
+
+
+class SubscriptionWebhookRequest(BaseModel):
+    shop_id: int = Field(..., gt=0)
+    payment_ref: str = Field(..., min_length=3, max_length=128)
+    plan_name: str = Field(default="Standard", max_length=100)
+    event: str = Field(default="payment.captured", max_length=64)
 
 
 
@@ -232,7 +249,7 @@ class ShopSettingsUpdate(BaseModel):
         if self.bank_ifsc:
             self.bank_ifsc = validate_ifsc(self.bank_ifsc)
         if self.invoice_prefix is not None:
-            self.invoice_prefix = sanitize_code(self.invoice_prefix, 15, uppercase=True) or "INV"
+            self.invoice_prefix = sanitize_code(self.invoice_prefix, 10, uppercase=True) or "INV"
         if self.terms_conditions is not None:
             self.terms_conditions = sanitize_text(self.terms_conditions, 2000, allow_newlines=True)
         return self
@@ -265,12 +282,48 @@ class ShopSettingsResponse(BaseModel):
     thermal_print: bool
     logo_path: Optional[str] = None
     terms_conditions: Optional[str] = None
+    subscription_status: Optional[str] = "ACTIVE"
 
     class Config:
         from_attributes = True
 
 
 # ─── Products ────────────────────────────────────────────────────────────────
+
+_DEFAULT_CATEGORY = "Fertilizer"
+
+
+def _sanitize_category_attributes(attrs: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Sanitize dynamic category-specific compliance attributes."""
+    if attrs is None or not isinstance(attrs, dict):
+        return None
+    cleaned: Dict[str, Any] = {}
+    for raw_key, raw_val in list(attrs.items())[:20]:
+        key = sanitize_code(str(raw_key), 60)
+        if not key:
+            continue
+        if raw_val is None:
+            continue
+        if isinstance(raw_val, (int, float, bool)):
+            cleaned[key] = raw_val
+        else:
+            val_str = sanitize_text(str(raw_val), 200)
+            if val_str:
+                cleaned[key] = val_str
+    return cleaned
+
+
+def _coerce_numeric_net_content(raw: Any) -> Any:
+    """Allow numeric or string values like '50 Kg' / '500 ml' for Product.net_content (SC8)."""
+    if raw is None or isinstance(raw, (int, float, Decimal)):
+        return raw
+    s = str(raw).strip()
+    if not s:
+        return None
+    import re
+    m = re.search(r"\d+(?:\.\d+)?", s)
+    return Decimal(m.group(0)) if m else None
+
 
 class ProductCreate(BaseModel):
     product_code: Optional[str] = None
@@ -286,15 +339,31 @@ class ProductCreate(BaseModel):
     selling_price: Decimal = Decimal("0")
     mrp: Optional[Decimal] = None
     gst_rate: Decimal = Decimal("18")
-    manufacture_date: Optional[str] = None  # YYYY-MM
-    expiry_date: Optional[str] = None        # YYYY-MM
+    manufacture_date: Optional[str] = None  # YYYY-MM or YYYY-MM-DD
+    expiry_date: Optional[str] = None        # YYYY-MM or YYYY-MM-DD
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
     barcode: Optional[str] = None
+    category_attributes: Optional[Dict[str, Any]] = None
     variants: Optional[List[Dict[str, Any]]] = None
     current_stock: Decimal = Decimal("0")
     minimum_stock: Decimal = Decimal("5")
     min_stock_level: Optional[Decimal] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_product_create_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            if not data.get("product_name") and data.get("name"):
+                data["product_name"] = data["name"]
+            if data.get("purchase_price") is None and data.get("cost_price") is not None:
+                data["purchase_price"] = data["cost_price"]
+            if data.get("minimum_stock") is None and data.get("min_stock_level") is not None:
+                data["minimum_stock"] = data["min_stock_level"]
+            if "net_content" in data:
+                data["net_content"] = _coerce_numeric_net_content(data.get("net_content"))
+        return data
 
     @model_validator(mode="after")
     def sanitize_and_validate_product(self) -> "ProductCreate":
@@ -303,12 +372,15 @@ class ProductCreate(BaseModel):
             raise ValueError("Product name cannot be empty")
         self.name = self.product_name
         self.company_name = sanitize_text(self.company_name, 200)
-        self.category = sanitize_text(self.category, 100) or "Fertilizer"
+        self.category = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
         self.trade_name = resolve_trade_name(self.product_name, self.company_name, self.trade_name)
-        self.product_code = sanitize_code(self.product_code, 100, uppercase=True) if self.product_code else None
+        self.product_code = sanitize_code(self.product_code, 50, uppercase=True) if self.product_code else None
         self.batch_number = sanitize_code(self.batch_number, 100) if self.batch_number else None
         self.hsn_code = sanitize_code(self.hsn_code, 50) if self.hsn_code else None
         self.barcode = sanitize_code(self.barcode, 100) if self.barcode else None
+        self.manufacture_date = sanitize_code(self.manufacture_date, 10) if self.manufacture_date else None
+        self.expiry_date = sanitize_code(self.expiry_date, 10) if self.expiry_date else None
+        self.category_attributes = _sanitize_category_attributes(self.category_attributes)
         if self.selling_price < Decimal("0"):
             raise ValueError(_ERR_SELLING_PRICE_NEGATIVE)
         if self.purchase_price < Decimal("0"):
@@ -344,14 +416,32 @@ class ProductUpdate(BaseModel):
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
     barcode: Optional[str] = None
+    category_attributes: Optional[Dict[str, Any]] = None
     variants: Optional[List[Dict[str, Any]]] = None
     minimum_stock: Optional[Decimal] = None
     min_stock_level: Optional[Decimal] = None
     current_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_product_update_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            if "product_name" not in data and data.get("name") is not None:
+                data["product_name"] = data["name"]
+            if "purchase_price" not in data and data.get("cost_price") is not None:
+                data["purchase_price"] = data["cost_price"]
+            if "minimum_stock" not in data and data.get("min_stock_level") is not None:
+                data["minimum_stock"] = data["min_stock_level"]
+            if "net_content" in data:
+                data["net_content"] = _coerce_numeric_net_content(data.get("net_content"))
+        return data
+
     @model_validator(mode="after")
     def sanitize_product_update(self) -> "ProductUpdate":
+        if self.product_code is not None:
+            self.product_code = sanitize_code(self.product_code, 50, uppercase=True) or None
         if self.product_name is not None:
             self.product_name = sanitize_text(self.product_name, 200)
         if self.name is not None:
@@ -359,13 +449,19 @@ class ProductUpdate(BaseModel):
         if self.company_name is not None:
             self.company_name = sanitize_text(self.company_name, 200)
         if self.category is not None:
-            self.category = sanitize_text(self.category, 100) or "Fertilizer"
+            self.category = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
         if self.trade_name is not None:
             self.trade_name = sanitize_text(self.trade_name, 200)
         if self.batch_number is not None:
             self.batch_number = sanitize_code(self.batch_number, 100)
         if self.hsn_code is not None:
             self.hsn_code = sanitize_code(self.hsn_code, 50)
+        if self.manufacture_date is not None:
+            self.manufacture_date = sanitize_code(self.manufacture_date, 10) or None
+        if self.expiry_date is not None:
+            self.expiry_date = sanitize_code(self.expiry_date, 10) or None
+        if self.category_attributes is not None:
+            self.category_attributes = _sanitize_category_attributes(self.category_attributes)
         if self.selling_price is not None and self.selling_price < Decimal("0"):
             raise ValueError(_ERR_SELLING_PRICE_NEGATIVE)
         if self.purchase_price is not None and self.purchase_price < Decimal("0"):
@@ -414,6 +510,7 @@ class ProductResponse(BaseModel):
     batch_number: Optional[str] = None
     hsn_code: Optional[str] = None
     barcode: Optional[str] = None
+    category_attributes: Optional[Dict[str, Any]] = None
     variants: Optional[List[Dict[str, Any]]] = None
     batches: Optional[List[ProductBatchResponse]] = None
     current_stock: Decimal = Decimal("0")
@@ -509,6 +606,7 @@ class ProductRefillRequest(BaseModel):
     mrp: Optional[Decimal] = None
     new_batch_number: Optional[str] = None
     batch_number: Optional[str] = None
+    manufacture_date: Optional[str] = None
     new_expiry_date: Optional[str] = None
     expiry_date: Optional[str] = None
     supplier_name: Optional[str] = None
@@ -575,6 +673,7 @@ class ProductSearchResult(BaseModel):
     current_stock: Decimal = Decimal("0")
     expiry_date: Optional[str] = None
     batch_number: Optional[str] = None
+    category_attributes: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
@@ -694,8 +793,12 @@ class SaleItemResponse(BaseModel):
     quantity: Decimal = Decimal("0")
     price: Decimal = Decimal("0")
     unit_price: Decimal = Decimal("0")
+    cost_price: Optional[Decimal] = None
+    mrp: Optional[Decimal] = None
+    discount_percent: Optional[Decimal] = Decimal("0")
+    discount_amount: Optional[Decimal] = Decimal("0")
     unit: Optional[str] = "Bags"
-    hsn_code: Optional[str] = "31021000"
+    hsn_code: Optional[str] = None
     gst_rate: Decimal = Decimal("0")
     gst_amount: Decimal = Decimal("0")
     taxable_amount: Decimal = Decimal("0")
@@ -850,12 +953,14 @@ class ExpenseCreate(BaseModel):
     category: ExpenseCategory = ExpenseCategory.OTHER
     amount: Decimal = Field(..., gt=0)
     expense_date: date
+    payment_mode: Optional[str] = "Cash"
     description: Optional[str] = None
 
     @model_validator(mode="after")
     def sanitize_expense(self) -> "ExpenseCreate":
         self.expense_name = sanitize_text(self.expense_name, 200) or "Expense"
         self.description = sanitize_text(self.description, 500) if self.description else None
+        self.payment_mode = sanitize_text(self.payment_mode, 30) or "Cash"
         return self
 
 class ExpenseUpdate(BaseModel):
@@ -863,6 +968,7 @@ class ExpenseUpdate(BaseModel):
     category: Optional[ExpenseCategory] = None
     amount: Optional[Decimal] = None
     expense_date: Optional[date] = None
+    payment_mode: Optional[str] = None
     description: Optional[str] = None
 
 class ExpenseResponse(BaseModel):
@@ -871,6 +977,7 @@ class ExpenseResponse(BaseModel):
     category: ExpenseCategory
     amount: Decimal
     expense_date: date
+    payment_mode: Optional[str] = "Cash"
     description: Optional[str] = None
     created_at: datetime
 

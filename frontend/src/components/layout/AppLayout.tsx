@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Receipt, 
@@ -13,13 +13,14 @@ import {
   X, 
   Sprout, 
   ScanLine,
-  Bell,
   ChevronRight,
+  ChevronDown,
   RotateCcw,
   Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShop } from '../../context/ShopContext';
+import { INVENTORY_CATEGORIES, INVENTORY_CATEGORY_CONFIGS } from '../../config/inventoryCategories';
 
 export const AppLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -27,6 +28,21 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [inventoryDropdownOpen, setInventoryDropdownOpen] = useState(
+    location.pathname.startsWith('/inventory')
+  );
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/inventory')) {
+      setInventoryDropdownOpen(true);
+    }
+  }, [location.pathname]);
+
+  const activeInventoryCategory = React.useMemo(() => {
+    if (!location.pathname.startsWith('/inventory')) return null;
+    const params = new URLSearchParams(location.search);
+    return params.get('category') || 'ALL';
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     logout();
@@ -81,6 +97,87 @@ export const AppLayout: React.FC = () => {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.to;
+
+            if (item.to === '/inventory') {
+              const isInventoryRoute = location.pathname.startsWith('/inventory');
+              return (
+                <div key={item.to} className="space-y-1">
+                  <button
+                    type="button"
+                    aria-expanded={inventoryDropdownOpen}
+                    aria-controls="desktop-inventory-categories"
+                    onClick={() => {
+                      setInventoryDropdownOpen((prev) => !prev);
+                      if (!isInventoryRoute) {
+                        navigate('/inventory');
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+                      isInventoryRoute
+                        ? 'bg-brand-700 text-white shadow-sm ring-1 ring-white/20 font-semibold'
+                        : 'text-brand-100 hover:bg-brand-800/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 ${isInventoryRoute ? 'text-emerald-300' : 'text-brand-300'}`} />
+                      <span>{item.label}</span>
+                    </div>
+                    <ChevronDown
+                      className={`w-4 h-4 text-brand-300 transition-transform duration-200 ${
+                        inventoryDropdownOpen ? 'rotate-180 text-emerald-300' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {inventoryDropdownOpen && (
+                    <div
+                      id="desktop-inventory-categories"
+                      className="ml-4 pl-3 border-l border-brand-700/80 space-y-0.5 py-1"
+                    >
+                      <Link
+                        to="/inventory"
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          isInventoryRoute && activeInventoryCategory === 'ALL'
+                            ? 'bg-brand-800 text-emerald-300 font-bold'
+                            : 'text-brand-200 hover:bg-brand-800/60 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-300 shrink-0" />
+                          <span>All Categories</span>
+                        </span>
+                      </Link>
+                      {INVENTORY_CATEGORIES.map((catId) => {
+                        const cfg = INVENTORY_CATEGORY_CONFIGS[catId];
+                        const isCatActive =
+                          isInventoryRoute &&
+                          (activeInventoryCategory || '').toLowerCase() === catId.toLowerCase();
+                        return (
+                          <Link
+                            key={catId}
+                            to={`/inventory?category=${encodeURIComponent(catId)}`}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                              isCatActive
+                                ? 'bg-brand-800 text-white font-bold ring-1 ring-emerald-400/40'
+                                : 'text-brand-200 hover:bg-brand-800/60 hover:text-white'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
+                              <span className="truncate">{cfg.label}</span>
+                            </span>
+                            <span className="text-[10px] font-mono text-brand-300 shrink-0 ml-1">
+                              {cfg.defaultGstRate}%
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <NavLink
                 key={item.to}
@@ -177,9 +274,81 @@ export const AppLayout: React.FC = () => {
               <p className="text-xs text-brand-700 capitalize font-medium">{user?.role || 'Store Owner'}</p>
             </div>
 
-            <div className="flex-1 py-2 space-y-1">
+            <div className="flex-1 py-2 space-y-1 overflow-y-auto">
               {navItems.map((item) => {
                 const Icon = item.icon;
+                if (item.to === '/inventory') {
+                  const isInventoryRoute = location.pathname.startsWith('/inventory');
+                  return (
+                    <div key={item.to} className="space-y-1">
+                      <button
+                        type="button"
+                        aria-expanded={inventoryDropdownOpen}
+                        aria-controls="mobile-inventory-categories"
+                        onClick={() => setInventoryDropdownOpen((prev) => !prev)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium ${
+                          isInventoryRoute ? 'bg-brand-50 text-brand-800 font-semibold' : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon className="w-5 h-5 text-brand-700" />
+                          <span>{item.label}</span>
+                        </div>
+                        <ChevronDown
+                          className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                            inventoryDropdownOpen ? 'rotate-180 text-brand-700' : ''
+                          }`}
+                        />
+                      </button>
+                      {inventoryDropdownOpen && (
+                        <div
+                          id="mobile-inventory-categories"
+                          className="ml-5 pl-3 border-l border-slate-200 space-y-0.5 py-1"
+                        >
+                          <Link
+                            to="/inventory"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs ${
+                              isInventoryRoute && activeInventoryCategory === 'ALL'
+                                ? 'bg-brand-50 text-brand-900 font-bold'
+                                : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-brand-600 shrink-0" />
+                            <span>All Categories</span>
+                          </Link>
+                          {INVENTORY_CATEGORIES.map((catId) => {
+                            const cfg = INVENTORY_CATEGORY_CONFIGS[catId];
+                            const isCatActive =
+                              isInventoryRoute &&
+                              (activeInventoryCategory || '').toLowerCase() === catId.toLowerCase();
+                            return (
+                              <Link
+                                key={catId}
+                                to={`/inventory?category=${encodeURIComponent(catId)}`}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center justify-between px-2.5 py-2 rounded-lg text-xs ${
+                                  isCatActive
+                                    ? 'bg-brand-50 text-brand-900 font-bold'
+                                    : 'text-slate-600 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} />
+                                  <span>{cfg.label}</span>
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {cfg.defaultGstRate}% GST
+                                </span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <NavLink
                     key={item.to}

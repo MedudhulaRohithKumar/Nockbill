@@ -13,20 +13,11 @@ from app.schemas.schemas import (
     PriceListCreate, PriceListUpdate,
     PriceListAssignRequest, PriceListUnassignRequest
 )
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_owner
 
 router = APIRouter(prefix="/api/price-lists", tags=["Price Lists"])
 
-
-def require_owner_user(current_user: User = Depends(get_current_user)) -> User:
-    """Strictly enforce that only Admin / Shop Owner can create or modify Price Lists."""
-    role_str = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    if role_str.upper() != "OWNER" and current_user.username != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the Shop Owner / Admin can create or manage Price Lists."
-        )
-    return current_user
+require_owner_user = require_owner
 
 
 def compute_adjusted_price(base_price: Decimal, price_list: Optional[PriceList]) -> Decimal:

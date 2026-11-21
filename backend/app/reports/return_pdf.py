@@ -14,6 +14,7 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.lib.colors import HexColor
+from app.utils.helpers import escape_pdf_text as _esc
 
 
 RED_ACCENT = HexColor("#B71C1C")
@@ -54,15 +55,15 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     elements = []
 
     # ── Shop Header ──────────────────────────────────────────
-    elements.append(Paragraph(shop.shop_name or "NockBill Solutions", _header_style(18, color=GREEN)))
+    elements.append(Paragraph(_esc(shop.shop_name or "NockBill Solutions"), _header_style(18, color=GREEN)))
     if shop.address:
-        elements.append(Paragraph(shop.address, _header_style(9, bold=False, color=DARK_TEXT)))
-    
+        elements.append(Paragraph(_esc(shop.address), _header_style(9, bold=False, color=DARK_TEXT)))
+
     contact_parts = []
     if shop.phone:
-        contact_parts.append(f"Phone: {shop.phone}")
+        contact_parts.append(f"Phone: {_esc(shop.phone)}")
     if shop.gstin:
-        contact_parts.append(f"GSTIN: {shop.gstin}")
+        contact_parts.append(f"GSTIN: {_esc(shop.gstin)}")
     if contact_parts:
         elements.append(Paragraph(" | ".join(contact_parts), _header_style(9, bold=False, color=DARK_TEXT)))
 
@@ -77,22 +78,22 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
 
     meta_data = [
         [
-            Paragraph(f"<b>Credit Note No:</b> <font color='#B71C1C'><b>{ret_num}</b></font>", styles["Normal"]),
-            Paragraph(f"<b>Return Date:</b> {ret_date_str}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Credit Note No:</b> <font color='#B71C1C'><b>{_esc(ret_num)}</b></font>", styles["Normal"]),
+            Paragraph(f"<b>Return Date:</b> {_esc(ret_date_str)}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
         [
-            Paragraph(f"<b>Original Bill No:</b> <font color='#1B5E20'><b>{sales_return.invoice_number}</b></font>", styles["Normal"]),
-            Paragraph(f"<b>Customer Phone:</b> {sales_return.customer_phone or '-'}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Original Bill No:</b> <font color='#1B5E20'><b>{_esc(sales_return.invoice_number)}</b></font>", styles["Normal"]),
+            Paragraph(f"<b>Customer Phone:</b> {_esc(sales_return.customer_phone or '-')}", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
         [
-            Paragraph(f"<b>Customer Name:</b> {sales_return.customer_name or 'Walk-in Farmer'}", styles["Normal"]),
-            Paragraph(f"<b>Refund Mode:</b> <b>{pm_str}</b> <font color='#B71C1C'>(REFUNDED)</font>", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Customer Name:</b> {_esc(sales_return.customer_name or 'Walk-in Farmer')}", styles["Normal"]),
+            Paragraph(f"<b>Refund Mode:</b> <b>{_esc(pm_str)}</b> <font color='#B71C1C'>(REFUNDED)</font>", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ],
     ]
     if sales_return.reason:
         meta_data.append([
-            Paragraph(f"<b>Return Reason:</b> {sales_return.reason}", styles["Normal"]),
-            Paragraph(f"<b>Stock Status:</b> <font color='#1B5E20'>RESTOCKED TO INVENTORY</font>", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
+            Paragraph(f"<b>Return Reason:</b> {_esc(sales_return.reason)}", styles["Normal"]),
+            Paragraph("<b>Stock Status:</b> <font color='#1B5E20'>RESTOCKED TO INVENTORY</font>", _header_style(9, align=TA_RIGHT, bold=False, color=DARK_TEXT)),
         ])
 
     elements.append(Table(meta_data, colWidths=["55%", "45%"]))
@@ -107,8 +108,8 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     computed_grand_total = Decimal("0")
 
     for i, item in enumerate(sales_return.items, 1):
-        comp = f"\n<font color='#616161'>{item.company_name}</font>" if item.company_name else ""
-        batch = f"\n<font color='#757575'>Batch: {item.batch_number}</font>" if item.batch_number else ""
+        comp = f"\n{item.company_name}" if item.company_name else ""
+        batch = f"\nBatch: {item.batch_number}" if item.batch_number else ""
         qty = Decimal(str(item.returned_quantity or 0))
         unit_p = Decimal(str(item.unit_price or 0))
         gst_r = Decimal(str(item.gst_rate or 0))
@@ -193,8 +194,8 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     # ── Terms & Authorized Signatory ──────────────────────────
     footer_data = [
         [
-            Paragraph("<b>Stock Verification & Refund Note:</b><br/>1. Goods received back in verified, seal/usable condition.<br/>2. Physical inventory updated in store godown.<br/>3. Payment refunded as recorded above.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
-            Paragraph(f"For <b>{shop.shop_name or 'NockBill Solutions'}</b><br/><br/><br/><b>Receiver / Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
+            Paragraph("<b>Stock Verification &amp; Refund Note:</b><br/>1. Goods received back in verified, seal/usable condition.<br/>2. Physical inventory updated in store godown.<br/>3. Payment refunded as recorded above.", _header_style(7, bold=False, color=colors.dimgrey, align=TA_LEFT)),
+            Paragraph(f"For <b>{_esc(shop.shop_name or 'NockBill Solutions')}</b><br/><br/><br/><b>Receiver / Authorized Signatory</b>", _header_style(8, bold=False, color=DARK_TEXT, align=TA_RIGHT)),
         ]
     ]
     footer_table = Table(footer_data, colWidths=["60%", "40%"])

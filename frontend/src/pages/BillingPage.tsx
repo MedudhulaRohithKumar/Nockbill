@@ -37,6 +37,8 @@ import {
   sanitizeCodeInput as sanitizeCode,
   sanitizePhoneInput,
   isValidPhone,
+  generateBillIdempotencyKey,
+  mergeProductSearchResults,
 } from '../utils/formatters';
 
 type PaymentType = 'Cash' | 'UPI' | 'Card' | 'Credit';
@@ -108,6 +110,7 @@ export const BillingPage: React.FC = () => {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [billIdempotencyKey, setBillIdempotencyKey] = useState<string>(() => generateBillIdempotencyKey());
 
   // Load products list and frequently sold products
   const loadData = async () => {
@@ -136,13 +139,14 @@ export const BillingPage: React.FC = () => {
     }
   }, [user?.id, location.state]);
 
-  // Search filter
+  // Search filter: instant client-side filter + debounced server search for catalogs >500 SKUs (SD5)
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
       setSearchResults([]);
       return;
     }
-    const q = searchQuery.toLowerCase();
+    const q = trimmed.toLowerCase();
     const invList = Array.isArray(inventory) ? inventory : [];
     const filtered = invList.filter(p => {
       const pName = safeString(p.name || p.product_name).toLowerCase();
@@ -162,7 +166,31 @@ export const BillingPage: React.FC = () => {
         pCompany.includes(q)
       );
     });
-    setSearchResults(filtered.slice(0, 50));
+    const localSlice = filtered.slice(0, 50);
+    setSearchResults(localSlice);
+
+    if (trimmed.length < 2) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void productsApi
+        .search(trimmed)
+        .then((remoteMatches) => {
+          if (!cancelled && remoteMatches.length > 0) {
+            setSearchResults(mergeProductSearchResults(localSlice, remoteMatches, 50));
+          }
+        })
+        .catch(() => {
+          // Keep instant local results if offline or search request fails
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery, inventory]);
 
   // Barcode Lookup Handler
@@ -310,7 +338,7 @@ export const BillingPage: React.FC = () => {
       trade_name: tradeName,
       batch_number: batchNo,
       expiry_date: expiryDate,
-      hsn_code: product.hsn_code || '31021000',
+      hsn_code: product.hsn_code || '',
       unit: unit,
       unit_price: price,
       mrp: mrp,
@@ -340,7 +368,7 @@ export const BillingPage: React.FC = () => {
       trade_name: item.trade_name,
       batch_number: item.batch_number || 'DEFAULT',
       expiry_date: item.expiry_date,
-      hsn_code: item.hsn_code || '31021000',
+      hsn_code: item.hsn_code || '',
       unit: item.unit || 'Bags',
       quantity: qty,
       unit_price: price,
@@ -432,6 +460,7 @@ export const BillingPage: React.FC = () => {
     setCustomerGstin('');
     setPaymentSplits([{ method: 'Cash', amount: 0 }]);
     setErrorMsg(null);
+    setBillIdempotencyKey(generateBillIdempotencyKey());
   };
 
   // Manual reset from the header — confirm first so a bill in progress
@@ -529,6 +558,7 @@ export const BillingPage: React.FC = () => {
     }
 
     const salePayload = {
+      idempotency_key: billIdempotencyKey,
       customer_name: sanitizeText(customerName, 120) || 'Cash Customer / Farmer',
       customer_phone: cleanPhone,
       customer_address: sanitizeText(customerAddress, 300),
@@ -578,7 +608,7 @@ export const BillingPage: React.FC = () => {
       clearBill();
     } catch (err: any) {
       console.error('Invoice creation error:', err);
-      alert(`Could not save invoice in database: ${getErrorMessage(err, 'Failed to save bill')}`);
+      setErrorMsg(`Could not save invoice: ${getErrorMessage(err, 'Failed to save bill')}`);
     } finally {
       setIsSaving(false);
     }
@@ -646,14 +676,20 @@ export const BillingPage: React.FC = () => {
               const matchedProduct = Array.isArray(inventory) ? inventory.find(p => p.id === fItem.id) : undefined;
               return (
                 <button
+                  type="button"
                   key={fItem.id}
                   onClick={() => {
-                    if (matchedProduct) {
-                      if (matchedProduct.variants && matchedProduct.variants.length > 1) {
-                        setVariantPickerProduct(matchedProduct);
+                    const addMatched = (prod: Product) => {
+                      if (prod.variants && prod.variants.length > 1) {
+                        setVariantPickerProduct(prod);
                       } else {
-                        addProductToCart(matchedProduct);
+                        addProductToCart(prod);
                       }
+                    };
+                    if (matchedProduct) {
+                      addMatched(matchedProduct);
+                    } else if (fItem.id) {
+                      void productsApi.getById(fItem.id).then(addMatched).catch(() => {});
                     }
                   }}
                   className="px-3 py-1.5 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 rounded-xl font-medium text-slate-800 flex items-center gap-2 shrink-0 transition shadow-xs active:scale-95"

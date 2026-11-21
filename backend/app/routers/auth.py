@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
+import json
 import secrets
 import hmac
 import hashlib
+from typing import Optional
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Response, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from app.database.base import get_db
@@ -12,10 +14,18 @@ from app.schemas.schemas import (
     LoginRequest, TokenResponse, UserCreate, UserResponse,
     ShopRegistrationRequest, RegistrationResponse,
     ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest,
-    SubscriptionPaymentRequest, GoogleAuthRequest
+    SubscriptionPaymentRequest, SubscriptionWebhookRequest, GoogleAuthRequest
 )
-from app.utils.auth import hash_password, verify_password, create_access_token, get_current_user
+from app.utils.auth import (
+    create_user_access_token,
+    get_current_user,
+    get_current_user_optional,
+    hash_password,
+    require_owner,
+    verify_password,
+)
 from app.utils.captcha import generate_captcha_challenge, verify_captcha_challenge
+from app.utils.rate_limit import enforce_rate_limit, get_client_ip
 from app.services.email_service import (
     send_password_reset_email,
     send_password_reset_confirmation_email,
@@ -96,19 +106,23 @@ def get_login_captcha():
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    # 1. Strictly enforce server-side single-use CAPTCHA verification first
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    client_ip = get_client_ip(request)
+    clean_identifier = (payload.username or "").strip()
+    identifier_lower = clean_identifier.lower()
+
+    enforce_rate_limit(db, "login_ip", client_ip, settings.rate_limit_login_per_15min, 900)
+    enforce_rate_limit(db, "login_id", identifier_lower, settings.rate_limit_login_per_15min, 900)
+
+    # 1. Strictly enforce server-side single-use CAPTCHA verification (DB-backed across Lambda workers)
     is_valid_captcha, captcha_error = verify_captcha_challenge(
-        payload.captcha_token, payload.captcha_code
+        payload.captcha_token, payload.captcha_code, db=db
     )
     if not is_valid_captcha:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=captcha_error,
         )
-
-    clean_identifier = (payload.username or "").strip()
-    identifier_lower = clean_identifier.lower()
 
     user = db.query(User).filter(
         or_(
@@ -123,11 +137,11 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username, mobile, or password",
         )
-    token = create_access_token({"sub": str(user.id)})
+    token = create_user_access_token(user)
     set_auth_cookie(response, token)
 
     # Audit log
-    audit = AuditLog(user_id=user.id, action=AuditAction.LOGIN)
+    audit = AuditLog(user_id=user.id, shop_id=user.shop_id, action=AuditAction.LOGIN, ip_address=client_ip)
     db.add(audit)
     db.commit()
 
@@ -142,7 +156,20 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 
 
 @router.post("/register", response_model=RegistrationResponse, status_code=201)
-def register_shop(payload: ShopRegistrationRequest, response: Response, db: Session = Depends(get_db)):
+def register_shop(payload: ShopRegistrationRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(db, "register_ip", client_ip, settings.rate_limit_register_per_hour, 3600)
+
+    # Enforce single-use CAPTCHA on registration to stop bot/spam shop creation
+    is_valid_captcha, captcha_error = verify_captcha_challenge(
+        payload.captcha_token, payload.captcha_code, db=db
+    )
+    if not is_valid_captcha:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=captcha_error,
+        )
+
     clean_username = (payload.username or "").strip()[:50]
     clean_email = (payload.email or "").strip()[:150] if payload.email else None
     clean_phone = (payload.phone or "").strip()[:20] if payload.phone else None
@@ -213,8 +240,8 @@ def register_shop(payload: ShopRegistrationRequest, response: Response, db: Sess
     db.commit()
     db.refresh(new_user)
 
-    # 4. Generate Auth Token
-    token = create_access_token({"sub": str(new_user.id)})
+    # 4. Generate Auth Token bound to token_version (S6)
+    token = create_user_access_token(new_user)
     set_auth_cookie(response, token)
 
     # 5. Business credential export payload
@@ -236,6 +263,7 @@ def register_shop(payload: ShopRegistrationRequest, response: Response, db: Sess
         except Exception as exc:
             logger.warning("Could not dispatch welcome email to %s: %s", clean_email, exc)
 
+    # Never echo raw plaintext passwords back in HTTP response bodies (H5).
     credentials = {
         "account_id": f"SHOP-{shop_record.id:05d}",
         "shop_name": shop_record.shop_name,
@@ -244,7 +272,6 @@ def register_shop(payload: ShopRegistrationRequest, response: Response, db: Sess
         "email": new_user.email or "",
         "phone": new_user.phone or "",
         "role": new_user.role.value,
-        "initial_password": payload.password,
         "console_login_url": base_login_url,
         "gstin": shop_record.gstin or "UNREGISTERED",
         "fertilizer_license": shop_record.fertilizer_license_no or "N/A",
@@ -271,19 +298,24 @@ def register_shop(payload: ShopRegistrationRequest, response: Response, db: Sess
 def activate_subscription(
     payload: SubscriptionPaymentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_owner),
 ):
-    if current_user.role != UserRole.OWNER:
+    """
+    Self-service demo activation is strictly forbidden in production/staging or
+    whenever SUBSCRIPTION_PAYMENT_MODE != 'demo'. In live mode, subscriptions must
+    be activated via the cryptographically signed /api/auth/subscription-webhook endpoint.
+    """
+    if not settings.demo_activation_allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the shop owner can manage or activate subscriptions."
+            detail="Self-service subscription activation is disabled. Complete payment verification through the payment gateway.",
         )
 
     shop_id = getattr(current_user, "shop_id", None)
     if not shop_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is not linked to a valid shop."
+            detail="User account is not linked to a valid shop.",
         )
 
     clean_ref = (payload.payment_ref or "DEMO-ACTIVATION").strip()
@@ -296,7 +328,7 @@ def activate_subscription(
     audit = AuditLog(
         user_id=current_user.id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Subscription activated in demo mode: {payload.plan_name} (demo mode, no payment processed) Ref: {clean_ref}"
+        description=f"Subscription activated in demo mode: {payload.plan_name} (demo mode, no payment processed) Ref: {clean_ref}",
     )
     db.add(audit)
     db.commit()
@@ -308,15 +340,82 @@ def activate_subscription(
         "demo": True,
         "payment_verified": False,
         "payment_ref": clean_ref,
-        "activated_at": datetime.now(timezone.utc).isoformat()
+        "activated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/subscription-webhook")
+async def subscription_payment_webhook(
+    request: Request,
+    x_payment_signature: str = Header(default="", alias="X-Payment-Signature"),
+    db: Session = Depends(get_db),
+):
+    """
+    Server-to-server payment webhook that activates a shop subscription only after
+    verifying the HMAC-SHA256 signature computed with PAYMENT_WEBHOOK_SECRET.
+    """
+    webhook_secret = (settings.payment_webhook_secret or "").strip()
+    if not webhook_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Payment webhook verification is not configured.",
+        )
+
+    raw_body = await request.body()
+    expected_sig = hmac.new(
+        webhook_secret.encode("utf-8"), raw_body, hashlib.sha256
+    ).hexdigest()
+    provided_sig = (x_payment_signature or "").strip()
+    if not provided_sig or not hmac.compare_digest(expected_sig, provided_sig):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid payment webhook signature.",
+        )
+
+    try:
+        parsed = SubscriptionWebhookRequest.model_validate(json.loads(raw_body.decode("utf-8")))
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed webhook payload.")
+
+    if parsed.event != "payment.captured":
+        return {"success": True, "ignored": True, "event": parsed.event}
+
+    shop = db.query(ShopSettings).filter(ShopSettings.id == parsed.shop_id).first()
+    if not shop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shop not found.")
+
+    shop.subscription_status = "ACTIVE"
+    db.query(User).filter(User.shop_id == parsed.shop_id).update(
+        {User.subscription_status: "ACTIVE"}, synchronize_session=False
+    )
+    db.add(AuditLog(
+        user_id=None,
+        action=AuditAction.SETTINGS_UPDATE,
+        reference_id=parsed.shop_id,
+        reference_type="ShopSettings",
+        description=f"Verified subscription payment webhook: plan={parsed.plan_name}, ref={parsed.payment_ref}",
+    ))
+    db.commit()
+
+    return {
+        "success": True,
+        "subscription_status": "ACTIVE",
+        "payment_verified": True,
+        "shop_id": parsed.shop_id,
+        "payment_ref": parsed.payment_ref,
+        "activated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @router.post("/forgot-password/request")
-def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password_request(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     ident = (payload.identifier or "").strip()
     if not ident:
         raise HTTPException(status_code=400, detail="Please enter your email, username, or phone number.")
+
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(db, "otp_req_ip", client_ip, settings.rate_limit_otp_request_per_hour, 3600)
+    enforce_rate_limit(db, "otp_req_id", ident.lower(), settings.rate_limit_otp_request_per_hour, 3600)
 
     user = db.query(User).filter(
         or_(
@@ -409,10 +508,14 @@ def forgot_password_request(payload: ForgotPasswordRequest, db: Session = Depend
 
 
 @router.post("/forgot-password/verify")
-def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
+def verify_reset_otp(payload: VerifyOtpRequest, request: Request, db: Session = Depends(get_db)):
     ident = (payload.identifier or "").strip()
     if not ident:
         raise HTTPException(status_code=400, detail="Account identifier is required.")
+
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(db, "otp_verify_ip", client_ip, settings.rate_limit_otp_verify_per_15min, 900)
+    enforce_rate_limit(db, "otp_verify_id", ident.lower(), settings.rate_limit_otp_verify_per_15min, 900)
 
     user = db.query(User).filter(
         or_(
@@ -505,10 +608,13 @@ def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/forgot-password/reset")
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
     ident = (payload.identifier or "").strip()
     if not ident:
         raise HTTPException(status_code=400, detail="Identifier is required.")
+
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(db, "otp_reset_ip", client_ip, settings.rate_limit_otp_verify_per_15min, 900)
 
     user = db.query(User).filter(
         or_(
@@ -589,15 +695,17 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         db.rollback()
         raise HTTPException(status_code=400, detail=invalid_msg)
 
-    # Same transaction: drop any other outstanding codes, change password, audit.
+    # Same transaction: drop any other outstanding codes, change password, bump token_version to revoke all active JWTs (S6), audit.
     db.query(PasswordResetCode).filter(
         PasswordResetCode.user_id == user.id
     ).delete(synchronize_session=False)
     user.password_hash = hash_password(new_pwd)
+    user.token_version = int(getattr(user, "token_version", 1) or 1) + 1
     db.add(AuditLog(
         user_id=user.id,
+        shop_id=user.shop_id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Password reset completed for user {user.username}"
+        description=f"Password reset completed and active sessions revoked for user {user.username}"
     ))
     db.commit()
 
@@ -621,18 +729,19 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
 
 @router.post("/google", response_model=TokenResponse)
-def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = Depends(get_db)):
+def google_auth(payload: GoogleAuthRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """
     Production-grade Google Sign-In verification endpoint.
-    Verifies the Google ID Token via Google's tokeninfo endpoint,
-    validates the audience and issuer, and logs in or creates the merchant shop.
+    Verifies the Google ID Token, validates audience/issuer and google_sub,
+    and logs in an existing Google-linked account or creates a new merchant shop.
     """
+    client_ip = get_client_ip(request)
+    enforce_rate_limit(db, "google_auth_ip", client_ip, settings.rate_limit_login_per_15min, 900)
+
     token_str = (payload.credential or "").strip()
     if not token_str:
         raise HTTPException(status_code=400, detail="Google credential token is missing.")
 
-    # 1. Verify token (ID Token -> local JWKS signature check; Access Token -> tokeninfo,
-    #    both with strict audience validation against our Google Client ID).
     try:
         google_data = verify_google_token(token_str, settings.google_client_id)
     except GoogleUnreachableError:
@@ -644,23 +753,32 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
             detail="Google sign-in is temporarily unavailable. Please sign in with your email and password.",
         )
     except GoogleVerificationError as exc:
-        raise HTTPException(status_code=401, detail=f"Google sign-in failed: {exc}")
+        logger.warning("Google sign-in verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Google sign-in verification failed.")
 
-    # 2. Validate Google payload fields
     google_email = google_data.get("email")
     email_verified = google_data.get("email_verified") or google_data.get("verified_email")
     if not google_email or str(email_verified).lower() not in ("true", "1", "yes"):
         raise HTTPException(status_code=400, detail="Google account email is not verified.")
 
-    google_sub = google_data.get("sub")
-    full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
+    google_sub = str(google_data.get("sub") or "").strip()[:64]
+    if not google_sub:
+        raise HTTPException(status_code=401, detail="Google account subject identifier is missing.")
 
-    # 3. Lookup existing user by email
+    full_name = google_data.get("name") or google_data.get("given_name") or google_email.split("@")[0]
     clean_email = google_email.strip().lower()
-    user = db.query(User).filter(func.lower(User.email) == clean_email).first()
+
+    # Look up strictly by immutable Google subject first to prevent pre-registration email hijacking (H5)
+    user = db.query(User).filter(User.google_sub == google_sub).first()
 
     if not user:
-        # Create username derived from email or google sub
+        existing_by_email = db.query(User).filter(func.lower(User.email) == clean_email).first()
+        if existing_by_email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists. Please sign in with your username and password.",
+            )
+
         base_username = clean_email.split("@")[0].replace(".", "_").replace("-", "_")
         candidate_username = base_username[:40]
         suffix = 1
@@ -668,10 +786,9 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
             candidate_username = f"{base_username[:35]}_{suffix}"
             suffix += 1
 
-        # Determine shop name
         shop_title = (payload.shop_name or "").strip()[:200] or f"{full_name[:150]}'s Shop"
+        initial_sub_status = "ACTIVE" if settings.demo_activation_allowed else "PENDING"
 
-        # Create new Shop Settings
         new_shop = ShopSettings(
             shop_name=shop_title,
             proprietor_name=full_name[:200],
@@ -682,33 +799,29 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
             invoice_prefix="INV",
             invoice_counter=1,
             currency="INR",
-            subscription_status="ACTIVE",
+            subscription_status=initial_sub_status,
         )
         db.add(new_shop)
         db.flush()
 
-        # Hybrid Authentication:
-        # If user provided a password during Google registration, save it so they can log in
-        # with either Google OR Email + Password anytime. Otherwise generate a secure fallback.
         clean_pwd = (payload.password or "").strip()
         chosen_password = clean_pwd if len(clean_pwd) >= 6 else secrets.token_urlsafe(24)
 
-        # Create new User
         user = User(
             name=full_name[:100],
             username=candidate_username,
             email=clean_email[:150],
             phone=payload.phone.strip()[:20] if (payload.phone and payload.phone.strip()) else None,
+            google_sub=google_sub,
             password_hash=hash_password(chosen_password),
             role=UserRole.OWNER,
             shop_id=new_shop.id,
-            subscription_status="ACTIVE",
-            is_active=True
+            subscription_status=initial_sub_status,
+            is_active=True,
         )
         db.add(user)
         db.flush()
 
-        # Dispatch Welcome Email to new Google user
         if clean_email:
             try:
                 login_url = f"{settings.app_base_url.rstrip('/')}/login" if settings.app_base_url else "https://nockbill.com/login"
@@ -720,15 +833,12 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
                     login_url=login_url,
                     gstin=new_shop.gstin,
                     license_no=new_shop.fertilizer_license_no,
-                    role_name="Store Owner"
+                    role_name="Store Owner",
                 )
             except Exception as exc:
                 logger.warning("Could not dispatch welcome email to new Google user %s: %s", clean_email, exc)
     else:
-        # User exists: if they provided a new password, update it so they can use hybrid email+pwd
-        clean_pwd = (payload.password or "").strip()
-        if len(clean_pwd) >= 6:
-            user.password_hash = hash_password(clean_pwd)
+        # Never overwrite an existing user's password_hash during Google Sign-In
         if payload.phone and payload.phone.strip() and not user.phone:
             user.phone = payload.phone.strip()[:20]
         if payload.shop_name and payload.shop_name.strip() and user.shop:
@@ -739,12 +849,13 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact support.")
 
-    # Generate application JWT
-    jwt_token = create_access_token({"sub": str(user.id)})
+    # Generate application JWT bound to user.token_version (S6)
+    jwt_token = create_user_access_token(user)
     set_auth_cookie(response, jwt_token)
 
     audit = AuditLog(
         user_id=user.id,
+        shop_id=user.shop_id,
         action=AuditAction.LOGIN,
         description=f"Successful Sign-in with Google ({clean_email})"
     )
@@ -762,8 +873,21 @@ def google_auth(payload: GoogleAuthRequest, response: Response, db: Session = De
 
 
 @router.post("/logout")
-def logout(response: Response):
-    """Clear HttpOnly authentication cookie."""
+def logout(
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Revoke all active JWTs server-side by bumping token_version and clear the HttpOnly cookie (S6)."""
+    if current_user is not None:
+        current_user.token_version = int(getattr(current_user, "token_version", 1) or 1) + 1
+        db.add(AuditLog(
+            user_id=current_user.id,
+            shop_id=current_user.shop_id,
+            action=AuditAction.LOGOUT,
+            description=f"User {current_user.username} logged out and revoked active tokens",
+        ))
+        db.commit()
     clear_auth_cookie(response)
     return {"success": True, "message": "Successfully logged out"}
 
@@ -777,10 +901,8 @@ def get_me(current_user: User = Depends(get_current_user)):
 def create_user(
     payload: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_owner),
 ):
-    if current_user.role != UserRole.OWNER:
-        raise HTTPException(403, "Only owners can create users")
     existing = db.query(User).filter(User.username == payload.username).first()
     if existing:
         raise HTTPException(400, "Username already exists")

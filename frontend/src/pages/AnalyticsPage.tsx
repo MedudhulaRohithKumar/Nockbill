@@ -43,7 +43,7 @@ const ALL_CATEGORIES = [
   'Pesticide',
   'Seeds',
   'Micronutrients',
-  'Bio-fertilizer',
+  'Bio-Fertilizer',
   'Organic',
   'Others',
 ];

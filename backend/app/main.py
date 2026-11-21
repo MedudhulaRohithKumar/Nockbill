@@ -1,131 +1,46 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy import inspect, text
-import os
+from sqlalchemy.orm import Session
 
 from app.config.settings import settings
 from app.routers import auth, products, sales, purchases, inventory, ocr, reports, expenses, settings as settings_router, invoices, returns, price_lists
-from app.database.base import Base, engine
+from app.database.base import engine, get_db
+from app.database.migrations import ensure_schema
+from app.middleware.security import SecurityHeadersMiddleware
+from app.models.models import User
+from app.utils.auth import get_current_user
 import app.models.models  # noqa – ensure all models are registered
+
+_DOCS_ENABLED = bool(settings.debug or settings.enable_api_docs)
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="NockBill Solutions — Agricultural & Fertilizer Shop Management & Billing System",
+    # Never publish the API surface (OpenAPI schema / Swagger UI) in production.
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
 
-# ── Auto-create any missing tables on startup ─────────────────────────────────
-Base.metadata.create_all(bind=engine)
-
-
-def _run_schema_migrations(db_engine) -> None:
-    """Safely ensure new columns and indexes exist on existing databases."""
-    try:
-        inspector = inspect(db_engine)
-        existing_tables = set(inspector.get_table_names())
-        column_migrations = [
-            ("users", "email", "VARCHAR(150)"),
-            ("users", "phone", "VARCHAR(20)"),
-            ("users", "shop_id", "INTEGER"),
-            ("users", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-            ("shop_settings", "proprietor_name", "VARCHAR(200)"),
-            ("shop_settings", "address_line1", "VARCHAR(500)"),
-            ("shop_settings", "address_line2", "VARCHAR(500)"),
-            ("shop_settings", "fertilizer_license_no", "VARCHAR(100)"),
-            ("shop_settings", "pesticide_license_no", "VARCHAR(100)"),
-            ("shop_settings", "seed_license_no", "VARCHAR(100)"),
-            ("shop_settings", "bank_name", "VARCHAR(200)"),
-            ("shop_settings", "bank_account_no", "VARCHAR(50)"),
-            ("shop_settings", "bank_ifsc", "VARCHAR(20)"),
-            ("shop_settings", "bank_branch", "VARCHAR(200)"),
-            ("shop_settings", "upi_id", "VARCHAR(100)"),
-            ("shop_settings", "terms_conditions", "TEXT"),
-            ("shop_settings", "subscription_status", "VARCHAR(20) DEFAULT 'ACTIVE'"),
-            ("products", "trade_name", "VARCHAR(200)"),
-            ("products", "category", "VARCHAR(100) DEFAULT 'Fertilizer'"),
-            ("products", "batch_number", "VARCHAR(100)"),
-            ("products", "base_selling_price", "NUMERIC(12, 2)"),
-            ("products", "price_list_id", "INTEGER"),
-            ("product_batches", "trade_name", "VARCHAR(200)"),
-            ("product_batches", "company_name", "VARCHAR(200)"),
-            ("sale_items", "trade_name", "VARCHAR(200)"),
-            ("purchase_items", "company_name", "VARCHAR(200)"),
-            ("purchase_items", "trade_name", "VARCHAR(200)"),
-        ]
-        with db_engine.begin() as conn:
-            for table_name, col_name, col_type in column_migrations:
-                if table_name in existing_tables:
-                    cols = {c["name"] for c in inspector.get_columns(table_name)}
-                    if col_name not in cols:
-                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
-
-            # Backfill base_selling_price and smart category classification for legacy rows
-            if "products" in existing_tables:
-                conn.execute(text(
-                    "UPDATE products SET base_selling_price = selling_price WHERE base_selling_price IS NULL"
-                ))
-                conn.execute(text(
-                    """
-                    UPDATE products
-                    SET category = CASE
-                        WHEN LOWER(product_name) LIKE '%seed%' THEN 'Seeds'
-                        WHEN LOWER(product_name) LIKE '%imidacloprid%'
-                          OR LOWER(product_name) LIKE '%chlorpyrifos%'
-                          OR LOWER(product_name) LIKE '%cypermethrin%'
-                          OR LOWER(product_name) LIKE '%mancozeb%'
-                          OR LOWER(product_name) LIKE '%glyphosate%'
-                          OR LOWER(product_name) LIKE '%pesticide%'
-                          OR LOWER(product_name) LIKE '%insecticide%'
-                          OR LOWER(product_name) LIKE '%fungicide%'
-                          OR LOWER(product_name) LIKE '%herbicide%' THEN 'Pesticide'
-                        WHEN LOWER(product_name) LIKE '%zinc%'
-                          OR LOWER(product_name) LIKE '%boron%'
-                          OR LOWER(product_name) LIKE '%micronutrient%'
-                          OR LOWER(product_name) LIKE '%chelated%' THEN 'Micronutrients'
-                        WHEN LOWER(product_name) LIKE '%bio%'
-                          OR LOWER(product_name) LIKE '%rhizobium%'
-                          OR LOWER(product_name) LIKE '%azotobacter%' THEN 'Bio-fertilizer'
-                        WHEN LOWER(product_name) LIKE '%organic%'
-                          OR LOWER(product_name) LIKE '%vermi%'
-                          OR LOWER(product_name) LIKE '%compost%' THEN 'Organic'
-                        ELSE 'Fertilizer'
-                    END
-                    WHERE category IS NULL OR category = '' OR category = company_name
-                    """
-                ))
-
-            # Create composite indexes for fast tenant & trade-name lookups if missing
-            index_statements = [
-                "CREATE INDEX IF NOT EXISTS ix_product_shop_active ON products (shop_id, is_active)",
-                "CREATE INDEX IF NOT EXISTS ix_product_shop_trade ON products (shop_id, trade_name)",
-                "CREATE INDEX IF NOT EXISTS ix_product_shop_category ON products (shop_id, category)",
-                "CREATE INDEX IF NOT EXISTS ix_sale_shop_date ON sales (shop_id, sale_date)",
-                "CREATE INDEX IF NOT EXISTS ix_sale_items_sale_id ON sale_items (sale_id)",
-                "CREATE INDEX IF NOT EXISTS ix_purchase_items_purchase_id ON purchase_items (purchase_id)",
-            ]
-            for stmt in index_statements:
-                try:
-                    conn.execute(text(stmt))
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-
-_run_schema_migrations(engine)
+# ── Schema bootstrap ──────────────────────────────────────────────────────────
+# Production (Lambda) sets AUTO_MIGRATE_ON_STARTUP=false: migrations run once as a deployment
+# step (`migrate_and_seed` action / `python -m app.database.migrations`), never on cold start.
+if settings.auto_migrate_on_startup:
+    ensure_schema(engine)
 
 # ── Security & Caching Middleware ─────────────────────────────────────────────
-from app.middleware.security import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
+# ── CORS: explicit allowlist (credentials are enabled, so a wildcard is never acceptable) ──
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Idempotency-Key", "X-Requested-With"],
+    expose_headers=["X-Total-Count", "Content-Disposition"],
+    max_age=600,
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -142,9 +57,15 @@ app.include_router(expenses.router)
 app.include_router(settings_router.router)
 app.include_router(invoices.router)
 
-# ── Static files (logo uploads) ───────────────────────────────────────────────
-if os.path.exists(settings.upload_dir):
-    app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
+# ── Authenticated, tenant-scoped file serving (replaces unauthenticated /uploads mount — M1) ─
+@app.get("/uploads/{filename}")
+@app.get("/api/uploads/{filename}")
+def get_uploaded_file(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return settings_router.serve_tenant_upload(filename, db, current_user)
 
 
 @app.get("/health")
