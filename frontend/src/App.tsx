@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ShopProvider } from './context/ShopContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { OrbitalLoader } from './components/common/OrbitalLoader';
 import { HomePage } from './pages/HomePage';
 
 // Route-level code splitting: keep initial landing page lightweight and fast
@@ -23,9 +24,11 @@ const KhataPage = lazy(() => import('./pages/KhataPage').then(m => ({ default: m
 const MarketingPage = lazy(() => import('./pages/MarketingPage').then(m => ({ default: m.MarketingPage })));
 
 const RouteLoading: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-50">
-    <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-  </div>
+  <OrbitalLoader
+    label="Loading NockBill OS..."
+    subtext="Initializing fast-counter modules & secure grid..."
+    fullscreen={true}
+  />
 );
 
 // Protected route wrapper
@@ -34,9 +37,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-8 h-8 border-4 border-brand-700 border-t-transparent rounded-full animate-spin"></div>
-      </div>
+      <OrbitalLoader
+        label="Verifying Store Credentials..."
+        subtext="Synchronizing secure multi-tenant session..."
+        fullscreen={true}
+      />
     );
   }
 

@@ -244,7 +244,7 @@ export function resolveTradeName(
 /**
  * Generate a cryptographically strong, per-draft idempotency key for POS sales (SD4).
  * Uses Web Crypto API (`crypto.randomUUID` or `crypto.getRandomValues`) so duplicate
- * taps or retries on flaky rural 4G networks never create duplicate invoices.
+ * taps or retries on flaky 4G / mobile networks never create duplicate invoices.
  */
 export function generateBillIdempotencyKey(): string {
   const cryptoObj = globalThis.crypto;

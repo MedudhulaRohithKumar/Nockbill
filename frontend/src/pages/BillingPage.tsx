@@ -1278,7 +1278,7 @@ export const BillingPage: React.FC = () => {
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                placeholder="Anand Rural"
+                placeholder="Anand District"
               />
             </div>
 
