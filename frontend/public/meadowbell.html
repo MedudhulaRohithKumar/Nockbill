@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>NockBill Meadowbell | Rural Agri-Fintech &amp; POS Operating System</title>
+  <title>NockBill | Rural Agri-Fintech &amp; POS Operating System</title>
   
   <!-- Fonts: Grandstander 900 display, Inter, JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -77,15 +77,9 @@
     }
     .frosted-glass-pill {
       background-color: rgba(173, 196, 174, 0.45);
-      border: 1px solid rgba(255, 255, 255, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.55);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-    }
-    .frosted-glass-card {
-      background-color: rgba(255, 255, 255, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
     }
     .video-hero-layer {
       position: absolute;
@@ -106,36 +100,32 @@
   <!-- ========================================================================= -->
   <header class="fixed top-0 left-0 right-0 z-40 px-4 md:px-8 py-4 transition-all duration-300">
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-      <!-- Brandmark -->
-      <a class="flex items-center gap-2.5 bg-white/70 hover:bg-white/90 backdrop-blur-md px-4 py-2 rounded-full border border-white/80 shadow-sm transition-all group" href="#">
+      <!-- Brandmark: STRICTLY NOCKBILL -->
+      <a class="flex items-center gap-2.5 bg-white/80 hover:bg-white backdrop-blur-md px-4 py-2 rounded-full border border-white/90 shadow-sm transition-all group" href="#">
         <div class="w-8 h-8 rounded-full bg-canopy-deep flex items-center justify-center text-primary-fixed shadow-inner">
           <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">eco</span>
         </div>
         <div class="flex flex-col">
-          <span class="font-display-hero font-extrabold text-[18px] text-canopy-deep leading-none tracking-tight">NockBill</span>
-          <span class="font-label-code text-[9px] text-forest-emerald uppercase tracking-widest font-bold mt-0.5">Meadowbell Edition</span>
+          <span class="font-display-hero font-extrabold text-[20px] text-canopy-deep leading-none tracking-tight">NockBill</span>
+          <span class="font-label-code text-[9px] text-forest-emerald uppercase tracking-widest font-bold mt-0.5">Agri ERP</span>
         </div>
       </a>
 
       <!-- Center Frosted Pill Navigation -->
       <nav class="hidden lg:flex items-center gap-6 px-7 py-2.5 rounded-full frosted-glass-pill shadow-sm">
-        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow" href="/billing">
-          <span class="w-1.5 h-1.5 rounded-full bg-primary-fixed"></span>POS Counter
+        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow" href="#mission-vision">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary-fixed"></span>Mission &amp; Vision
         </a>
         <span class="text-surface-container-lowest/40 text-xs">·</span>
-        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow" href="/khata">
-          <span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>Farmer Khata
+        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow" href="#platform-features">
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>All Features
         </a>
         <span class="text-surface-container-lowest/40 text-xs">·</span>
-        <button type="button" onclick="openAgriDoctorModal()" class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow cursor-pointer">
-          <span class="w-1.5 h-1.5 rounded-full bg-regulatory-sky-bg animate-pulse"></span>Agri Doctor AI
-        </button>
-        <span class="text-surface-container-lowest/40 text-xs">·</span>
-        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow" href="/khata?tab=compliance">
-          <span class="w-1.5 h-1.5 rounded-full bg-khata-amber-bg"></span>Form O Regulatory
+        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors flex items-center gap-1.5 drop-shadow cursor-pointer" href="#agri-doctor-section">
+          <span class="w-1.5 h-1.5 rounded-full bg-regulatory-sky-bg animate-pulse"></span>Free Agri Doctor
         </a>
         <span class="text-surface-container-lowest/40 text-xs">·</span>
-        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors drop-shadow" href="#portal-auth">Pricing &amp; Portal</a>
+        <a class="text-sm text-surface-container-lowest font-semibold hover:text-white transition-colors drop-shadow" href="#portal-auth">Store Login</a>
       </nav>
 
       <!-- Right Action Area (Sign In + Open Store) -->
@@ -144,7 +134,7 @@
           Sign In
         </a>
         <a class="group flex items-center gap-1.5 px-5 py-2 rounded-full font-semibold text-sm bg-white hover:bg-sprout-tint text-meadow-leaf shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5" href="/register">
-          <span>Open Store / Register</span>
+          <span>Open Store</span>
           <span class="material-symbols-outlined text-[18px] group-hover:translate-x-0.5 transition-transform text-meadow-leaf">arrow_forward</span>
         </a>
       </div>
@@ -155,137 +145,122 @@
   <!-- HERO SECTION: FULL-WIDTH PASTORAL CANVAS (9:8 FRAMING + VIDEO OVERLAY) -->
   <!-- ========================================================================= -->
   <section class="relative w-full overflow-hidden min-h-[960px] lg:min-h-[1020px] flex flex-col justify-between pt-24 pb-16">
-    <!-- Visual Backing Canvas: High-res plate + Smooth Video Overlay -->
     <div class="absolute inset-0 z-0 select-none pointer-events-none overflow-hidden">
-      <!-- High-res static fallback plate -->
-      <img alt="Hollyoak pastoral meadow landscape with sunlit clouds, boy and beagle" class="absolute inset-0 w-full h-full object-cover object-center" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"/>
+      <img alt="Sunny pastoral meadow hillside with soft clouds and gentle breeze" class="absolute inset-0 w-full h-full object-cover object-center" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"/>
       
-      <!-- Dynamic Ambient Loop Layer (9:8 ratio scaled seamlessly: 100% width, 112.5% height, top -6.25%) -->
       <video autoplay="" class="video-hero-layer opacity-90 transition-opacity duration-1000" loop="" muted="" playsinline="">
         <source src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d2cb5bef-f92b-4e91-ae93-8dc6555e56ac.mp4" type="video/mp4"/>
       </video>
 
-      <!-- Atmospheric Sunbeam & Soft Contrast Vignette Overlays -->
       <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep/85 via-canopy-deep/20 to-black/25"></div>
       <div class="absolute inset-0 bg-radial-at-c from-transparent via-transparent to-canopy-deep/40"></div>
     </div>
 
-    <!-- Hero Value Statement & Grandstander Title -->
+    <!-- Hero Value Statement -->
     <div class="relative z-20 w-full max-w-7xl mx-auto px-4 md:px-8 pt-12 md:pt-20 flex flex-col items-start">
       <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/25 backdrop-blur-md border border-white/40 shadow-sm mb-4">
         <span class="w-2.5 h-2.5 rounded-full bg-primary-fixed animate-ping"></span>
-        <span class="font-label-badge text-xs text-white uppercase tracking-widest font-bold drop-shadow">HOLLYOAK'S RURAL REVOLUTION</span>
+        <span class="font-label-badge text-xs text-white uppercase tracking-widest font-bold drop-shadow">INDIA'S LEADING AGRI-FINTECH &amp; POS PLATFORM</span>
       </div>
 
       <div class="flex flex-col select-none">
-        <h1 class="font-display-hero text-6xl md:text-8xl lg:text-[104px] text-white font-black drop-shadow-[0_6px_22px_rgba(20,83,45,0.7)] leading-[0.92] tracking-tight">
-          PLUCKY
+        <h1 class="font-display-hero text-5xl sm:text-7xl md:text-8xl lg:text-[96px] text-white font-black drop-shadow-[0_6px_22px_rgba(20,83,45,0.7)] leading-[0.92] tracking-tight">
+          EMPOWERING
         </h1>
-        <h1 class="font-display-hero text-6xl md:text-8xl lg:text-[104px] text-secondary-container font-black drop-shadow-[0_6px_26px_rgba(20,83,45,0.75)] leading-[0.92] tracking-tight mt-1">
-          SPROUT SQUAD
+        <h1 class="font-display-hero text-5xl sm:text-7xl md:text-8xl lg:text-[96px] text-secondary-container font-black drop-shadow-[0_6px_26px_rgba(20,83,45,0.75)] leading-[0.92] tracking-tight mt-1">
+          RURAL AGRI COMMERCE
         </h1>
       </div>
 
       <p class="font-body-md text-lg md:text-2xl text-white/95 max-w-2xl mt-6 font-medium leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]">
-        Learn the Ways of the Meadow with Hollyoak's Plucky Sprout Squad! The high-speed rural billing ERP and statutory Form O platform engineered for agri-retailers.
+        Built for fertilizer, seeds, and pesticide retailers across India. Rapid 3-second counter billing, 80mm thermal receipts, digital Farmer Khata credit recovery, automated Form O statutory registers, and field-grade agronomic AI.
       </p>
 
-      <!-- Hero Call To Action Group -->
       <div class="flex flex-wrap items-center gap-4 mt-8">
         <a class="flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-meadow-leaf font-bold text-base shadow-2xl hover:bg-sprout-tint transition-all duration-200 transform hover:-translate-y-0.5" href="/register">
-          Join us / Launch Store
+          Open Your Store
         </a>
-        <button type="button" class="group flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-full shadow-lg backdrop-blur-md transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer" onclick="document.getElementById('portal-auth').scrollIntoView({behavior: 'smooth'})" style="background-color: rgba(204, 218, 173, 0.65); border: 1px solid rgba(255,255,255,0.45);">
+        <a class="group flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-full shadow-lg backdrop-blur-md transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer" href="#platform-features" style="background-color: rgba(204, 218, 173, 0.65); border: 1px solid rgba(255,255,255,0.45);">
           <div class="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-sm">
             <span class="material-symbols-outlined text-canopy-deep text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
           </div>
-          <span class="font-semibold text-canopy-deep text-sm md:text-base">Explore Console Demo</span>
-        </button>
+          <span class="font-semibold text-canopy-deep text-sm md:text-base">Explore All Features</span>
+        </a>
       </div>
     </div>
 
-    <!-- Featured Chapters Interactive Carousel Row -->
+    <!-- 3 Relevant 3D Pastoral Feature Cards -->
     <div class="relative z-20 w-full max-w-7xl mx-auto px-4 md:px-8 mt-12 md:mt-16">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-primary-fixed"></span>
           <h2 class="font-display-hero text-sm md:text-base font-extrabold text-white uppercase tracking-wider drop-shadow-md">
-            CHAPTERS &amp; MODULES
+            CORE PILLARS OF NOCKBILL
           </h2>
         </div>
-        <a class="font-label-code text-xs md:text-sm text-white/90 hover:text-white flex items-center gap-1 drop-shadow transition-colors group" href="#features">
-          <span>browse all platform chapters</span>
+        <a class="font-label-code text-xs md:text-sm text-white/90 hover:text-white flex items-center gap-1 drop-shadow transition-colors group" href="#platform-features">
+          <span>browse all 20+ modules</span>
           <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">chevron_right</span>
         </a>
       </div>
 
-      <!-- 3 Bespoke Chapter Cards with WebP Assets -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <!-- Card 1: Agri Doctor -->
-        <div class="group relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-950/40 cursor-pointer border border-white/20" onclick="openAgriDoctorModal()">
-          <div class="h-48 md:h-52 w-full overflow-hidden relative">
-            <img alt="Agri Doctor Crop Diagnostic AI in meadow laboratory" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/cd2d844f-ae3f-4fa9-8067-b077530b6e71.webp"/>
-            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85 group-hover:opacity-65 transition-opacity"></div>
-            <div class="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:bg-primary group-hover:text-white text-forest-emerald transition-colors">
-              <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-            </div>
-            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-regulatory-sky-bg text-regulatory-sky font-label-badge text-[11px] font-bold uppercase shadow-sm">
-              AI Module 01
-            </div>
-          </div>
-          <div class="p-5 bg-white/95 backdrop-blur-md">
-            <span class="font-label-code text-[11px] text-meadow-leaf uppercase tracking-wider font-bold block mb-1">Pest &amp; Leaf Telemetry</span>
-            <h3 class="font-headline-md text-base font-bold text-canopy-deep line-clamp-1 group-hover:text-primary transition-colors">
-              Agri Doctor &amp; Crop Diagnostic AI
-            </h3>
-            <p class="font-body-md text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
-              Field-grade neural disease detection with automated organic treatment recipes and instant dosage schedules.
-            </p>
-          </div>
-        </div>
-
-        <!-- Card 2: High Speed POS -->
+        <!-- 3D POS Card -->
         <div class="group relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-950/40 cursor-pointer border border-white/20" onclick="window.location.href='/billing'">
-          <div class="h-48 md:h-52 w-full overflow-hidden relative">
-            <img alt="High-Speed POS Counter with thermal receipt in countryside store" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/48f5b97e-c27c-4afd-9427-eb35aebd1751.webp"/>
-            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85 group-hover:opacity-65 transition-opacity"></div>
-            <div class="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:bg-primary group-hover:text-white text-forest-emerald transition-colors">
-              <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-            </div>
-            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-sprout-tint text-forest-emerald font-label-badge text-[11px] font-bold uppercase shadow-sm">
-              Retail Module 02
+          <div class="h-48 md:h-52 w-full overflow-hidden relative bg-canopy-deep/30">
+            <img alt="3D POS counter with 80mm printer and fertilizer sack in sunny meadow" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/images/pos_3d.jpg"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85"></div>
+            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-forest-emerald text-white font-label-badge text-[10px] font-bold uppercase shadow-sm">
+              RETAIL CHECKOUT
             </div>
           </div>
           <div class="p-5 bg-white/95 backdrop-blur-md">
-            <span class="font-label-code text-[11px] text-meadow-leaf uppercase tracking-wider font-bold block mb-1">Instant Checkout [F1]</span>
+            <span class="font-label-code text-[11px] text-meadow-leaf uppercase tracking-wider font-bold block mb-1">Fast Counter POS [F1]</span>
             <h3 class="font-headline-md text-base font-bold text-canopy-deep line-clamp-1 group-hover:text-primary transition-colors">
-              High-Speed POS &amp; 80mm Thermal
+              3-Second Rapid Billing &amp; 80mm ESC/POS
             </h3>
             <p class="font-body-md text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
-              Zero-latency barcode scanning, multi-mandi batch pricing, and instant offline thermal invoice printing.
+              Barcode gun integration, split Cash + UPI payments in one receipt, and direct thermal roll printer dispatch.
             </p>
           </div>
         </div>
 
-        <!-- Card 3: Khata & Form O -->
-        <div class="group relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-950/40 cursor-pointer border border-white/20" onclick="window.location.href='/khata'">
-          <div class="h-48 md:h-52 w-full overflow-hidden relative">
-            <img alt="Farmer Khata Ledger and Regulatory Form O slips on oak desk" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/cde5384e-ce4d-423f-925a-451b779066e0.webp"/>
-            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85 group-hover:opacity-65 transition-opacity"></div>
-            <div class="absolute bottom-3 left-3 w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:bg-primary group-hover:text-white text-forest-emerald transition-colors">
-              <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-            </div>
-            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-khata-amber-bg text-khata-amber font-label-badge text-[11px] font-bold uppercase shadow-sm">
-              Compliance Module 03
+        <!-- 3D Agri Doctor Card -->
+        <div class="group relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-950/40 cursor-pointer border border-white/20" onclick="document.getElementById('agri-doctor-section').scrollIntoView({behavior: 'smooth'})">
+          <div class="h-48 md:h-52 w-full overflow-hidden relative bg-canopy-deep/30">
+            <img alt="3D Agri Doctor laboratory microscope with glowing leaf telemetry in sunny meadow" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/images/agri_doctor_3d.jpg"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85"></div>
+            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-regulatory-sky text-white font-label-badge text-[10px] font-bold uppercase shadow-sm">
+              AI TELEMETRY
             </div>
           </div>
           <div class="p-5 bg-white/95 backdrop-blur-md">
-            <span class="font-label-code text-[11px] text-meadow-leaf uppercase tracking-wider font-bold block mb-1">Statutory Compliance</span>
+            <span class="font-label-code text-[11px] text-regulatory-sky uppercase tracking-wider font-bold block mb-1">Crop Diagnostic Engine</span>
             <h3 class="font-headline-md text-base font-bold text-canopy-deep line-clamp-1 group-hover:text-primary transition-colors">
-              Farmer Khata &amp; Form O Slips
+              Agri Doctor &amp; Chemical Formulations
             </h3>
             <p class="font-body-md text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
-              Government-grade fertilizer allocation journals, SMS debt reminders, and authentic digital Form-O certifications.
+              Instant pest/disease diagnosis, approved CIB&amp;RC chemical active molecules, and pump/acre spray dosage guidelines.
+            </p>
+          </div>
+        </div>
+
+        <!-- 3D Compliance Card -->
+        <div class="group relative rounded-2xl overflow-hidden shadow-2xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-950/40 cursor-pointer border border-white/20" onclick="window.location.href='/khata'">
+          <div class="h-48 md:h-52 w-full overflow-hidden relative bg-canopy-deep/30">
+            <img alt="3D agricultural compliance emblem with Form O certificate, ledger book, and rupee coin" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="/images/compliance_3d.jpg"/>
+            <div class="absolute inset-0 bg-gradient-to-t from-canopy-deep via-transparent to-transparent opacity-85"></div>
+            <div class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-khata-amber text-white font-label-badge text-[10px] font-bold uppercase shadow-sm">
+              STATUTORY RECOVERY
+            </div>
+          </div>
+          <div class="p-5 bg-white/95 backdrop-blur-md">
+            <span class="font-label-code text-[11px] text-khata-amber uppercase tracking-wider font-bold block mb-1">Statutory &amp; Credit Ledger</span>
+            <h3 class="font-headline-md text-base font-bold text-canopy-deep line-clamp-1 group-hover:text-primary transition-colors">
+              Farmer Khata &amp; Form O Register
+            </h3>
+            <p class="font-body-md text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
+              Automated WhatsApp payment reminders with UPI QR codes, cashier shift handovers, and certified FCO Form O compliance registers.
             </p>
           </div>
         </div>
@@ -294,11 +269,463 @@
   </section>
 
   <!-- ========================================================================= -->
-  <!-- INTEGRATED QUICK PORTAL ACCESS / AUTHENTICATION HUB (TABBED CONSOLE) -->
+  <!-- COMPANY MISSION & VISION SECTION -->
+  <!-- ========================================================================= -->
+  <section class="w-full py-20 px-4 md:px-8 bg-white border-b border-outline-variant/30" id="mission-vision">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sprout-tint text-forest-emerald font-label-code text-xs uppercase tracking-widest font-bold mb-3 border border-forest-emerald/20">
+          <span class="material-symbols-outlined text-[16px]">verified</span>
+          Our Purpose &amp; Horizon
+        </div>
+        <h2 class="font-display-hero text-3xl md:text-5xl text-canopy-deep font-extrabold tracking-tight">
+          Company Mission &amp; Vision
+        </h2>
+        <p class="font-body-md text-on-surface-variant text-sm md:text-base mt-3 leading-relaxed">
+          NockBill is built on the ground with rural agro-dealers, cooperatives, and farming communities. Here is what drives every line of code we ship.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Mission -->
+        <div class="bg-gradient-to-br from-canopy-deep to-emerald-950 rounded-3xl p-8 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
+          <div class="relative z-10">
+            <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-6 text-primary-fixed">
+              <span class="material-symbols-outlined text-[28px]">eco</span>
+            </div>
+            <span class="font-label-code text-xs uppercase tracking-widest text-primary-fixed font-bold block mb-2">OUR MISSION</span>
+            <h3 class="font-display-hero text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug">
+              Modernize &amp; Protect India's Rural Agri-Retailers
+            </h3>
+            <p class="text-white/85 text-sm sm:text-base mt-4 leading-relaxed font-normal">
+              To empower, protect, and digitize India's 2.5+ lakh rural fertilizer, seed, and pesticide dealers with lightning-fast point-of-sale hardware integration, airtight statutory compliance (FCO 1985 &amp; Form O), and automated credit recovery that bridges mutual trust between farmers and merchants.
+            </p>
+          </div>
+          <div class="mt-8 pt-6 border-t border-white/20 grid grid-cols-2 gap-4 relative z-10">
+            <div>
+              <span class="text-2xl font-black font-label-code text-white block">2,50,000+</span>
+              <span class="text-xs text-primary-fixed">Rural Retailers Targeted</span>
+            </div>
+            <div>
+              <span class="text-2xl font-black font-label-code text-white block">100% Compliant</span>
+              <span class="text-xs text-primary-fixed">FCO 1985 &amp; Insecticides Act</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vision -->
+        <div class="bg-gradient-to-br from-slate-900 to-canopy-deep rounded-3xl p-8 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col justify-between">
+          <div class="relative z-10">
+            <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-6 text-secondary-fixed">
+              <span class="material-symbols-outlined text-[28px]">shield</span>
+            </div>
+            <span class="font-label-code text-xs uppercase tracking-widest text-secondary-fixed font-bold block mb-2">OUR VISION</span>
+            <h3 class="font-display-hero text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug">
+              The Sovereign Digital Backbone of Rural Commerce
+            </h3>
+            <p class="text-white/85 text-sm sm:text-base mt-4 leading-relaxed font-normal">
+              To build the sovereign digital infrastructure for rural agri-commerce—unifying agricultural input retailers, cooperative banks, distributors, and farming communities on an intelligent, transparent platform that safeguards food security from soil to store.
+            </p>
+          </div>
+          <div class="mt-8 pt-6 border-t border-white/20 grid grid-cols-2 gap-4 relative z-10">
+            <div>
+              <span class="text-2xl font-black font-label-code text-white block">₹1,000+ Cr</span>
+              <span class="text-xs text-secondary-fixed">Annual Agri-Credit Tracked</span>
+            </div>
+            <div>
+              <span class="text-2xl font-black font-label-code text-white block">Zero-Conflict</span>
+              <span class="text-xs text-secondary-fixed">Transparent Digital Ledger</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- COMPLETE FEATURE SUITE SHOWCASE -->
+  <!-- ========================================================================= -->
+  <section class="w-full py-20 px-4 md:px-8 bg-surface-container-low/40 border-b border-outline-variant/30" id="platform-features">
+    <div class="max-w-7xl mx-auto">
+      <div class="mb-12">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sprout-tint text-forest-emerald font-label-code text-xs uppercase tracking-widest font-bold mb-3 border border-forest-emerald/20">
+          <span class="material-symbols-outlined text-[16px]">apps</span>
+          End-To-End Agri ERP System
+        </div>
+        <h2 class="font-display-hero text-3xl sm:text-4xl text-canopy-deep font-extrabold tracking-tight">
+          All Platform Features Included
+        </h2>
+        <p class="font-body-md text-on-surface-variant text-sm md:text-base mt-2 max-w-2xl">
+          Everything needed to run a compliant, profitable fertilizer, seed, and agrochemical store across India.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="features-container">
+        <!-- Dashboard -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">REAL-TIME INSIGHTS</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Executive Dashboard</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Live sales telemetry, gross profit margins, credit outstanding, and quick drawer totals with footfall analytics.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- POS Quick -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">3-SEC CHECKOUT</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">New Bill (POS) Quick</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Rapid counter billing with barcode scanning, split payments (Cash + UPI), and batch auto-allocation.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Sales Returns -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">AUTO-RESTOCK</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Sales Returns &amp; Vouchers</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Instant invoice lookup, partial return processing, inventory auto-restock, and refund credit notes.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Farmer Credit Ledger -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">CREDIT RECOVERY</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Farmer Credit Ledger</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Farmer-wise credit tracking, repayment receipts, and 1-click WhatsApp payment reminders with dynamic UPI QR.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Supplier Payables Ledger -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">PAYABLES CONTROL</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Supplier Payables Ledger</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Inward distributor invoices, pending payables, payout logs, and vendor balance reconciliations.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- 1-Click Agri Catalog & Clearance -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">EXPIRY CLEARANCE</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">1-Click Agri Catalog &amp; Clearance</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              500+ pre-seeded fertilizers, seeds, and agro-chemicals with automated expiry clearance alerts for stock &lt;90 days.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Cashier Shift Handover -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded-full">TILL AUDIT</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Cashier Shift Handover</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Opening/closing till cash reconciliation, denomination counting, and cash handover audit trails to eliminate leakage.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Form O Register -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">STATUTORY FCO</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Agri Inspector Register (Form O)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Fertilizer Control Order (FCO 1985) digital register for agriculture officers and inspections with landholding logs.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- WhatsApp Broadcast -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">SEASONAL MARKETING</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">WhatsApp Broadcast Marketing</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Crop-stage seasonal broadcasts, disease alerts, new arrival broadcasts, and payment collections with one click.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Fertilizer (5%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">FERTILIZER</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 5%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Fertilizer Category (5% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Urea, DAP, MOP, SSP, NPK complexes, and water-soluble fertilizers with batch tracking and bag weight metrics.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Pesticide (18%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-full">PESTICIDE</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 18%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Pesticide Category (18% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Insecticides, fungicides, herbicides, and weedicides with technical chemical active tracking and expiry watch.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Seeds (0%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-full">SEEDS</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 0%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Seeds Category (0% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Hybrid seeds, certified field crop varieties with lot numbers, purity %, and germination validity tracking.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Micronutrients (12%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">MICRONUTRIENTS</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 12%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Micronutrients (12% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Chelated zinc, boron, ferrous, magnesium, and multi-micronutrient foliar spray formulations.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Bio-Fertilizer (5%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-lime-100 text-lime-800 font-bold px-2 py-0.5 rounded-full">BIO-FERTILIZER</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 5%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Bio-Fertilizer (5% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Rhizobium, Azotobacter, PSB, mycorrhiza, and living organic microbial cultures with shelf-life tracking.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Organic (0%) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="font-label-code text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">ORGANIC</span>
+              <span class="font-label-code text-[10px] font-bold text-slate-500">GST: 0%</span>
+            </div>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Organic Category (0% GST)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Neem cake, vermicompost, city compost, and organic soil health boosters for natural regenerative farming.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Price Lists (Owner) -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">OWNER LOCKED</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Tiered Price Lists (Owner)</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Multi-tier pricing rules: Farmer Retail, Cooperative Wholesale, Volume Discounts, and Special Sub-Dealer rates.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Inward / Purchases -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">FIFO COSTING</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Inward / Purchases</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Supplier purchase invoice entry, batch creation, landed cost computation, and inventory auto-update.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- GST & Reports -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">GSTR-1 &amp; 3B</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">GST &amp; Financial Reports</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Official monthly GSTR-1, GSTR-3B tax returns, HSN-wise sales summaries, and P&amp;L balance exports for your CA.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Analytics Live -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">LIVE TELEMETRY</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Analytics Live</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Visual category share pie charts, sales velocity curves, and aging credit recovery analytics.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+
+        <!-- Shop Management -->
+        <div class="bg-white rounded-2xl p-6 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="font-label-code text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">AWS-STYLE IAM</span>
+            <h3 class="font-headline-md font-bold text-canopy-deep text-base mt-2">Shop Management &amp; Invoices</h3>
+            <p class="font-body-sm text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+              Multi-user roles (Owner, Manager, Cashier, Agronomist), invoice template builder (A4 vs Thermal), and statutory store licenses.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-xs text-forest-emerald font-bold">
+            <span>Included in NockBill</span>
+            <span class="material-symbols-outlined text-[16px]">check_circle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- PUBLIC AGRI DOCTOR ADVISORY ENGINE (NO STOCK DISPLAY REQUIRED) -->
+  <!-- ========================================================================= -->
+  <section class="w-full py-20 px-4 md:px-8 bg-white border-b border-outline-variant/30" id="agri-doctor-section">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-regulatory-sky-bg text-regulatory-sky font-label-code text-xs uppercase tracking-widest font-bold mb-3 border border-regulatory-sky/20">
+          <span class="material-symbols-outlined text-[16px]">psychiatry</span>
+          Public Agronomic Intelligence
+        </div>
+        <h2 class="font-display-hero text-3xl sm:text-4xl md:text-5xl text-canopy-deep font-extrabold tracking-tight">
+          Free Agri Doctor Advisory Engine
+        </h2>
+        <p class="font-body-md text-on-surface-variant text-sm sm:text-base mt-2">
+          Any farmer, dealer, or guest can freely look up disease diagnoses, observed field symptoms, and government-approved chemical molecules with exact spray dosages. (No store login or stock required).
+        </p>
+      </div>
+
+      <!-- Crop Selector Bar -->
+      <div class="bg-surface-container-low rounded-3xl p-6 sm:p-8 border border-outline-variant/30 mb-8">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">Select Crop:</label>
+        <div class="flex flex-wrap gap-2 mb-4" id="html-crop-pills">
+          <button type="button" onclick="filterCrop('Cotton')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-forest-emerald text-white shadow-xs cursor-pointer">Cotton</button>
+          <button type="button" onclick="filterCrop('Paddy')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer">Paddy</button>
+          <button type="button" onclick="filterCrop('Wheat')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer">Wheat</button>
+          <button type="button" onclick="filterCrop('Chilli')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer">Chilli</button>
+          <button type="button" onclick="filterCrop('Tomato')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer">Tomato</button>
+          <button type="button" onclick="filterCrop('Maize')" class="crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer">Maize</button>
+        </div>
+      </div>
+
+      <!-- Advisory Cards Container -->
+      <div id="html-advisory-cards" class="space-y-4">
+        <!-- Rendered via JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- TABBED PORTAL AUTHENTICATION HUB -->
   <!-- ========================================================================= -->
   <section class="w-full py-16 md:py-24 bg-gradient-to-b from-surface via-surface-container-low to-surface border-y border-outline-variant/30" id="portal-auth">
     <div class="max-w-7xl mx-auto px-4 md:px-8">
-      <div class="flex flex-col items-center text-center mb-12">
+      <div class="flex flex-col items-center text-center mb-10">
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sprout-tint text-forest-emerald font-label-badge text-xs uppercase tracking-widest font-bold mb-3 border border-forest-emerald/20">
           <span class="material-symbols-outlined text-[16px]">lock</span>
           Zero-Friction Access Gateway
@@ -311,7 +738,6 @@
         </p>
       </div>
 
-      <!-- Tab Switcher Box -->
       <div class="max-w-3xl mx-auto bg-surface-container-lowest rounded-3xl shadow-xl border border-outline-variant/30 overflow-hidden">
         <div class="grid grid-cols-2 p-2 bg-surface-container-low border-b border-outline-variant/30 gap-2">
           <button type="button" class="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-bold text-sm transition-all bg-white text-forest-emerald shadow-sm cursor-pointer" id="tab-btn-login" onclick="switchAuthTab('login')">
@@ -325,114 +751,54 @@
         </div>
 
         <div class="p-6 md:p-10">
-          <!-- TAB 1: LOGIN FORM -->
           <div class="block" id="auth-panel-login">
-            <form class="space-y-5" onsubmit="handlePortalSubmit(event, 'login')">
+            <form class="space-y-4" onsubmit="window.location.href='/login'; return false;">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="input-store-slug" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1.5">Store Identifier / Slug</label>
-                  <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-outline-variant">
-                      <span class="material-symbols-outlined text-[18px]">storefront</span>
-                    </span>
-                    <input id="input-store-slug" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald focus:ring-2 focus:ring-forest-emerald/20 text-sm font-label-code text-on-surface bg-surface-container-low/40" required="" type="text" value="green-valley-agro"/>
-                  </div>
-                  <span class="text-[11px] text-on-surface-variant/80 mt-1 block">Your assigned cloud node subdomain.</span>
+                  <label for="input-store-slug" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Store Identifier / Slug</label>
+                  <input id="input-store-slug" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant text-sm font-label-code" required="" type="text" value="green-valley-agro"/>
                 </div>
                 <div>
-                  <label for="input-role" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1.5">IAM Role Selector</label>
-                  <div class="relative">
-                    <select id="input-role" class="w-full pl-3 pr-8 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald focus:ring-2 focus:ring-forest-emerald/20 text-sm font-body-md text-on-surface bg-surface-container-low/40">
-                      <option value="owner">Owner / Root Administrator</option>
-                      <option value="manager">Store Manager (Pricing &amp; Batches)</option>
-                      <option value="cashier">Counter Cashier (POS Locked)</option>
-                      <option value="agronomist">Agri Doctor Specialist</option>
-                    </select>
-                  </div>
+                  <label for="input-role" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">IAM Role Selector</label>
+                  <select id="input-role" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant text-sm font-body-md">
+                    <option value="owner">Owner / Root Administrator</option>
+                    <option value="manager">Store Manager (Pricing &amp; Batches)</option>
+                    <option value="cashier">Counter Cashier (POS Locked)</option>
+                    <option value="agronomist">Agri Doctor Specialist</option>
+                  </select>
                 </div>
               </div>
-
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="input-username" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1.5">Username or Cashier PIN</label>
-                  <input id="input-username" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald focus:ring-2 focus:ring-forest-emerald/20 text-sm font-label-code text-on-surface bg-surface-container-low/40" required="" type="text" value="devendra@green-valley"/>
+                  <label for="input-username" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Username or Cashier PIN</label>
+                  <input id="input-username" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant text-sm font-label-code" required="" type="text" value="devendra@green-valley"/>
                 </div>
                 <div>
-                  <label for="input-password" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1.5">Security Password</label>
-                  <input id="input-password" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald focus:ring-2 focus:ring-forest-emerald/20 text-sm font-label-code text-on-surface bg-surface-container-low/40" required="" type="password" value="••••••••••••"/>
+                  <label for="input-password" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Security Password</label>
+                  <input id="input-password" class="w-full px-3.5 py-2.5 rounded-xl border border-outline-variant text-sm font-label-code" required="" type="password" value="••••••••••••"/>
                 </div>
               </div>
-
-              <div class="p-3 bg-sprout-tint/70 border border-forest-emerald/20 rounded-xl flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-forest-emerald animate-ping"></span>
-                  <span class="text-xs font-semibold text-canopy-deep">Demo Node Credentials Ready:</span>
-                  <span class="font-label-code text-xs text-forest-emerald font-bold">green-valley-agro (Devendra Gowda)</span>
-                </div>
-                <button type="button" class="text-xs font-bold text-forest-emerald hover:underline cursor-pointer" onclick="fillTestCredentials()">1-Click Auto-Fill</button>
-              </div>
-
-              <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <label class="flex items-center gap-2 cursor-pointer text-xs text-on-surface-variant">
-                  <input checked="" class="rounded text-forest-emerald focus:ring-forest-emerald" type="checkbox"/>
-                  <span>Remember till on this terminal</span>
-                </label>
-                <button class="w-full sm:w-auto px-8 py-3 rounded-full bg-forest-emerald hover:bg-canopy-deep text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer" type="submit">
-                  <span>Launch Counter POS</span>
-                  <span class="material-symbols-outlined text-[18px]">login</span>
-                </button>
-              </div>
+              <button class="w-full py-3 rounded-full bg-forest-emerald hover:bg-canopy-deep text-white font-bold text-sm shadow-md transition-all cursor-pointer" type="submit">
+                Launch Counter POS
+              </button>
             </form>
           </div>
 
-          <!-- TAB 2: REGISTER FORM -->
           <div class="hidden" id="auth-panel-register">
-            <form class="space-y-4" onsubmit="handlePortalSubmit(event, 'register')">
+            <form class="space-y-4" onsubmit="window.location.href='/register'; return false;">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label for="reg-name" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Agro Center Legal Name</label>
-                  <input id="reg-name" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald text-sm" placeholder="e.g. Kaveri Agro Seeds &amp; Fertilisers" required="" type="text"/>
+                  <input id="reg-name" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant text-sm" placeholder="e.g. Kaveri Agro Seeds" required="" type="text"/>
                 </div>
                 <div>
-                  <label for="reg-lic" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Fertilizer / Pesticide Lic No.</label>
-                  <input id="reg-lic" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald text-sm font-label-code" placeholder="e.g. KA-MND-2026-F84" required="" type="text"/>
+                  <label for="reg-lic" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Fertilizer Lic No.</label>
+                  <input id="reg-lic" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant text-sm font-label-code" placeholder="KA-MND-2026-F84" required="" type="text"/>
                 </div>
               </div>
-
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label for="reg-gst" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">GSTIN Number</label>
-                  <input id="reg-gst" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald text-sm font-label-code" placeholder="29AABCU9603R1ZM" type="text"/>
-                </div>
-                <div>
-                  <label for="reg-district" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">State &amp; District</label>
-                  <select id="reg-district" class="w-full px-3 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald text-sm">
-                    <option>Karnataka (Mandya)</option>
-                    <option>Karnataka (Mysuru)</option>
-                    <option>Maharashtra (Nashik)</option>
-                    <option>Andhra Pradesh (Guntur)</option>
-                    <option>Punjab (Ludhiana)</option>
-                  </select>
-                </div>
-                <div>
-                  <label for="reg-mobile" class="block text-xs font-bold text-canopy-deep uppercase tracking-wider mb-1">Owner Mobile (OTP)</label>
-                  <input id="reg-mobile" class="w-full px-4 py-2.5 rounded-xl border border-outline-variant focus:border-forest-emerald text-sm font-label-code" placeholder="+91 98450 XXXXX" required="" type="tel"/>
-                </div>
-              </div>
-
-              <div class="p-3 bg-khata-amber-bg/50 border border-khata-amber/20 rounded-xl flex items-start gap-2.5">
-                <span class="material-symbols-outlined text-khata-amber text-[20px] mt-0.5">verified_user</span>
-                <p class="text-xs text-on-surface-variant leading-relaxed">
-                  <strong>Statutory Guarantee:</strong> Automated registration triggers automatic Form O and Seed Certificate ledgers synced with local Directorate of Agriculture guidelines.
-                </p>
-              </div>
-
-              <div class="pt-2">
-                <button class="w-full py-3.5 rounded-full bg-forest-emerald hover:bg-canopy-deep text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer" type="submit">
-                  <span>Register Agro Center (14-Day Free Pilot)</span>
-                  <span class="material-symbols-outlined text-[18px]">verified</span>
-                </button>
-              </div>
+              <button class="w-full py-3 rounded-full bg-forest-emerald hover:bg-canopy-deep text-white font-bold text-sm shadow-md transition-all cursor-pointer" type="submit">
+                Register Agro Center
+              </button>
             </form>
           </div>
         </div>
@@ -441,296 +807,7 @@
   </section>
 
   <!-- ========================================================================= -->
-  <!-- STATE-WIDE NETWORK TELEMETRY -->
-  <!-- ========================================================================= -->
-  <section class="w-full px-4 md:px-8 py-16 bg-surface">
-    <div class="max-w-7xl mx-auto">
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div class="flex flex-col">
-          <div class="flex items-center gap-2 text-forest-emerald">
-            <span class="material-symbols-outlined text-[20px]">hub</span>
-            <span class="font-label-badge text-xs uppercase tracking-widest text-forest-emerald font-bold">STATE-WIDE NETWORK TELEMETRY</span>
-          </div>
-          <h2 class="font-display-hero text-3xl md:text-4xl text-canopy-deep font-extrabold tracking-tight mt-1">
-            Unified Rural Commerce Grid
-          </h2>
-          <p class="font-body-md text-sm md:text-base text-on-surface-variant max-w-xl mt-1">
-            Live statutory sync across retail hubs, fertilizer ration nodes, and community credit cooperatives.
-          </p>
-        </div>
-        <div class="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/30 px-4 py-2 rounded-full shadow-sm">
-          <span class="w-2.5 h-2.5 rounded-full bg-forest-emerald animate-pulse"></span>
-          <span class="font-label-code text-xs text-on-surface font-semibold">NIC Ag-Stack Gateway:</span>
-          <span class="font-label-badge text-[11px] bg-sprout-tint text-forest-emerald px-2 py-0.5 rounded-full font-bold">OPERATIONAL</span>
-        </div>
-      </div>
-
-      <!-- Telemetry Cards Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/30 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-label-code text-xs text-meadow-leaf uppercase tracking-wider font-bold">Active Agro-Centers</span>
-            <span class="p-2 rounded-xl bg-sprout-tint text-forest-emerald material-symbols-outlined text-[20px]">storefront</span>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="font-tabular-lg text-4xl text-canopy-deep font-bold">12,482</span>
-            <span class="font-label-badge text-xs text-forest-emerald flex items-center font-bold bg-sprout-tint px-2 py-0.5 rounded-full">
-              +18.4% YoY
-            </span>
-          </div>
-          <p class="font-body-sm text-xs text-on-surface-variant mt-2">
-            Registered fertilizer, seed, and biopesticide counters online.
-          </p>
-          <div class="mt-4 w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-            <div class="bg-forest-emerald h-full rounded-full" style="width: 82%;"></div>
-          </div>
-        </div>
-
-        <div class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/30 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-label-code text-xs text-regulatory-sky uppercase tracking-wider font-bold">Form O Cleared Volume</span>
-            <span class="p-2 rounded-xl bg-regulatory-sky-bg text-regulatory-sky material-symbols-outlined text-[20px]">verified_user</span>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="font-tabular-lg text-4xl text-canopy-deep font-bold">₹84.22 Cr</span>
-            <span class="font-label-badge text-xs text-regulatory-sky flex items-center font-bold bg-regulatory-sky-bg px-2 py-0.5 rounded-full">
-              100% CIB Audited
-            </span>
-          </div>
-          <p class="font-body-sm text-xs text-on-surface-variant mt-2">
-            Regulated bulk urea, DAP, and complex sales with zero discrepancy.
-          </p>
-          <div class="mt-4 w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-            <div class="bg-regulatory-sky h-full rounded-full" style="width: 96%;"></div>
-          </div>
-        </div>
-
-        <div class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/30 shadow-sm hover:shadow-md transition-shadow">
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-label-code text-xs text-khata-amber uppercase tracking-wider font-bold">Khata Recovery Rate</span>
-            <span class="p-2 rounded-xl bg-khata-amber-bg text-khata-amber material-symbols-outlined text-[20px]">account_balance_wallet</span>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="font-tabular-lg text-4xl text-canopy-deep font-bold">94.6%</span>
-            <span class="font-label-badge text-xs text-khata-amber flex items-center font-bold bg-khata-amber-bg px-2 py-0.5 rounded-full">
-              14-Day Cycle
-            </span>
-          </div>
-          <p class="font-body-sm text-xs text-on-surface-variant mt-2">
-            Automated English WhatsApp receipt reminders with UPI link.
-          </p>
-          <div class="mt-4 w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
-            <div class="bg-khata-amber h-full rounded-full" style="width: 94%;"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========================================================================= -->
-  <!-- OPERATIONAL MODULE CONSOLES BENTO GRID -->
-  <!-- ========================================================================= -->
-  <section class="w-full px-4 md:px-8 py-16 bg-surface-container-low/50" id="features">
-    <div class="max-w-7xl mx-auto">
-      <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-2">
-        <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-canopy-deep text-[22px]">apps</span>
-          <h3 class="font-display-hero text-2xl font-bold text-canopy-deep">Fast Operational Consoles</h3>
-        </div>
-        <span class="font-label-code text-xs text-on-surface-variant font-semibold">TOUCH TARGET OPTIMIZED · GLOVED OPERATOR READY</span>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div class="group flex flex-col justify-between p-6 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 cursor-pointer" onclick="window.location.href='/billing'">
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-12 h-12 rounded-xl bg-sprout-tint text-forest-emerald flex items-center justify-center shadow-sm">
-                <span class="material-symbols-outlined text-[28px]">point_of_sale</span>
-              </div>
-              <span class="font-label-code text-xs bg-surface-container px-2 py-1 rounded text-on-surface-variant font-bold">[F1 KEY]</span>
-            </div>
-            <h4 class="font-headline-md text-base text-canopy-deep group-hover:text-primary transition-colors font-bold">
-              POS Quick Billing
-            </h4>
-            <p class="font-body-sm text-xs text-on-surface-variant mt-2 leading-relaxed">
-              Barcode scan, 80mm thermal receipt dispatcher, and integrated credit drawer.
-            </p>
-          </div>
-          <div class="flex items-center justify-between pt-6 mt-4 text-forest-emerald font-semibold text-xs border-t border-outline-variant/20">
-            <span>Launch Counter</span>
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </div>
-        </div>
-
-        <div class="group flex flex-col justify-between p-6 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 cursor-pointer" onclick="window.location.href='/inventory'">
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-12 h-12 rounded-xl bg-regulatory-sky-bg text-regulatory-sky flex items-center justify-center shadow-sm">
-                <span class="material-symbols-outlined text-[28px]">inventory_2</span>
-              </div>
-              <span class="font-label-badge text-[10px] bg-critical-rose-bg text-critical-rose px-2 py-1 rounded-md font-bold">EXPIRY WATCH</span>
-            </div>
-            <h4 class="font-headline-md text-base text-canopy-deep group-hover:text-primary transition-colors font-bold">
-              Inventory &amp; Batches
-            </h4>
-            <p class="font-body-sm text-xs text-on-surface-variant mt-2 leading-relaxed">
-              FIFO batch tracking, seed germination expiry alerts, and fertilizer warehouse lots.
-            </p>
-          </div>
-          <div class="flex items-center justify-between pt-6 mt-4 text-regulatory-sky font-semibold text-xs border-t border-outline-variant/20">
-            <span>Manage Batches</span>
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </div>
-        </div>
-
-        <div class="group flex flex-col justify-between p-6 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 cursor-pointer" onclick="window.location.href='/khata'">
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-12 h-12 rounded-xl bg-khata-amber-bg text-khata-amber flex items-center justify-center shadow-sm">
-                <span class="material-symbols-outlined text-[28px]">receipt_long</span>
-              </div>
-              <span class="font-label-code text-[10px] bg-khata-amber-bg text-khata-amber px-2 py-1 rounded-md font-bold">FORM-O SYNC</span>
-            </div>
-            <h4 class="font-headline-md text-base text-canopy-deep group-hover:text-primary transition-colors font-bold">
-              Khata &amp; Form O
-            </h4>
-            <p class="font-body-sm text-xs text-on-surface-variant mt-2 leading-relaxed">
-              Grower ledger books, Aadhaar subsidy caps, and verified dealer endorsement slips.
-            </p>
-          </div>
-          <div class="flex items-center justify-between pt-6 mt-4 text-khata-amber font-semibold text-xs border-t border-outline-variant/20">
-            <span>Review Ledgers</span>
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </div>
-        </div>
-
-        <div class="group flex flex-col justify-between p-6 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 cursor-pointer" onclick="window.location.href='/settings'">
-          <div>
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-12 h-12 rounded-xl bg-iam-purple-bg text-iam-purple flex items-center justify-center shadow-sm">
-                <span class="material-symbols-outlined text-[28px]">shield_person</span>
-              </div>
-              <span class="font-label-code text-[10px] bg-iam-purple-bg text-iam-purple px-2 py-1 rounded-md font-bold">ROLE RBAC</span>
-            </div>
-            <h4 class="font-headline-md text-base text-canopy-deep group-hover:text-primary transition-colors font-bold">
-              IAM &amp; Invoice Setup
-            </h4>
-            <p class="font-body-sm text-xs text-on-surface-variant mt-2 leading-relaxed">
-              Cashier shift limits, till locks, and thermal header template customizer.
-            </p>
-          </div>
-          <div class="flex items-center justify-between pt-6 mt-4 text-iam-purple font-semibold text-xs border-t border-outline-variant/20">
-            <span>Security Console</span>
-            <span class="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========================================================================= -->
-  <!-- HARDWARE MATRIX & 80MM ESC/POS BILLING SIMULATOR -->
-  <!-- ========================================================================= -->
-  <section class="w-full px-4 md:px-8 py-16 bg-surface">
-    <div class="max-w-7xl mx-auto bg-surface-container-low rounded-3xl p-6 md:p-12 border border-outline-variant/30">
-      <div class="flex flex-col lg:flex-row items-center justify-between gap-10">
-        <div class="flex flex-col max-w-xl">
-          <span class="font-label-badge text-xs bg-sprout-tint text-forest-emerald uppercase px-3 py-1 rounded-full font-bold w-fit mb-3">
-            FIELD-HARDENED HARDWARE INTEGRATION
-          </span>
-          <h3 class="font-display-hero text-3xl md:text-4xl text-canopy-deep font-extrabold tracking-tight">
-            80mm ESC/POS Thermal Engine
-          </h3>
-          <p class="font-body-md text-sm md:text-base text-on-surface-variant mt-3 leading-relaxed">
-            Engineered for high-dust counter environments with instantaneous thermal ESC/POS protocol execution. Supports vernacular farmer SMS dispatch and dynamic UPI collection QR codes.
-          </p>
-
-          <div class="grid grid-cols-2 gap-3 mt-6">
-            <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/30">
-              <span class="material-symbols-outlined text-forest-emerald text-[20px]">print</span>
-              <span class="font-body-sm text-xs font-semibold text-canopy-deep">TVS &amp; Epson 80mm</span>
-            </div>
-            <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/30">
-              <span class="material-symbols-outlined text-forest-emerald text-[20px]">qr_code_scanner</span>
-              <span class="font-body-sm text-xs font-semibold text-canopy-deep">USB / BT Barcode Guns</span>
-            </div>
-            <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/30">
-              <span class="material-symbols-outlined text-forest-emerald text-[20px]">scale</span>
-              <span class="font-body-sm text-xs font-semibold text-canopy-deep">Weighing Serial Link</span>
-            </div>
-            <div class="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-outline-variant/30">
-              <span class="material-symbols-outlined text-forest-emerald text-[20px]">fingerprint</span>
-              <span class="font-body-sm text-xs font-semibold text-canopy-deep">Biometric Aadhaar Till</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Simulated 80mm Receipt -->
-        <div class="w-full max-w-[340px] bg-white p-5 shadow-2xl rounded-xl font-label-code text-xs text-on-surface select-none border border-outline-variant/30">
-          <div class="text-center pb-2">
-            <span class="text-xs font-bold block text-canopy-deep">GREEN VALLEY AGRO RETAIL</span>
-            <span class="text-[10px] text-on-surface-variant block">Mandya Dist Hub, Lic: KA-BLR-F9</span>
-            <span class="text-[10px] text-on-surface-variant block">GSTIN: 29AABCU9603R1ZM</span>
-            <span class="text-[10px] text-forest-emerald font-bold block mt-1">FORM O VERIFIED RECEIPT</span>
-          </div>
-          <div class="py-1.5 my-1 border-t border-b border-dashed border-outline-variant flex justify-between text-[10px] text-on-surface-variant">
-            <span>INV: #NB-98421</span>
-            <span>26-NOV-2026 10:42</span>
-          </div>
-          <div class="text-[11px] py-1">
-            <div class="flex justify-between font-bold">
-              <span>FARMER: Ramesh Gowda</span>
-              <span class="text-khata-amber">[CREDIT]</span>
-            </div>
-            <span class="text-[10px] text-on-surface-variant block">Aadhaar: XXXX-XXXX-4912</span>
-          </div>
-          <div class="py-2 space-y-1.5">
-            <div class="flex justify-between items-start">
-              <div>
-                <span class="font-bold block">IFFCO Neem Urea (45kg)</span>
-                <span class="text-[9px] text-on-surface-variant">BATCH: UF-902 | HSN: 3102</span>
-              </div>
-              <div class="text-right">
-                <span class="block font-bold">2 x 266.50</span>
-                <span class="font-bold">₹533.00</span>
-              </div>
-            </div>
-            <div class="flex justify-between items-start">
-              <div>
-                <span class="font-bold block">Bayer Regent 0.3G (1kg)</span>
-                <span class="text-[9px] text-on-surface-variant">BATCH: BR-411 | HSN: 3808</span>
-              </div>
-              <div class="text-right">
-                <span class="block font-bold">1 x 640.00</span>
-                <span class="font-bold">₹640.00</span>
-              </div>
-            </div>
-          </div>
-          <div class="pt-2 border-t border-dashed border-outline-variant space-y-1 text-[11px]">
-            <div class="flex justify-between">
-              <span>Subtotal (CGST+SGST Incl.)</span>
-              <span>₹1,173.00</span>
-            </div>
-            <div class="flex justify-between text-forest-emerald font-bold">
-              <span>DBT Subsidy Deduction</span>
-              <span>-₹120.00</span>
-            </div>
-            <div class="flex justify-between text-sm font-bold pt-1.5 border-t border-on-surface text-canopy-deep">
-              <span>NET PAYABLE</span>
-              <span>₹1,053.00</span>
-            </div>
-          </div>
-          <div class="text-center pt-3 mt-3 border-t border-dashed border-outline-variant">
-            <span class="text-[10px] font-semibold text-canopy-deep block">Thank you for nourishing the earth!</span>
-            <span class="text-[9px] text-meadow-leaf block mt-0.5">Powered by Meadowbell Sprout Core V4.2</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========================================================================= -->
-  <!-- PUBLIC FOOTER -->
+  <!-- PUBLIC FOOTER (STRICTLY NOCKBILL) -->
   <!-- ========================================================================= -->
   <footer class="w-full bg-canopy-deep text-white/90 pt-16 pb-12 border-t border-white/10">
     <div class="max-w-7xl mx-auto px-4 md:px-8">
@@ -740,37 +817,30 @@
             <div class="w-7 h-7 rounded-full bg-primary-fixed flex items-center justify-center text-canopy-deep font-bold">
               <span class="material-symbols-outlined text-[18px]">eco</span>
             </div>
-            <span class="font-display-hero font-bold text-lg text-white">NockBill Meadowbell</span>
+            <span class="font-display-hero font-bold text-xl text-white">NockBill</span>
           </div>
           <p class="text-xs text-white/70 leading-relaxed">
-            The next-generation rural retail operating system and agricultural billing standard designed for resilient cooperatives and input dealers.
+            The next-generation rural retail operating system and agricultural billing standard designed for resilient cooperatives and input dealers across India.
           </p>
-          <div class="flex items-center gap-3 mt-4 text-xs text-secondary-fixed">
-            <span class="material-symbols-outlined text-[16px]">verified</span>
-            <span>CIB&amp;RC &amp; FCO 1985 Certified</span>
-          </div>
         </div>
-
         <div>
-          <h4 class="text-xs font-bold uppercase tracking-widest text-primary-fixed mb-3">Solutions</h4>
+          <h4 class="text-xs font-bold uppercase tracking-widest text-primary-fixed mb-3">Core Modules</h4>
           <ul class="space-y-2 text-xs text-white/80">
             <li><a class="hover:text-white transition-colors" href="/billing">Fast Counter POS [F1]</a></li>
             <li><a class="hover:text-white transition-colors" href="/khata?tab=compliance">Fertilizer Form O Records</a></li>
-            <li><a class="hover:text-white transition-colors" href="/khata">Digital Farmer Khata</a></li>
-            <li><button type="button" onclick="openAgriDoctorModal()" class="hover:text-white transition-colors text-left cursor-pointer">Agri Doctor Disease AI</button></li>
+            <li><a class="hover:text-white transition-colors" href="/khata">Farmer Credit Khata</a></li>
+            <li><a class="hover:text-white transition-colors" href="#agri-doctor-section">Agri Doctor Disease AI</a></li>
           </ul>
         </div>
-
         <div>
           <h4 class="text-xs font-bold uppercase tracking-widest text-primary-fixed mb-3">Statutory Standards</h4>
           <ul class="space-y-2 text-xs text-white/80">
             <li><span>Fertilizer Control Order (FCO 1985)</span></li>
             <li><span>Insecticides Act 1968 Compliance</span></li>
-            <li><span>Aadhaar POS Ration Ledger</span></li>
+            <li><span>Seeds Act 1966 Certification</span></li>
             <li><span>State NIC Ag-Stack Direct API</span></li>
           </ul>
         </div>
-
         <div>
           <h4 class="text-xs font-bold uppercase tracking-widest text-primary-fixed mb-3">Dealership Support</h4>
           <p class="text-xs text-white/70 mb-3">Need on-site terminal setup, ESC/POS printer driver packs, or barcode rolls?</p>
@@ -779,14 +849,8 @@
           </a>
         </div>
       </div>
-
       <div class="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 gap-4">
         <span>© 2026 NockBill Technologies Pvt Ltd. All rights reserved.</span>
-        <div class="flex items-center gap-6">
-          <a class="hover:text-white transition-colors" href="#features">Privacy Policy</a>
-          <a class="hover:text-white transition-colors" href="#features">Terms of Service</a>
-          <a class="hover:text-white transition-colors" href="#features">Security Architecture</a>
-        </div>
       </div>
     </div>
   </footer>
@@ -795,112 +859,21 @@
   <!-- FLOATING AGRI DOCTOR ICON IN RIGHT BOTTOM CORNER -->
   <!-- ========================================================================= -->
   <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 group">
-    <!-- Tooltip Pill -->
     <div class="bg-canopy-deep/95 text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-primary-fixed/30 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none duration-200 flex items-center gap-1.5">
       <span class="w-1.5 h-1.5 rounded-full bg-primary-fixed animate-ping"></span>
-      <span>Agri Doctor AI · Crop Diagnosis</span>
+      <span>Agri Doctor AI · Free Crop Diagnosis</span>
     </div>
 
-    <!-- Floating Icon Button -->
-    <button type="button" id="floating-agri-doctor-btn" onclick="openAgriDoctorModal()" class="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-forest-emerald hover:from-emerald-600 hover:to-canopy-deep text-white shadow-2xl flex items-center justify-center transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-white/80 cursor-pointer">
-      <!-- Pulsing Beacon Ring -->
+    <button type="button" id="floating-agri-doctor-btn" onclick="document.getElementById('agri-doctor-section').scrollIntoView({behavior: 'smooth'})" class="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-forest-emerald hover:from-emerald-600 hover:to-canopy-deep text-white shadow-2xl flex items-center justify-center transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-white/80 cursor-pointer">
       <span class="absolute -inset-1 rounded-full bg-primary-fixed/40 animate-ping pointer-events-none"></span>
-
-      <!-- Icon: Medical Stethoscope + Leaf Sprout -->
       <div class="relative z-10 flex items-center justify-center">
         <span class="material-symbols-outlined text-[26px]">medical_services</span>
       </div>
-
-      <!-- Micro Notification Dot -->
       <span class="absolute top-1 right-1 w-3 h-3 bg-khata-amber border-2 border-white rounded-full"></span>
     </button>
   </div>
 
-  <!-- ========================================================================= -->
-  <!-- MODAL: AGRI DOCTOR AI DIAGNOSTIC ENGINE POPUP -->
-  <!-- ========================================================================= -->
-  <div id="agri-doctor-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-    <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-      <!-- Modal Header -->
-      <div class="p-6 bg-gradient-to-r from-emerald-900 to-emerald-800 text-white flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center">
-            <span class="material-symbols-outlined text-[24px] text-emerald-200">psychiatry</span>
-          </div>
-          <div>
-            <h3 class="font-display-hero text-lg font-bold text-white">Agri Doctor Diagnostic Assistant</h3>
-            <p class="text-xs text-emerald-200">Verified crop disease detection &amp; chemical dosage formulations</p>
-          </div>
-        </div>
-        <button type="button" onclick="closeAgriDoctorModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer">
-          <span class="material-symbols-outlined text-[20px]">close</span>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto space-y-5">
-        <!-- Crop Selector Pills -->
-        <div>
-          <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Select Crop:</label>
-          <div class="flex flex-wrap gap-2" id="crop-pills">
-            <button type="button" onclick="selectCrop('Cotton')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-600 bg-emerald-700 text-white shadow-xs cursor-pointer">Cotton</button>
-            <button type="button" onclick="selectCrop('Paddy')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer">Paddy</button>
-            <button type="button" onclick="selectCrop('Wheat')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer">Wheat</button>
-            <button type="button" onclick="selectCrop('Chilli')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer">Chilli</button>
-            <button type="button" onclick="selectCrop('Tomato')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer">Tomato</button>
-            <button type="button" onclick="selectCrop('Maize')" class="crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer">Maize</button>
-          </div>
-        </div>
-
-        <!-- Disease & Advisory Cards Container -->
-        <div id="advisory-cards" class="space-y-3">
-          <!-- Dynamically populated or default Cotton Pink Bollworm card -->
-          <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-emerald-300 transition-all shadow-xs">
-            <div class="flex items-start justify-between gap-2">
-              <div>
-                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">Insect Pest</span>
-                <h4 class="font-bold text-slate-900 text-sm mt-1" id="adv-pest-title">Pink Bollworm (Pectinophora gossypiella)</h4>
-              </div>
-              <span class="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">Verified Advisory</span>
-            </div>
-            <p class="text-xs text-slate-600 mt-2 leading-relaxed" id="adv-symptoms">
-              <strong>Symptoms:</strong> Rosetted flowers, small puncture holes on developing bolls with brown frass, premature boll shedding and stained lint.
-            </p>
-            <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-200 text-xs font-mono">
-              <div class="p-2 rounded-xl bg-white border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-sans block uppercase font-bold">Technical Molecule</span>
-                <span class="font-bold text-slate-900" id="adv-molecule">Emamectin Benzoate 5% SG</span>
-              </div>
-              <div class="p-2 rounded-xl bg-white border border-slate-200">
-                <span class="text-[10px] text-slate-400 font-sans block uppercase font-bold">Standard Field Dosage</span>
-                <span class="font-bold text-emerald-700" id="adv-dosage">8 - 10 g / 15L pump (88 - 100 g/acre)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-        <span class="text-xs text-slate-500">Agri Doctor Knowledge Base · Insecticides Act 1968</span>
-        <div class="flex items-center gap-2">
-          <button type="button" onclick="closeAgriDoctorModal()" class="px-4 py-2 rounded-full text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer">
-            Close
-          </button>
-          <a href="/billing" class="px-5 py-2 rounded-full text-xs font-bold bg-forest-emerald hover:bg-canopy-deep text-white shadow-sm flex items-center gap-1.5 cursor-pointer">
-            <span>Prescribe In POS</span>
-            <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================================================= -->
-  <!-- VANILLA JS LOGIC -->
-  <!-- ========================================================================= -->
   <script>
-    // Tab switching for inline authentication panel
     function switchAuthTab(tab) {
       const loginBtn = document.getElementById('tab-btn-login');
       const regBtn = document.getElementById('tab-btn-register');
@@ -920,91 +893,127 @@
       }
     }
 
-    function fillTestCredentials() {
-      document.getElementById('input-store-slug').value = 'green-valley-agro';
-      document.getElementById('input-username').value = 'devendra@green-valley';
-      document.getElementById('input-password').value = 'RuralPass#2026';
-      document.getElementById('input-role').value = 'owner';
-    }
-
-    function handlePortalSubmit(e, type) {
-      e.preventDefault();
-      if (type === 'login') {
-        window.location.href = '/login';
-      } else {
-        window.location.href = '/register';
-      }
-    }
-
-    // Agri Doctor Modal Handlers
-    function openAgriDoctorModal() {
-      const modal = document.getElementById('agri-doctor-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
-
-    function closeAgriDoctorModal() {
-      const modal = document.getElementById('agri-doctor-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-
-    const cropData = {
-      'Cotton': {
-        pest: 'Pink Bollworm (Pectinophora gossypiella)',
-        symptoms: 'Rosetted flowers, small puncture holes on developing bolls with brown frass, premature boll shedding and stained lint.',
+    const publicAdvisories = [
+      {
+        crop: 'Cotton',
+        pest: 'Pink Bollworm',
+        scientificName: 'Pectinophora gossypiella',
+        category: 'Insect Pest',
+        symptoms: 'Rosetted flowers, small bore holes on green bolls with brown frass, premature boll drop and stained lint.',
         molecule: 'Emamectin Benzoate 5% SG',
-        dosage: '8 - 10 g / 15L pump (88 - 100 g/acre)'
+        dosagePump: '8 - 10 g / 15L pump',
+        dosageAcre: '88 - 100 g / acre',
+        applicationNotes: 'Spray in late afternoon when moth activity begins. Ensure complete coverage of squares and bolls.'
       },
-      'Paddy': {
-        pest: 'Rice Blast (Magnaporthe oryzae)',
-        symptoms: 'Spindle-shaped lesions with brown or reddish borders and grey centres on leaves, neck rot causing choking of panicles.',
+      {
+        crop: 'Paddy',
+        pest: 'Rice Blast',
+        scientificName: 'Magnaporthe oryzae',
+        category: 'Fungal Disease',
+        symptoms: 'Spindle-shaped elliptical lesions with reddish-brown margins and ash-grey centres on leaves and neck choking.',
         molecule: 'Tricyclazole 75% WP',
-        dosage: '15 - 18 g / 15L pump (120 - 150 g/acre)'
+        dosagePump: '15 - 18 g / 15L pump',
+        dosageAcre: '120 - 150 g / acre',
+        applicationNotes: 'Apply preventatively at boot leaf stage or upon first appearance of leaf spots.'
       },
-      'Wheat': {
-        pest: 'Yellow Stripe Rust (Puccinia striiformis)',
-        symptoms: 'Linear yellow chlorotic pustules running parallel along leaf veins, shedding yellow urediniospores onto clothes.',
+      {
+        crop: 'Wheat',
+        pest: 'Yellow Stripe Rust',
+        scientificName: 'Puccinia striiformis',
+        category: 'Fungal Disease',
+        symptoms: 'Linear yellow chlorotic pustules arranged parallel along leaf veins that shed bright yellow powder.',
         molecule: 'Propiconazole 25% EC',
-        dosage: '15 - 20 ml / 15L pump (200 ml/acre)'
+        dosagePump: '15 - 20 ml / 15L pump',
+        dosageAcre: '200 ml / acre',
+        applicationNotes: 'Spray immediately upon detection of the first pustule stripe in cool, humid winter mornings.'
       },
-      'Chilli': {
-        pest: 'Chilli Thrips & Mites (Scirtothrips dorsalis)',
-        symptoms: 'Upward curling of leaves (boat-shaped), crinkling, bronzing on the underside, severe leaf elongation and flower drop.',
-        molecule: 'Fipronil 5% SC / Diafenthiuron 50% WP',
-        dosage: '25 ml / 15L pump (300 ml/acre)'
+      {
+        crop: 'Chilli',
+        pest: 'Chilli Leaf Curl & Thrips',
+        scientificName: 'Scirtothrips dorsalis',
+        category: 'Sucking Pest / Virus',
+        symptoms: 'Upward curling (boat-shaped) of tender leaves, stunted apical growth, crinkling and blossom drop.',
+        molecule: 'Fipronil 5% SC / Spinetoram 11.7% SC',
+        dosagePump: '25 ml / 15L pump',
+        dosageAcre: '300 ml / acre',
+        applicationNotes: 'Spray during early vegetative and flowering stages. Combine with neem oil for vector control.'
       },
-      'Tomato': {
-        pest: 'Tomato Early Blight (Alternaria solani)',
-        symptoms: 'Concentric dark target-board rings on lower leaves, yellow chlorotic halo, stem collar rot and sunken fruit spots.',
+      {
+        crop: 'Tomato',
+        pest: 'Early Blight & Fruit Rot',
+        scientificName: 'Alternaria solani',
+        category: 'Fungal Disease',
+        symptoms: 'Dark brown concentric target-board rings on lower leaves, yellow chlorotic halo, stem cankers and sunken fruit rot.',
         molecule: 'Mancozeb 75% WP / Azoxystrobin 23% SC',
-        dosage: '30 g / 15L pump (400 - 500 g/acre)'
+        dosagePump: '30 g / 15L pump',
+        dosageAcre: '400 - 500 g / acre',
+        applicationNotes: 'Ensure good air circulation between plants and avoid overhead sprinkler irrigation.'
       },
-      'Maize': {
-        pest: 'Fall Armyworm (Spodoptera frugiperda)',
-        symptoms: 'Pinholes and window-paning on whorl leaves, extensive ragged feeding holes with abundant sawdust-like moist frass.',
+      {
+        crop: 'Maize',
+        pest: 'Fall Armyworm (FAW)',
+        scientificName: 'Spodoptera frugiperda',
+        category: 'Insect Pest',
+        symptoms: 'Pinholes and window-paning on whorl leaves with ragged feeding holes and abundant moist sawdust frass.',
         molecule: 'Chlorantraniliprole 18.5% SC',
-        dosage: '6 - 7 ml / 15L pump (60 ml/acre)'
+        dosagePump: '6 - 7 ml / 15L pump',
+        dosageAcre: '60 - 80 ml / acre',
+        applicationNotes: 'Direct spray into the central plant whorl where the caterpillar feeds.'
       }
-    };
+    ];
 
-    function selectCrop(crop) {
-      // Update button styling
-      const buttons = document.querySelectorAll('.crop-btn');
-      buttons.forEach(btn => {
-        if (btn.innerText.trim() === crop) {
-          btn.className = "crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-600 bg-emerald-700 text-white shadow-xs cursor-pointer";
+    let currentCrop = 'Cotton';
+
+    function filterCrop(crop) {
+      currentCrop = crop;
+      const btns = document.querySelectorAll('.crop-tab-btn');
+      btns.forEach(b => {
+        if (b.innerText.trim() === crop) {
+          b.className = "crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-forest-emerald text-white shadow-xs cursor-pointer";
         } else {
-          btn.className = "crop-btn px-3.5 py-1.5 rounded-full text-xs font-bold border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer";
+          b.className = "crop-tab-btn px-4 py-2 rounded-xl text-xs font-bold bg-white text-on-surface border border-outline-variant/30 hover:bg-slate-50 cursor-pointer";
         }
       });
-
-      const data = cropData[crop] || cropData['Cotton'];
-      document.getElementById('adv-pest-title').innerText = data.pest;
-      document.getElementById('adv-symptoms').innerHTML = '<strong>Symptoms:</strong> ' + data.symptoms;
-      document.getElementById('adv-molecule').innerText = data.molecule;
-      document.getElementById('adv-dosage').innerText = data.dosage;
+      renderAdvisories();
     }
+
+    function renderAdvisories() {
+      const container = document.getElementById('html-advisory-cards');
+      const filtered = publicAdvisories.filter(a => a.crop === currentCrop);
+      container.innerHTML = filtered.map(adv => `
+        <div class="bg-white rounded-2xl p-6 sm:p-7 border border-outline-variant/30 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div class="max-w-2xl">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-[10px] font-label-code font-bold uppercase tracking-wider text-regulatory-sky bg-regulatory-sky-bg px-2.5 py-0.5 rounded-full">
+                ${adv.category}
+              </span>
+              <span class="text-xs font-label-code text-slate-500 italic">
+                ${adv.scientificName}
+              </span>
+            </div>
+            <h3 class="text-lg font-black text-canopy-deep">
+              ${adv.pest} on ${adv.crop}
+            </h3>
+            <p class="text-xs text-on-surface-variant mt-2 leading-relaxed">
+              <strong>Symptoms:</strong> ${adv.symptoms}
+            </p>
+            <p class="text-xs text-slate-500 mt-1 italic">
+              <strong>Guidance:</strong> ${adv.applicationNotes}
+            </p>
+          </div>
+          <div class="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30 text-left lg:text-right shrink-0">
+            <span class="text-[10px] font-label-code font-bold uppercase text-slate-400 block">Approved Technical Molecule</span>
+            <span class="text-xs sm:text-sm font-bold text-canopy-deep block mt-0.5">${adv.molecule}</span>
+            <div class="flex items-center gap-2 mt-1.5 text-[11px] font-label-code text-slate-700">
+              <span class="bg-sprout-tint text-forest-emerald font-bold px-2 py-0.5 rounded">Pump: ${adv.dosagePump}</span>
+              <span class="bg-regulatory-sky-bg text-regulatory-sky font-bold px-2 py-0.5 rounded">Acre: ${adv.dosageAcre}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    renderAdvisories();
   </script>
 </body>
 </html>
