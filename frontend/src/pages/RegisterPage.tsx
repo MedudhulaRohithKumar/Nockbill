@@ -1027,7 +1027,7 @@ passwords across unencrypted emails or chat messages.
                       id="reg-upi-id"
                       type="text"
                       name="upi_id"
-                      placeholder="e.g. kisanseva@okhdfcbank"
+                      placeholder="e.g. yourstore@okhdfcbank"
                       value={formData.upi_id}
                       onChange={handleChange}
                       className="clay-input w-full px-4 py-3 text-sm text-slate-900"

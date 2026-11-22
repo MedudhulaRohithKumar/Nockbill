@@ -39,9 +39,9 @@ DEFAULT_CAMPAIGN_TEMPLATES = [
         "season": "KHARIF",
         "category": "Seeds",
         "template": (
-            "राम राम {farmer_name} जी, {shop_name} में खरीफ सीजन हेतु {crop} के प्रमाणित बीजों (Fresh Certified Seed) "
-            "का नया स्टॉक उपलब्ध हो गया है। उत्तम जमाव व अधिक पैदावार के लिए अपना बीज समय पर सुरक्षित करें। "
-            "दुकान: {shop_address}. फोन: {shop_phone}."
+            "Dear {farmer_name}, fresh certified stock of high-yield {crop} seeds has arrived at {shop_name}. "
+            "Ensure optimal germination and yield by securing your seeds early. "
+            "Store address: {shop_address}. Phone: {shop_phone}."
         ),
         "description": "Alert farmers about fresh arrival of Cotton, Paddy, Soybean, or Maize certified seeds.",
     },
@@ -51,9 +51,9 @@ DEFAULT_CAMPAIGN_TEMPLATES = [
         "season": "KHARIF",
         "category": "Pesticide",
         "template": (
-            "किसान चेतावनी: {farmer_name} जी, क्षेत्र में बदलते मौसम के कारण {crop} में कीट व फफूंद का प्रकोप देखा जा रहा है। "
-            "उचित रोकथाम हेतु सही कीटनाशक व खुराक की सलाह हमारे Agri Doctor काउंटर से प्राप्त करें। "
-            "स्थान: {shop_name}, {shop_address}. संपर्क: {shop_phone}."
+            "Agricultural Advisory: Dear {farmer_name}, weather changes are causing pest and fungal infestation risks in {crop} in our region. "
+            "Consult our Agri Doctor counter for verified remedies, active molecules, and accurate pump dosages. "
+            "Store: {shop_name}, {shop_address}. Contact: {shop_phone}."
         ),
         "description": "Send urgent preventive spray alerts for Pink Bollworm, Rice Blast, Thrips, or Blight.",
     },
@@ -63,8 +63,8 @@ DEFAULT_CAMPAIGN_TEMPLATES = [
         "season": "ALL",
         "category": "Fertilizer",
         "template": (
-            "नमस्ते {farmer_name} जी, {shop_name} पर DAP, NPK और नैनो यूरिया खाद की नई खेप सरकारी MRP दर पर उपलब्ध है। "
-            "कृपया अपना आधार कार्ड साथ लेकर आएं और समय पर खाद प्राप्त करें। संपर्क: {shop_phone}."
+            "Hello {farmer_name}, fresh supplies of genuine DAP, NPK, and Nano Urea fertilizers are now in stock at {shop_name} at official MRP. "
+            "Please bring your Aadhaar card for record-keeping and collect your allocation on time. Contact: {shop_phone}."
         ),
         "description": "Inform farmers regarding DAP, Urea, and complex fertilizer availability.",
     },
@@ -74,19 +74,19 @@ DEFAULT_CAMPAIGN_TEMPLATES = [
         "season": "RABI",
         "category": "Seeds",
         "template": (
-            "नमस्कार {farmer_name} जी, रबी फसलों (गेहूं, चना, सरसों) की बोवनी हेतु उच्च गुणवत्ता वाले शोधित बीजों की बुकिंग "
-            "{shop_name} में शुरू हो चुकी है। अग्रिम बुकिंग हेतु आज ही संपर्क करें: {shop_phone}."
+            "Dear {farmer_name}, advance booking for high-quality certified Rabi season seeds (Wheat, Gram, Mustard) is now open at {shop_name}. "
+            "Reserve your seeds and basal fertilizers early. Contact: {shop_phone}."
         ),
         "description": "Early booking campaign for Rabi season seeds and basal fertilizers.",
     },
     {
         "id": "KHATA_SETTLEMENT_GENTLE",
-        "title": "Gentle Seasonal Khata Reminder",
+        "title": "Gentle Seasonal Credit Reminder",
         "season": "ALL",
         "category": "General",
         "template": (
-            "आदरणीय {farmer_name} जी, {shop_name} से आपका चालू बकाया ₹{pending_balance} है। आगामी सीजन हेतु खाद-बीज की नई लिमिट "
-            "चालू रखने के लिए कृपया अपनी पुरानी उधारी का भुगतान करें। धन्यवाद, {shop_name} ({shop_phone})."
+            "Dear {farmer_name}, this is a gentle reminder from {shop_name} regarding your outstanding credit balance of ₹{pending_balance}. "
+            "To renew credit limits for the upcoming season, kindly clear your pending balance. Thank you, {shop_name} ({shop_phone})."
         ),
         "description": "Polite payment request sent before issuing new seasonal credit.",
     },

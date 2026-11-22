@@ -118,14 +118,14 @@ export const AgriDoctorModal: React.FC<AgriDoctorModalProps> = ({
     if (!selectedAdvisory) return '#';
     const phone = customerPhone ? customerPhone.replace(/\D/g, '') : '';
     const message = (
-      `🌱 *Agri Doctor Krishi Salah*:\n` +
-      `Fasal: ${selectedAdvisory.crop_name} (${selectedAdvisory.hindi_name})\n` +
-      `Rog/Keet: ${selectedAdvisory.pest_disease} (${selectedAdvisory.disease_hindi})\n` +
-      `Dawahi: ${selectedAdvisory.technical_molecule}\n` +
-      `💧 Khurak (Pump): ${selectedAdvisory.dosage_per_pump}\n` +
-      `🌾 Khurak (Acre): ${selectedAdvisory.dosage_per_acre}\n` +
-      `⚠️ Salah: ${selectedAdvisory.advisory_notes}\n\n` +
-      `Kisan Seva Kendra dwara pramanit.`
+      `🌱 *Agri Doctor Crop Advisory*:\n` +
+      `Crop: ${selectedAdvisory.crop_name}\n` +
+      `Target Pest / Disease: ${selectedAdvisory.pest_disease}\n` +
+      `Recommended Active Molecule: ${selectedAdvisory.technical_molecule}\n` +
+      `💧 Dosage (Per 15L Pump): ${selectedAdvisory.dosage_per_pump}\n` +
+      `🌾 Dosage (Per Acre): ${selectedAdvisory.dosage_per_acre}\n` +
+      `⚠️ Application Advice: ${selectedAdvisory.advisory_notes}\n\n` +
+      `Verified Agricultural Advisory.`
     );
     const cleanPhone = phone.length >= 10 ? `91${phone.slice(-10)}` : '';
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -249,7 +249,7 @@ export const AgriDoctorModal: React.FC<AgriDoctorModalProps> = ({
                           <Bug className={`w-4 h-4 ${isSelected ? 'text-emerald-700' : 'text-slate-400'}`} />
                           <h4 className="text-sm font-bold text-slate-900">{adv.pest_disease}</h4>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">{adv.disease_hindi}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{adv.symptoms}</p>
                       </div>
                       <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
                         inStockCount > 0
@@ -289,7 +289,7 @@ export const AgriDoctorModal: React.FC<AgriDoctorModalProps> = ({
                         {selectedAdvisory.pest_disease}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium">
-                        {selectedAdvisory.disease_hindi}
+                        {selectedAdvisory.symptoms}
                       </p>
                     </div>
 

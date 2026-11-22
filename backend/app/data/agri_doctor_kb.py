@@ -7,12 +7,12 @@ Aligned with ICAR and Central Insecticides Board & Registration Committee (CIBRC
 from typing import Dict, List
 
 AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
-    # ─── COTTON (KAPAS) ──────────────────────────────────────────────────────────
+    # ─── COTTON ──────────────────────────────────────────────────────────────────
     {
         "crop_name": "Cotton",
-        "hindi_name": "कपास (Kapas)",
+        "hindi_name": "Cotton",
         "pest_disease": "Pink Bollworm",
-        "disease_hindi": "गुलाबी सुंडी (Pink Bollworm)",
+        "disease_hindi": "Pink Bollworm",
         "category": "Insecticide",
         "technical_molecule": "Emamectin Benzoate 5% SG",
         "dosage_per_pump": "8 - 10 g per 15L water pump",
@@ -23,9 +23,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Cotton",
-        "hindi_name": "कपास (Kapas)",
+        "hindi_name": "Cotton",
         "pest_disease": "Whitefly & Jassids",
-        "disease_hindi": "सफेद मक्खी और हरा तेला (Whitefly & Jassids)",
+        "disease_hindi": "Whitefly & Jassids",
         "category": "Insecticide",
         "technical_molecule": "Diafenthiuron 50% WP",
         "dosage_per_pump": "20 - 25 g per 15L water pump",
@@ -36,9 +36,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Cotton",
-        "hindi_name": "कपास (Kapas)",
+        "hindi_name": "Cotton",
         "pest_disease": "American & Spotted Bollworm",
-        "disease_hindi": "चित्तीदार व अमेरिकन इल्ली (Bollworm Complex)",
+        "disease_hindi": "Bollworm Complex",
         "category": "Insecticide",
         "technical_molecule": "Chlorantraniliprole 18.5% SC",
         "dosage_per_pump": "6 - 7 ml per 15L water pump",
@@ -48,12 +48,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "chlorantraniliprole,coragen,ampligo,bollworm,sc,caterpillar,insecticide",
     },
 
-    # ─── PADDY / RICE (DHAAN) ───────────────────────────────────────────────────
+    # ─── PADDY / RICE ────────────────────────────────────────────────────────────
     {
         "crop_name": "Paddy",
-        "hindi_name": "धान / चावल (Dhaan)",
+        "hindi_name": "Paddy / Rice",
         "pest_disease": "Yellow Stem Borer",
-        "disease_hindi": "तना छेदक (Yellow Stem Borer)",
+        "disease_hindi": "Yellow Stem Borer",
         "category": "Insecticide",
         "technical_molecule": "Cartap Hydrochloride 4% G or 50% SP",
         "dosage_per_pump": "30 g per 15L pump (50% SP) OR 7.5 - 10 kg/acre (4% G broadcast)",
@@ -64,9 +64,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Paddy",
-        "hindi_name": "धान / चावल (Dhaan)",
+        "hindi_name": "Paddy / Rice",
         "pest_disease": "Rice Blast (Leaf & Neck Blast)",
-        "disease_hindi": "झुलसा / ब्लास्ट रोग (Blast Disease)",
+        "disease_hindi": "Blast Disease (Pyricularia)",
         "category": "Fungicide",
         "technical_molecule": "Tricyclazole 75% WP",
         "dosage_per_pump": "15 - 20 g per 15L water pump",
@@ -77,9 +77,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Paddy",
-        "hindi_name": "धान / चावल (Dhaan)",
+        "hindi_name": "Paddy / Rice",
         "pest_disease": "Brown Plant Hopper (BPH)",
-        "disease_hindi": "भूरा माहू / तेला (BPH)",
+        "disease_hindi": "Brown Plant Hopper (BPH)",
         "category": "Insecticide",
         "technical_molecule": "Pymetrozine 50% WDG",
         "dosage_per_pump": "12 - 15 g per 15L water pump",
@@ -90,9 +90,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Paddy",
-        "hindi_name": "धान / चावल (Dhaan)",
+        "hindi_name": "Paddy / Rice",
         "pest_disease": "Leaf Folder",
-        "disease_hindi": "पत्ता लपेटक (Leaf Folder)",
+        "disease_hindi": "Leaf Folder (Cnaphalocrocis)",
         "category": "Insecticide",
         "technical_molecule": "Flubendiamide 39.35% SC",
         "dosage_per_pump": "4 - 5 ml per 15L water pump",
@@ -102,12 +102,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "flubendiamide,fame,leaf folder,sc,caterpillar,insecticide",
     },
 
-    # ─── CHILLI (MIRCHI) ────────────────────────────────────────────────────────
+    # ─── CHILLI ──────────────────────────────────────────────────────────────────
     {
         "crop_name": "Chilli",
-        "hindi_name": "मिर्च (Chilli)",
+        "hindi_name": "Chilli / Pepper",
         "pest_disease": "Thrips & Mites (Murda Complex)",
-        "disease_hindi": "मुरड़ा रोग / थ्रिप्स व माइट्स (Leaf Curl)",
+        "disease_hindi": "Leaf Curl (Thrips & Mites)",
         "category": "Insecticide",
         "technical_molecule": "Fipronil 5% SC or Spiromesifen 22.9% SC",
         "dosage_per_pump": "20 ml Fipronil OR 15 ml Spiromesifen per 15L pump",
@@ -118,9 +118,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Chilli",
-        "hindi_name": "मिर्च (Chilli)",
+        "hindi_name": "Chilli / Pepper",
         "pest_disease": "Fruit Rot & Anthracnose (Die-back)",
-        "disease_hindi": "फल सड़न और डाइबैक (Anthracnose / Dieback)",
+        "disease_hindi": "Fruit Rot / Anthracnose & Dieback",
         "category": "Fungicide",
         "technical_molecule": "Azoxystrobin 18.2% + Difenoconazole 11.4% SC",
         "dosage_per_pump": "15 ml per 15L water pump",
@@ -130,12 +130,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "azoxystrobin,difenoconazole,amistar top,custodia,anthracnose,fruit rot,fungicide,sc",
     },
 
-    # ─── TOMATO (TAMATAR) ───────────────────────────────────────────────────────
+    # ─── TOMATO ──────────────────────────────────────────────────────────────────
     {
         "crop_name": "Tomato",
-        "hindi_name": "टमाटर (Tomato)",
+        "hindi_name": "Tomato",
         "pest_disease": "Early & Late Blight",
-        "disease_hindi": "अगेती व पछेती झुलसा (Early & Late Blight)",
+        "disease_hindi": "Early & Late Blight (Alternaria)",
         "category": "Fungicide",
         "technical_molecule": "Mancozeb 75% WP + Metalaxyl 8% (Metalaxyl-M)",
         "dosage_per_pump": "30 - 35 g per 15L water pump",
@@ -146,9 +146,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Tomato",
-        "hindi_name": "टमाटर (Tomato)",
+        "hindi_name": "Tomato",
         "pest_disease": "Fruit Borer",
-        "disease_hindi": "फल छेदक इल्ली (Tomato Fruit Borer)",
+        "disease_hindi": "Tomato Fruit Borer (Helicoverpa)",
         "category": "Insecticide",
         "technical_molecule": "Indoxacarb 14.5% SC",
         "dosage_per_pump": "15 ml per 15L water pump",
@@ -158,12 +158,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "indoxacarb,avant,fruit borer,tomato,sc,caterpillar,insecticide",
     },
 
-    # ─── WHEAT (GEHU) ───────────────────────────────────────────────────────────
+    # ─── WHEAT ───────────────────────────────────────────────────────────────────
     {
         "crop_name": "Wheat",
-        "hindi_name": "गेहूं (Gehu)",
+        "hindi_name": "Wheat",
         "pest_disease": "Yellow Rust (Stripe Rust)",
-        "disease_hindi": "पीला रतुआ (Yellow Rust)",
+        "disease_hindi": "Yellow Rust (Puccinia striiformis)",
         "category": "Fungicide",
         "technical_molecule": "Propiconazole 25% EC",
         "dosage_per_pump": "15 - 20 ml per 15L water pump",
@@ -174,9 +174,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Wheat",
-        "hindi_name": "गेहूं (Gehu)",
+        "hindi_name": "Wheat",
         "pest_disease": "Termites",
-        "disease_hindi": "दीमक (Termites)",
+        "disease_hindi": "Subterranean Termites",
         "category": "Insecticide",
         "technical_molecule": "Chlorpyrifos 20% EC or Fipronil 0.3% GR",
         "dosage_per_pump": "40 - 50 ml per 15L pump (foliar/soil drench) OR 8-10 kg GR broadcast with fertilizer",
@@ -186,12 +186,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "chlorpyrifos,dursban,fipronil,termite,deemak,ec,granules,insecticide",
     },
 
-    # ─── SOYBEAN ────────────────────────────────────────────────────────────────
+    # ─── SOYBEAN ─────────────────────────────────────────────────────────────────
     {
         "crop_name": "Soybean",
-        "hindi_name": "सोयाबीन (Soybean)",
+        "hindi_name": "Soybean",
         "pest_disease": "Girdle Beetle & Semilooper",
-        "disease_hindi": "गर्डल बीटल और सेमीलूपर (Girdle Beetle & Semilooper)",
+        "disease_hindi": "Girdle Beetle & Semilooper",
         "category": "Insecticide",
         "technical_molecule": "Chlorantraniliprole 9.3% + Lambda-cyhalothrin 4.6% ZC",
         "dosage_per_pump": "8 - 10 ml per 15L water pump",
@@ -202,9 +202,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Soybean",
-        "hindi_name": "सोयाबीन (Soybean)",
+        "hindi_name": "Soybean",
         "pest_disease": "Yellow Mosaic Virus (Whitefly Vector)",
-        "disease_hindi": "पीला मोज़ेक रोग (Yellow Mosaic Virus)",
+        "disease_hindi": "Yellow Mosaic Virus (YMV)",
         "category": "Insecticide",
         "technical_molecule": "Thiamethoxam 25% WG",
         "dosage_per_pump": "10 g per 15L water pump",
@@ -214,12 +214,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "thiamethoxam,actara,areva,whitefly,wg,yellow mosaic,insecticide,soybean",
     },
 
-    # ─── ONION (PYAAZ) ──────────────────────────────────────────────────────────
+    # ─── ONION ───────────────────────────────────────────────────────────────────
     {
         "crop_name": "Onion",
-        "hindi_name": "प्याज (Onion / Pyaaz)",
+        "hindi_name": "Onion",
         "pest_disease": "Onion Thrips",
-        "disease_hindi": "प्याज के थ्रिप्स (Onion Thrips)",
+        "disease_hindi": "Onion Thrips (Thrips tabaci)",
         "category": "Insecticide",
         "technical_molecule": "Spinetoram 11.7% SC",
         "dosage_per_pump": "15 ml per 15L water pump",
@@ -230,9 +230,9 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
     },
     {
         "crop_name": "Onion",
-        "hindi_name": "प्याज (Onion / Pyaaz)",
+        "hindi_name": "Onion",
         "pest_disease": "Purple Blotch",
-        "disease_hindi": "बैंगनी धब्बा रोग (Purple Blotch)",
+        "disease_hindi": "Purple Blotch (Alternaria porri)",
         "category": "Fungicide",
         "technical_molecule": "Difenoconazole 25% EC",
         "dosage_per_pump": "15 ml per 15L water pump",
@@ -242,12 +242,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "difenoconazole,score,purple blotch,fungicide,ec,onion",
     },
 
-    # ─── MAIZE / CORN (MAKKA) ───────────────────────────────────────────────────
+    # ─── MAIZE / CORN ────────────────────────────────────────────────────────────
     {
         "crop_name": "Maize",
-        "hindi_name": "मक्का (Maize / Makka)",
+        "hindi_name": "Maize / Corn",
         "pest_disease": "Fall Armyworm (FAW)",
-        "disease_hindi": "फॉल आर्मीवर्म / सैनिक सुंडी (Fall Armyworm)",
+        "disease_hindi": "Fall Armyworm (Spodoptera frugiperda)",
         "category": "Insecticide",
         "technical_molecule": "Chlorantraniliprole 18.5% SC or Spinetoram 11.7% SC",
         "dosage_per_pump": "6 - 7 ml per 15L water pump",
@@ -257,12 +257,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "coragen,chlorantraniliprole,spinetoram,fall armyworm,faw,maize,insecticide",
     },
 
-    # ─── SUGARCANE (GANNA) ──────────────────────────────────────────────────────
+    # ─── SUGARCANE ───────────────────────────────────────────────────────────────
     {
         "crop_name": "Sugarcane",
-        "hindi_name": "गन्ना (Sugarcane / Ganna)",
+        "hindi_name": "Sugarcane",
         "pest_disease": "Early Shoot Borer",
-        "disease_hindi": "कंसुआ / तना छेदक (Early Shoot Borer)",
+        "disease_hindi": "Early Shoot Borer (Chilo infuscatellus)",
         "category": "Insecticide",
         "technical_molecule": "Fipronil 0.3% GR",
         "dosage_per_pump": "Soil broadcast: 10 - 12 kg per acre",
@@ -272,12 +272,12 @@ AGRI_DOCTOR_KNOWLEDGE_BASE: List[Dict[str, str]] = [
         "keywords": "fipronil,regent,shoot borer,granules,sugarcane,insecticide",
     },
 
-    # ─── GRAM / CHICKPEA (CHANA) ────────────────────────────────────────────────
+    # ─── GRAM / CHICKPEA ─────────────────────────────────────────────────────────
     {
         "crop_name": "Gram",
-        "hindi_name": "चना (Chickpea / Chana)",
+        "hindi_name": "Chickpea / Bengal Gram",
         "pest_disease": "Pod Borer (Helicoverpa)",
-        "disease_hindi": "फली छेदक इल्ली (Gram Pod Borer)",
+        "disease_hindi": "Gram Pod Borer (Helicoverpa armigera)",
         "category": "Insecticide",
         "technical_molecule": "Emamectin Benzoate 5% SG",
         "dosage_per_pump": "8 - 10 g per 15L water pump",

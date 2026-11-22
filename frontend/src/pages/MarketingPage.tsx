@@ -107,12 +107,12 @@ export const MarketingPage: React.FC = () => {
   // Compile personalized message for a farmer
   const compileMessage = (farmer: FarmerSegmentItem): string => {
     let msg = customMessage || '';
-    msg = msg.replace(/{farmer_name}/g, farmer.customer_name || 'Kisan Bhai');
-    msg = msg.replace(/{shop_name}/g, settings.shop_name || 'Kisan Seva Kendra');
+    msg = msg.replace(/{farmer_name}/g, farmer.customer_name || 'Customer');
+    msg = msg.replace(/{shop_name}/g, settings.shop_name || 'Our Agro Store');
     msg = msg.replace(/{shop_phone}/g, settings.phone || '');
-    msg = msg.replace(/{shop_address}/g, settings.address_line1 || settings.city || 'Mandi Road');
-    msg = msg.replace(/{crop}/g, targetCrop || 'Fasal');
-    msg = msg.replace(/{village}/g, farmer.village || farmer.customer_address || 'Apka Kshetra');
+    msg = msg.replace(/{shop_address}/g, settings.address_line1 || settings.city || 'Store Address');
+    msg = msg.replace(/{crop}/g, targetCrop || 'Crops');
+    msg = msg.replace(/{village}/g, farmer.village || farmer.customer_address || 'Your Area');
     msg = msg.replace(/{pending_balance}/g, Number(farmer.pending_khata_balance || 0).toFixed(2));
     return msg;
   };
@@ -304,7 +304,7 @@ export const MarketingPage: React.FC = () => {
               {/* Khata Credit Filter */}
               <div>
                 <label htmlFor="filter-khata" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Khata (Udhar) Status
+                  Credit (Khata) Status
                 </label>
                 <select
                   id="filter-khata"
@@ -312,9 +312,9 @@ export const MarketingPage: React.FC = () => {
                   onChange={(e) => setKhataFilter(e.target.value)}
                   className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="ALL">All Farmers (Cash + Credit)</option>
-                  <option value="ZERO_DUE">Zero Dues Only (VIP Pre-booking)</option>
-                  <option value="WITH_UDHAR">Has Pending Udhar Dues</option>
+                  <option value="ALL">All Customers (Cash + Credit)</option>
+                  <option value="ZERO_DUE">Zero Dues Only (Clear Balance)</option>
+                  <option value="WITH_UDHAR">Has Pending Credit Balance</option>
                 </select>
               </div>
             </div>
@@ -355,7 +355,7 @@ export const MarketingPage: React.FC = () => {
                   type="text"
                   value={targetCrop}
                   onChange={(e) => setTargetCrop(e.target.value)}
-                  placeholder="e.g. Cotton (कपास), Paddy, Wheat, Chilli"
+                  placeholder="e.g. Cotton, Paddy, Wheat, Chilli"
                   className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -546,7 +546,7 @@ export const MarketingPage: React.FC = () => {
                           <span>Spend: ₹{Number(f.total_spend).toLocaleString('en-IN')}</span>
                           {f.pending_khata_balance > 0 && (
                             <span className="text-rose-700 font-semibold bg-rose-50 px-1.5 py-0.2 rounded">
-                              Udhar: ₹{Number(f.pending_khata_balance).toFixed(2)}
+                              Credit Due: ₹{Number(f.pending_khata_balance).toFixed(2)}
                             </span>
                           )}
                         </div>

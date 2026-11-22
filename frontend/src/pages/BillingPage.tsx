@@ -1197,7 +1197,7 @@ export const BillingPage: React.FC = () => {
                       onClick={() => navigate('/khata')}
                       className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-full text-[10px]"
                     >
-                      Pending Udhar: ₹{formatCurrency(customerLookup.outstanding_balance)}
+                      Pending Credit: ₹{formatCurrency(customerLookup.outstanding_balance)}
                     </button>
                   )}
                 </div>

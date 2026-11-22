@@ -30,8 +30,8 @@ import { useShop } from '../../context/ShopContext';
 import { INVENTORY_CATEGORIES, INVENTORY_CATEGORY_CONFIGS } from '../../config/inventoryCategories';
 
 const KHATA_SUB_ITEMS = [
-  { id: 'farmers', label: 'Farmer Khata (Udhar)', icon: Users, badge: 'Udhar' },
-  { id: 'suppliers', label: 'Supplier Khata (Payables)', icon: Truck, badge: 'Payables' },
+  { id: 'farmers', label: 'Farmer Credit Ledger', icon: Users, badge: 'Credit' },
+  { id: 'suppliers', label: 'Supplier Payables Ledger', icon: Truck, badge: 'Payables' },
   { id: 'catalog', label: '1-Click Agri Catalog & Clearance', icon: Sparkles, badge: 'Clearance' },
   { id: 'handover', label: 'Cashier Shift Handover', icon: Clock, badge: 'Shift' },
   { id: 'compliance', label: 'Agri Inspector Register (Form O)', icon: ShieldCheck, badge: 'Form O' },
@@ -82,7 +82,7 @@ export const AppLayout: React.FC = () => {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/billing', label: 'New Bill (POS)', icon: Receipt, badge: 'Quick' },
     { to: '/returns', label: 'Sales Returns', icon: RotateCcw },
-    { to: '/khata', label: 'Khata & Compliance', icon: BookOpen, badge: 'Udhar' },
+    { to: '/khata', label: 'Khata & Compliance', icon: BookOpen, badge: 'Credit' },
     { to: '/campaigns', label: 'WhatsApp Broadcast', icon: Send, badge: 'Marketing' },
     { to: '/inventory', label: 'Inventory & Stock', icon: Package },
     ...(isOwner ? [{ to: '/price-lists', label: 'Price Lists', icon: Tag, badge: 'Owner' }] : []),

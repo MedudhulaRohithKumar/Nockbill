@@ -485,7 +485,7 @@ export const LoginPage: React.FC = () => {
                 </div>
                 <div>
                   <div className="font-bold text-white text-[11px] sm:text-xs">Farmers Khata Ledger</div>
-                  <div className="text-[10px] text-slate-400 hidden sm:block">Udhar & Balance Tracking</div>
+                  <div className="text-[10px] text-slate-400 hidden sm:block">Credit &amp; Balance Tracking</div>
                 </div>
               </div>
             </div>

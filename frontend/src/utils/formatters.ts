@@ -365,9 +365,9 @@ export function buildWhatsAppKhataReminderUrl(
     ? buildUpiPaymentUri(shop.upi_id, shop.shop_name, outstandingAmount, 'Khata Due')
     : '';
   const text = [
-    `Namaste *${customerName || 'Kisan Bhai'}*,`,
-    `Friendly reminder from *${shop.shop_name || 'Krishi Seva Kendra'}*:`,
-    `Your pending Khata / Udhar balance is *₹${formatCurrency(outstandingAmount)}*.`,
+    `Hello *${customerName || 'Customer'}*,`,
+    `Friendly reminder from *${shop.shop_name || 'Our Agro Store'}*:`,
+    `Your outstanding credit balance is *₹${formatCurrency(outstandingAmount)}*.`,
     shop.upi_id ? `You can pay easily via UPI to *${shop.upi_id}*\n${upiUri}` : '',
     shop.phone ? `For any query, call: ${shop.phone}` : '',
     `Thank you!`,

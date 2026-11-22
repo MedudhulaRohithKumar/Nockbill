@@ -43,7 +43,7 @@ interface KhataModuleOption {
 const KHATA_MODULE_OPTIONS: KhataModuleOption[] = [
   {
     id: 'farmers',
-    title: 'Farmer Khata (Udhar)',
+    title: 'Farmer Credit Ledger (Khata)',
     badge: 'Farmer Credit',
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     description: 'Track outstanding farmer credit, payment collections & send WhatsApp payment reminders with UPI QR',
@@ -51,7 +51,7 @@ const KHATA_MODULE_OPTIONS: KhataModuleOption[] = [
   },
   {
     id: 'suppliers',
-    title: 'Supplier Khata (Payables)',
+    title: 'Supplier Payables Ledger (Khata)',
     badge: 'Distributor Dues',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
     description: 'Inward purchase bills, pending supplier payables, payout history & ledger receipts',
@@ -354,7 +354,7 @@ export const KhataPage: React.FC = () => {
             <span>Khata Ledger, Onboarding &amp; Compliance Hub</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Farmer Udhar credit recovery, WhatsApp payment reminders, 1-click product onboarding, shift handover &amp; Form O compliance
+            Farmer credit recovery, WhatsApp payment reminders, 1-click product onboarding, shift handover &amp; Form O compliance
           </p>
         </div>
 
@@ -517,7 +517,7 @@ export const KhataPage: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-bold uppercase text-slate-400">Total Pending Farmer Udhar</span>
+              <span className="text-[11px] font-bold uppercase text-slate-400">Total Outstanding Farmer Credit</span>
               <p className="text-2xl font-black text-amber-700 mt-1">
                 ₹{formatCurrency(totalOutstandingUdhar)}
               </p>
@@ -546,7 +546,7 @@ export const KhataPage: React.FC = () => {
                   onChange={(e) => setOnlyDue(e.target.checked)}
                   className="rounded text-brand-700"
                 />
-                <span>Only Pending Udhar</span>
+                <span>Only Pending Credit</span>
               </label>
               <button
                 type="button"
@@ -567,7 +567,7 @@ export const KhataPage: React.FC = () => {
                   <th className="py-3 px-4 text-right">Total Billed</th>
                   <th className="py-3 px-4 text-right">Credit Issued</th>
                   <th className="py-3 px-4 text-right">Repaid</th>
-                  <th className="py-3 px-4 text-right">Pending Udhar</th>
+                  <th className="py-3 px-4 text-right">Pending Credit</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -913,7 +913,7 @@ export const KhataPage: React.FC = () => {
                   <th className="py-3 px-4 text-center">Bills</th>
                   <th className="py-3 px-4 text-right">Cash Sales</th>
                   <th className="py-3 px-4 text-right">UPI Sales</th>
-                  <th className="py-3 px-4 text-right">Credit (Udhar)</th>
+                  <th className="py-3 px-4 text-right">Credit Issued</th>
                   <th className="py-3 px-4 text-right">Khata Cash In</th>
                   <th className="py-3 px-4 text-right">Net Drawer Cash</th>
                 </tr>
@@ -1061,7 +1061,7 @@ export const KhataPage: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">
                 {paymentModal.ledger_type === 'CUSTOMER'
-                  ? `Collect Farmer Udhar: ${paymentModal.party_name}`
+                  ? `Collect Farmer Payment: ${paymentModal.party_name}`
                   : `Record Supplier Payout: ${paymentModal.party_name}`}
               </h3>
               <button
