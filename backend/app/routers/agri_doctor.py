@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.data.agri_doctor_kb import AGRI_DOCTOR_KNOWLEDGE_BASE
 from app.database.base import get_db
 from app.models.models import Product, ProductBatch, User
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/api/agri-doctor", tags=["Agri Doctor & Crop Advisory"])
 
@@ -58,7 +58,7 @@ class CropSummary(BaseModel):
 
 @router.get("/crops", response_model=List[CropSummary])
 def get_crops_list(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """List all supported crops, localized names, and associated pests/diseases."""
     crop_map: Dict[str, Dict[str, Any]] = {}
@@ -91,7 +91,7 @@ def list_advisories(
     crop: Optional[str] = Query(default=None),
     pest: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     """
@@ -118,7 +118,11 @@ def list_advisories(
 
     results: List[AgriDoctorAdvisoryDetail] = []
     for entry in filtered_entries:
-        matching_products = _resolve_in_stock_products(db, current_user.shop_id, entry)
+        matching_products = (
+            _resolve_in_stock_products(db, current_user.shop_id, entry)
+            if (current_user and getattr(current_user, "shop_id", None))
+            else []
+        )
         results.append(
             AgriDoctorAdvisoryDetail(
                 crop_name=entry["crop_name"],
@@ -141,7 +145,7 @@ def list_advisories(
 def get_recommendation_for_problem(
     crop: str = Query(..., description="Crop name e.g. Cotton, Paddy, Chilli"),
     pest_disease: str = Query(..., description="Pest or disease name e.g. Pink Bollworm"),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     """
@@ -170,7 +174,11 @@ def get_recommendation_for_problem(
             detail=f"No agronomic advisory found for crop '{crop}' and pest '{pest_disease}'.",
         )
 
-    matching_products = _resolve_in_stock_products(db, current_user.shop_id, target_entry)
+    matching_products = (
+        _resolve_in_stock_products(db, current_user.shop_id, target_entry)
+        if (current_user and getattr(current_user, "shop_id", None))
+        else []
+    )
     return AgriDoctorAdvisoryDetail(
         crop_name=target_entry["crop_name"],
         hindi_name=target_entry["hindi_name"],

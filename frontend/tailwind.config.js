@@ -36,6 +36,8 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+        grandstander: ['Grandstander', 'sans-serif'],
+        display: ['Grandstander', 'Inter', 'sans-serif'],
       },
       screens: {
         xs: '480px',
