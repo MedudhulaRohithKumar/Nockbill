@@ -113,7 +113,7 @@ export const STACKED_CARDS: StackedCard[] = [
         badge: 'Credit Recovery',
         badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
         summary: 'Farmer-wise credit tracking, repayment receipts, and 1-click WhatsApp payment reminders with dynamic UPI QR.',
-        detail: 'Eliminates paper udhar diaries. Tracks season-long agricultural credit, partial repayments, and dispatches automated payment reminders with direct UPI payment links.',
+        detail: 'Eliminates paper credit diaries. Tracks season-long agricultural credit, partial repayments, and dispatches automated payment reminders with direct UPI payment links.',
       },
       {
         id: 'supplier-khata',
@@ -582,7 +582,7 @@ export const HomePage: React.FC = () => {
       </header>
 
       {/* ─── HERO CANVAS (PASTORAL SUNNY SKY + ANIMATED VIDEO OVERLAY) ────────── */}
-      <section className="relative w-full overflow-hidden min-h-[960px] lg:min-h-[1060px] flex flex-col justify-between pt-24 pb-12">
+      <section className="relative w-full overflow-hidden min-h-[640px] sm:min-h-[720px] lg:min-h-[820px] flex flex-col justify-between pt-24 sm:pt-28 pb-16 lg:pb-24">
         {/* Layer 1: Hand-painted Ghibli pastoral plate + Looping Video Overlay */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none overflow-hidden">
           <img
@@ -613,68 +613,78 @@ export const HomePage: React.FC = () => {
           <div className="absolute inset-0 bg-radial-at-c from-transparent via-transparent to-emerald-950/35" />
         </div>
 
-        {/* Layer 2: Real NockBill Value Proposition Copy (Left-Aligned to leave visual unobstructed) */}
-        <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-14">
-          <div className="max-w-xl text-left flex flex-col items-start">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/35 shadow-sm mb-4">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-              <span className="text-[11px] font-mono text-white uppercase tracking-widest font-black drop-shadow">
-                INDIA&apos;S LEADING AGRI-FINTECH &amp; POS PLATFORM
-              </span>
-            </div>
-
-            <div className="flex flex-col select-none">
-              <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-white font-black drop-shadow-[0_6px_22px_rgba(20,83,45,0.7)] leading-[0.94] tracking-tight">
-                EMPOWERING
-              </h1>
-              <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[84px] text-emerald-200 font-black drop-shadow-[0_6px_26px_rgba(20,83,45,0.75)] leading-[0.94] tracking-tight mt-1">
-                AGRI COMMERCE &amp; RETAIL
-              </h1>
-            </div>
-
-            <p className="text-sm sm:text-base md:text-lg text-white/95 mt-5 font-medium leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
-              Built for fertilizer, seeds, and pesticide retailers. Rapid 3-second counter billing, 80mm thermal receipts, digital Farmer Khata credit recovery, automated Form O statutory registers, and field-grade agronomic AI.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3.5 mt-7">
-              <Link
-                to="/register"
-                className="flex items-center justify-center px-7 py-3 rounded-full bg-white text-[#5b875c] font-black text-xs sm:text-sm shadow-2xl hover:bg-emerald-50 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
-              >
-                Open Your Store
-              </Link>
-
-              <a
-                href="#platform-features"
-                className="group flex items-center justify-center gap-2 px-5 py-3 rounded-full shadow-lg backdrop-blur-md transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
-                style={{
-                  backgroundColor: 'rgba(204, 218, 173, 0.65)',
-                  border: '1px solid rgba(255, 255, 255, 0.45)',
-                }}
-              >
-                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
-                  <Play className="w-3 h-3 fill-emerald-900 text-emerald-900 ml-0.5" />
-                </div>
-                <span className="font-bold text-emerald-950 text-xs sm:text-sm">
-                  Explore All Features
+        {/* Layer 2: Real NockBill Value Proposition Copy (Split: Left Display + Opposite Right Description/CTA) */}
+        <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-8 my-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Column: Top-Left Header & Display Typography in Open Sky */}
+            <div className="lg:col-span-7 flex flex-col items-start select-none">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/35 shadow-sm mb-3 sm:mb-4">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[11px] font-mono text-white uppercase tracking-widest font-black drop-shadow">
+                  INDIA&apos;S LEADING AGRI-FINTECH &amp; POS PLATFORM
                 </span>
-              </a>
+              </div>
+
+              <div className="flex flex-col">
+                <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[80px] text-white font-black drop-shadow-[0_6px_22px_rgba(20,83,45,0.7)] leading-[0.92] tracking-tight">
+                  EMPOWERING
+                </h1>
+                <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[80px] text-emerald-200 font-black drop-shadow-[0_6px_26px_rgba(20,83,45,0.75)] leading-[0.92] tracking-tight mt-1">
+                  AGRI COMMERCE &amp; RETAIL
+                </h1>
+              </div>
+            </div>
+
+            {/* Right Column: Highlighted Content Moved to Opposite Side (Leaves Boy & Dog on Left Completely Visible) */}
+            <div className="lg:col-span-5 flex flex-col items-start lg:items-end justify-center pt-2 lg:pt-0">
+              <div className="max-w-lg bg-black/30 lg:bg-black/25 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-white/25 shadow-2xl">
+                <p className="text-sm sm:text-base md:text-lg text-white font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+                  Built for fertilizer, seeds, and pesticide retailers. Rapid 3-second counter billing, 80mm thermal receipts, digital Farmer Khata credit recovery, automated Form O statutory registers, and field-grade agronomic AI.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3.5 mt-6">
+                  <Link
+                    to="/register"
+                    className="flex items-center justify-center px-7 py-3 rounded-full bg-white text-[#5b875c] font-black text-xs sm:text-sm shadow-xl hover:bg-emerald-50 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
+                  >
+                    Open Your Store
+                  </Link>
+
+                  <a
+                    href="#platform-features"
+                    className="group flex items-center justify-center gap-2 px-5 py-3 rounded-full shadow-lg backdrop-blur-md transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
+                    style={{
+                      backgroundColor: 'rgba(204, 218, 173, 0.7)',
+                      border: '1px solid rgba(255, 255, 255, 0.5)',
+                    }}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
+                      <Play className="w-3 h-3 fill-emerald-900 text-emerald-900 ml-0.5" />
+                    </div>
+                    <span className="font-bold text-emerald-950 text-xs sm:text-sm">
+                      Explore All Features
+                    </span>
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Layer 3: CORE PILLARS OF NOCKBILL (Positioned further down and smaller per user instruction) */}
-        <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 md:mt-32 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <h2 className="font-mono text-xs sm:text-sm font-black text-white uppercase tracking-wider drop-shadow-md">
+      {/* ─── CORE PILLARS OF NOCKBILL (Dedicated Section Below Hero Frame) ───────── */}
+      <section className="relative z-20 bg-gradient-to-b from-[#02180c] via-slate-900 to-slate-950 border-t border-emerald-900/40 border-b border-slate-800 py-14 sm:py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <h2 className="font-mono text-xs sm:text-sm font-black text-white uppercase tracking-wider">
                 CORE PILLARS OF NOCKBILL
               </h2>
             </div>
             <a
               href="#platform-features"
-              className="font-mono text-[11px] sm:text-xs text-white/90 hover:text-white flex items-center gap-1 drop-shadow transition-colors group"
+              className="font-mono text-[11px] sm:text-xs text-emerald-300 hover:text-white flex items-center gap-1 transition-colors group"
             >
               <span>browse all 21 modules</span>
               <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -682,7 +692,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* 3 Compact 3D Pastoral Feature Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Card 1: 3D POS Counter */}
             <div
               onClick={() => {
@@ -690,27 +700,27 @@ export const HomePage: React.FC = () => {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 setActiveCardIndex(0);
               }}
-              className="group relative rounded-xl overflow-hidden shadow-xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/40 cursor-pointer border border-white/25"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/50 cursor-pointer border border-white/20"
             >
-              <div className="h-28 sm:h-32 w-full overflow-hidden relative bg-emerald-950/30">
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
                 <img
                   src="/images/pos_3d.jpg"
                   alt="3D POS billing counter with 80mm thermal printer, barcode gun, and fertilizer sack in sunny pastoral meadow"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
                   RETAIL CHECKOUT
                 </div>
               </div>
-              <div className="p-3.5 bg-white/95 backdrop-blur-md">
-                <span className="font-mono text-[10px] text-[#5b875c] uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900/95 border-t border-white/10">
+                <span className="font-mono text-[10px] text-emerald-400 uppercase tracking-wider font-bold block">
                   Fast Counter POS [F1]
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold text-emerald-950 line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-emerald-300 transition-colors mt-0.5">
                   3-Second Rapid Billing &amp; 80mm ESC/POS
                 </h3>
-                <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
                   Barcode gun scanning, split Cash + UPI payments in one receipt.
                 </p>
               </div>
@@ -722,27 +732,27 @@ export const HomePage: React.FC = () => {
                 const el = document.getElementById('agri-doctor-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="group relative rounded-xl overflow-hidden shadow-xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/40 cursor-pointer border border-white/25"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-sky-950/50 cursor-pointer border border-white/20"
             >
-              <div className="h-28 sm:h-32 w-full overflow-hidden relative bg-emerald-950/30">
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
                 <img
                   src="/images/agri_doctor_3d.jpg"
                   alt="3D Agri Doctor laboratory setup with modern microscope and leaf telemetry rings in sunny oak meadow"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-sky-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-sky-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
                   AI TELEMETRY
                 </div>
               </div>
-              <div className="p-3.5 bg-white/95 backdrop-blur-md">
-                <span className="font-mono text-[10px] text-sky-700 uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900/95 border-t border-white/10">
+                <span className="font-mono text-[10px] text-sky-400 uppercase tracking-wider font-bold block">
                   Crop Diagnostic Engine
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold text-emerald-950 line-clamp-1 group-hover:text-sky-700 transition-colors">
+                <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-sky-300 transition-colors mt-0.5">
                   Agri Doctor &amp; Chemical Formulations
                 </h3>
-                <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
                   Instant pest/disease diagnosis and approved spray dosage guidelines.
                 </p>
               </div>
@@ -755,27 +765,27 @@ export const HomePage: React.FC = () => {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 setActiveCardIndex(1);
               }}
-              className="group relative rounded-xl overflow-hidden shadow-xl bg-white/10 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/40 cursor-pointer border border-white/25"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-amber-950/50 cursor-pointer border border-white/20"
             >
-              <div className="h-28 sm:h-32 w-full overflow-hidden relative bg-emerald-950/30">
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
                 <img
                   src="/images/compliance_3d.jpg"
                   alt="3D agricultural compliance emblem with Form O certificate, ledger book, rupee coin, and UPI smartphone in sunny meadow"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-amber-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
                   STATUTORY RECOVERY
                 </div>
               </div>
-              <div className="p-3.5 bg-white/95 backdrop-blur-md">
-                <span className="font-mono text-[10px] text-amber-700 uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900/95 border-t border-white/10">
+                <span className="font-mono text-[10px] text-amber-400 uppercase tracking-wider font-bold block">
                   Statutory &amp; Credit Ledger
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold text-emerald-950 line-clamp-1 group-hover:text-amber-700 transition-colors">
+                <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-amber-300 transition-colors mt-0.5">
                   Farmer Khata &amp; Form O Register
                 </h3>
-                <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
                   WhatsApp payment reminders, shift handovers, and FCO Form O ledgers.
                 </p>
               </div>
