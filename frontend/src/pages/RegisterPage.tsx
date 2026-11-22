@@ -3,11 +3,12 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   Sprout, User, Lock, Phone, Mail, Building, MapPin, 
   FileText, CreditCard, ShieldCheck, Download, CheckCircle2, 
-  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff, X, RefreshCw
+  ArrowRight, ArrowLeft, AlertCircle, Copy, Check, Eye, EyeOff, RefreshCw, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
 import { authApi, getErrorMessage } from '../api';
+import { GoldenSeedsCanvas } from '../components/common/GoldenSeedsCanvas';
 import {
   sanitizeTextInput,
   sanitizeCodeInput,
@@ -107,7 +108,7 @@ export const RegisterPage: React.FC = () => {
       );
       if (googlePrefill.fromLogin) {
         setRedirectNotice(
-          `No shop account was found for ${googlePrefill.email || 'this Google account'}. Your Google account is connected — enter your mobile number, password (for hybrid login), and shop details below to register.`,
+          `No shop account was found for ${googlePrefill.email || 'this Google account'}. Your Google account is connected — enter your mobile number, password, and shop details below to register.`,
         );
       }
       navigate('/register', { replace: true, state: null });
@@ -132,7 +133,7 @@ export const RegisterPage: React.FC = () => {
       });
       if (loginPrefill.fromLogin) {
         setRedirectNotice(
-          `No shop account was found for "${rawId}". Complete your shop registration below — or click "Continue with Google" to link your Google account with hybrid password sign-in.`,
+          `No shop account was found for "${rawId}". Complete your shop registration below — or click "Continue with Google" to link your Google account.`,
         );
       }
       navigate('/register', { replace: true, state: null });
@@ -453,7 +454,7 @@ export const RegisterPage: React.FC = () => {
   const downloadCredentialsTxt = () => {
     if (!generatedCreds) return;
     const txtContent = `==================================================================
-           NOCKBILL SOLUTIONS - SHOP ACCESS CREDENTIALS
+           NOCKBILL AGRICULTURE - SHOP ACCESS CREDENTIALS
 ==================================================================
 Shop Name:          ${generatedCreds.shop_name}
 Shop Account ID:    ${generatedCreds.account_id}
@@ -498,71 +499,83 @@ passwords across unencrypted emails or chat messages.
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-green-100 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#031b0f] text-white flex flex-col justify-center py-10 px-3 sm:px-6 lg:px-8 relative overflow-hidden select-none">
+      {/* ─── PASTORAL MEADOW STAGE BACKDROP & GOLDEN SEEDS CANVAS ──────────── */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <img 
+          src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"
+          alt="Sunlit pastoral agricultural meadow landscape"
+          className="w-full h-full object-cover object-center opacity-40 scale-105 filter blur-[1px]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#02180c] via-[#032414]/85 to-[#011409]/65" />
+        <div className="absolute inset-0 bg-radial-at-tl from-emerald-500/20 via-transparent to-black/65" />
+        <GoldenSeedsCanvas />
+      </div>
+
       {/* Top Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-2xl mb-6 text-center">
+      <div className="sm:mx-auto sm:w-full sm:max-w-2xl mb-6 text-center relative z-10">
         <Link to="/" className="inline-flex items-center gap-2.5 mb-3 group">
-          <div className="w-11 h-11 rounded-xl bg-slate-950 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white border border-white/30 flex items-center justify-center shadow-lg animate-leaf-pulse">
             <Sprout className="w-6 h-6" />
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-black text-slate-900 tracking-tight">
-              Nock<span className="text-emerald-700">Bill</span>
+            <span className="font-['Grandstander'] text-3xl font-black text-white tracking-tight drop-shadow-md">
+              Nock<span className="text-emerald-300">Bill</span>
             </span>
-            <span className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
-              Solutions
+            <span className="text-xs font-mono font-black uppercase tracking-[0.2em] text-emerald-300 drop-shadow">
+              Agriculture
             </span>
           </div>
         </Link>
-        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-          {step === 4 ? 'Shop Registration Complete' : 'Register Your Shop'}
+        <h2 className="font-['Grandstander'] text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-md">
+          {step === 4 ? 'Shop Registration Complete' : 'Create Store Account'}
         </h2>
-        <p className="mt-1 text-xs sm:text-sm text-slate-600">
+        <p className="mt-1 text-xs sm:text-sm text-emerald-100/90 font-medium">
           {step === 4 
             ? 'Download your secure master credentials and start billing.' 
-            : 'Set up your shop name, GST billing, batch tracking, and scannable barcodes in minutes.'}
+            : 'Register your agro-retail shop for fast GST billing & inventory.'}
         </p>
 
         {/* Step Indicator */}
         {step < 4 && (
-          <div className="flex items-center justify-center gap-3 mt-6">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mt-6">
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === 1 ? 'bg-brand-700 text-white shadow-md shadow-brand-700/30' : 'bg-white text-slate-500 border border-slate-200'
+              step === 1 ? 'bg-emerald-600 text-white shadow-md border border-emerald-400/40' : 'bg-black/40 text-slate-400 border border-white/10'
             }`}>
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">1</span>
-              <span>Owner Account</span>
+              <span>Owner Profile</span>
             </div>
-            <div className="w-6 h-0.5 bg-slate-300"></div>
+            <div className="w-5 sm:w-8 h-0.5 bg-white/20"></div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === 2 ? 'bg-brand-700 text-white shadow-md shadow-brand-700/30' : 'bg-white text-slate-500 border border-slate-200'
+              step === 2 ? 'bg-emerald-600 text-white shadow-md border border-emerald-400/40' : 'bg-black/40 text-slate-400 border border-white/10'
             }`}>
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">2</span>
               <span>Shop Info</span>
             </div>
-            <div className="w-6 h-0.5 bg-slate-300"></div>
+            <div className="w-5 sm:w-8 h-0.5 bg-white/20"></div>
             <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-              step === 3 ? 'bg-brand-700 text-white shadow-md shadow-brand-700/30' : 'bg-white text-slate-500 border border-slate-200'
+              step === 3 ? 'bg-emerald-600 text-white shadow-md border border-emerald-400/40' : 'bg-black/40 text-slate-400 border border-white/10'
             }`}>
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px]">3</span>
-              <span>Licenses & Banking</span>
+              <span>Licenses &amp; Banking</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Main Container */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-2xl">
-        <div className="clay-card-pillowy p-6 sm:p-9 border border-white/80">
+      {/* Main Glass Card Container */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10">
+        <div className="glass-card-dark rounded-3xl p-6 sm:p-9 border border-white/25 shadow-2xl backdrop-blur-xl">
           {redirectNotice && step < 4 && (
-            <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl text-xs sm:text-sm flex items-start gap-2.5">
-              <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+            <div className="mb-5 p-3.5 bg-amber-950/80 border border-amber-500/50 text-amber-200 rounded-2xl text-xs sm:text-sm flex items-start gap-2.5">
+              <AlertCircle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
               <span>{redirectNotice}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs sm:text-sm flex items-center gap-2.5">
-              <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+            <div className="mb-6 p-4 bg-red-950/80 border border-red-500/50 text-red-200 rounded-2xl text-xs sm:text-sm flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
               <span>{error}</span>
             </div>
           )}
@@ -572,38 +585,38 @@ passwords across unencrypted emails or chat messages.
             <div className="space-y-4">
               {/* Google Hybrid Registration Option */}
               {googleAuth ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl space-y-2">
+                <div className="p-4 bg-emerald-950/80 border border-emerald-400/40 rounded-2xl space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-emerald-950">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-white">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>Google Account Connected: {googleAuth.email}</span>
                     </div>
                     <button
                       type="button"
                       onClick={handleDisconnectGoogle}
-                      className="text-[11px] font-bold text-slate-600 hover:text-red-600 underline shrink-0"
+                      className="text-[11px] font-bold text-emerald-300 hover:text-red-300 underline shrink-0 cursor-pointer"
                     >
                       Disconnect
                     </button>
                   </div>
-                  <p className="text-xs text-emerald-800 leading-relaxed">
-                    Complete your mobile number, hybrid login password, and shop details (Steps 1–3) below. Once registered, you can sign in next time using <strong>Continue with Google</strong> or your <strong>Username / Email / Mobile + Password</strong>.
+                  <p className="text-xs text-emerald-200/90 leading-relaxed">
+                    Complete your mobile number, hybrid login password, and shop details below.
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="p-4 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl space-y-3">
+                  <div className="p-4 bg-black/40 border border-white/20 rounded-2xl space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <div className="flex items-center gap-2 text-xs font-bold text-white">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                         <span>Hybrid Shop Registration with Google</span>
                       </div>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      <span className="text-[10px] bg-emerald-600 text-white font-mono font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                         Recommended
                       </span>
                     </div>
-                    <p className="text-xs text-emerald-800 leading-relaxed">
-                      Connect your Google account to prefill your verified email &amp; name, then enter your shop details and password so you can sign in with either Google or Password anytime.
+                    <p className="text-xs text-emerald-100/80 leading-relaxed">
+                      Connect your Google account to prefill your verified email &amp; name, then enter your shop details.
                     </p>
                     <button
                       type="button"
@@ -611,7 +624,7 @@ passwords across unencrypted emails or chat messages.
                         void handleGoogleRegister();
                       }}
                       disabled={isLoading}
-                      className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 shadow-sm hover:shadow transition-all active:scale-[0.99] disabled:opacity-70 group"
+                      className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-all active:scale-[0.99] disabled:opacity-70 group cursor-pointer"
                     >
                       <svg className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -619,13 +632,13 @@ passwords across unencrypted emails or chat messages.
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
-                      <span>Continue with Google</span>
+                      <span className="font-extrabold">Sign up with Google</span>
                     </button>
                   </div>
 
                   <div className="relative flex items-center justify-center my-4">
-                    <div className="border-t border-slate-200 w-full"></div>
-                    <span className="bg-slate-50 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 absolute">
+                    <div className="border-t border-white/20 w-full"></div>
+                    <span className="bg-black/60 px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-200/70 absolute rounded-full border border-white/10">
                       or enter details manually
                     </span>
                   </div>
@@ -633,186 +646,181 @@ passwords across unencrypted emails or chat messages.
               )}
 
               <form onSubmit={handleNextStep1} className="space-y-4">
-                <div className="border-b border-slate-200/80 pb-3 mb-2">
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <User className="w-5 h-5 text-brand-700" />
-                    Owner & Security Credentials
+                <div className="border-b border-white/15 pb-3 mb-2">
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <User className="w-5 h-5 text-emerald-400" />
+                    Owner &amp; Security Credentials
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    These details will be used to generate your primary administrative access keys.
+                  <p className="text-xs text-emerald-200/80">
+                    These details generate your primary master administrator access keys.
                   </p>
                 </div>
 
-              <div>
-                <label htmlFor="reg-owner-name" className="block text-xs font-bold text-slate-700 mb-1">
-                  Full Name of Owner / Proprietor <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="reg-owner-name"
-                  type="text"
-                  name="owner_name"
-                  required
-                  placeholder="e.g. Ramesh Patel"
-                  value={formData.owner_name}
-                  onChange={handleChange}
-                  className="clay-input w-full px-4 py-3 text-sm text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="reg-username" className="block text-xs font-bold text-slate-700 mb-1">
-                    Master Username <span className="text-red-500">*</span>
+                  <label htmlFor="reg-owner-name" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    Full Name of Owner / Proprietor <span className="text-red-400">*</span>
                   </label>
-                  <div className="relative">
-                    <User className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      id="reg-username"
-                      type="text"
-                      name="username"
-                      required
-                      placeholder="e.g. ramesh_store"
-                      value={formData.username}
-                      onChange={handleChange}
-                      className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Unique shop administrator login ID</span>
-                </div>
-
-                <div>
-                  <label htmlFor="reg-phone" className="block text-xs font-bold text-slate-700 mb-1">
-                    Mobile Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      id="reg-phone"
-                      type="tel"
-                      name="phone"
-                      required
-                      maxLength={10}
-                      placeholder="e.g. 9876543210"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Required for OTP & password resets</span>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="reg-email" className="block text-xs font-bold text-slate-700 mb-1">
-                  Email Address <span className="text-red-500">*</span>
-                  {googleAuth && (
-                    <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Verified by Google
-                    </span>
-                  )}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
-                    id="reg-email"
-                    type="email"
-                    name="email"
+                    id="reg-owner-name"
+                    type="text"
+                    name="owner_name"
                     required
-                    readOnly={Boolean(googleAuth)}
-                    placeholder="e.g. ramesh@gmail.com"
-                    value={formData.email}
+                    placeholder="e.g. Ramesh Patel"
+                    value={formData.owner_name}
                     onChange={handleChange}
-                    className={`clay-input w-full pl-10 pr-4 py-3 text-sm ${
-                      googleAuth ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'text-slate-900'
-                    }`}
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  {googleAuth
-                    ? 'Linked to your Google account — enables both Google Sign-In and Email + Password login'
-                    : 'Used for daily sales summaries and security alerts'}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="reg-password" className="block text-xs font-bold text-slate-700 mb-1">
-                    Master Password <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                    <input
-                      id="reg-password"
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      required
-                      placeholder="Min 6 characters"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className="clay-input w-full pl-10 pr-10 py-3 text-sm text-slate-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="reg-username" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                      Master Username <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
+                      <input
+                        id="reg-username"
+                        type="text"
+                        name="username"
+                        required
+                        placeholder="e.g. ramesh_store"
+                        value={formData.username}
+                        onChange={handleChange}
+                        className="luminous-input w-full pl-10 pr-4 py-3 text-sm text-white"
+                      />
+                    </div>
+                    <span className="text-[10px] text-emerald-200/80 mt-0.5 block">Unique shop administrator login ID</span>
+                  </div>
+
+                  <div>
+                    <label htmlFor="reg-phone" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                      Mobile Number <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
+                      <input
+                        id="reg-phone"
+                        type="tel"
+                        name="phone"
+                        required
+                        maxLength={10}
+                        placeholder="e.g. 9876543210"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        className="luminous-input w-full pl-10 pr-4 py-3 text-sm text-white"
+                      />
+                    </div>
+                    <span className="text-[10px] text-emerald-200/80 mt-0.5 block">Required for OTP &amp; password resets</span>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="reg-confirm-password" className="block text-xs font-bold text-slate-700 mb-1">
-                    Confirm Password <span className="text-red-500">*</span>
+                  <label htmlFor="reg-email" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    Email Address <span className="text-red-400">*</span>
+                    {googleAuth && (
+                      <span className="ml-2 text-[10px] font-bold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                        Verified by Google
+                      </span>
+                    )}
                   </label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                    <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
                     <input
-                      id="reg-confirm-password"
-                      type={showPassword ? 'text' : 'password'}
-                      name="confirm_password"
+                      id="reg-email"
+                      type="email"
+                      name="email"
                       required
-                      placeholder="Re-type password"
-                      value={formData.confirm_password}
+                      readOnly={Boolean(googleAuth)}
+                      placeholder="e.g. ramesh@gmail.com"
+                      value={formData.email}
                       onChange={handleChange}
-                      className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
+                      className={`luminous-input w-full pl-10 pr-4 py-3 text-sm ${
+                        googleAuth ? 'bg-black/60 text-slate-300 cursor-not-allowed' : 'text-white'
+                      }`}
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-4 flex items-center justify-between">
-                <Link to="/login" className="text-xs font-semibold text-slate-600 hover:text-brand-700">
-                  Already have an account? Sign In
-                </Link>
-                <button
-                  type="submit"
-                  className="clay-btn-primary px-6 py-3 text-sm flex items-center gap-2"
-                >
-                  <span>Continue to Shop Info</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="reg-password" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                      Master Password <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
+                      <input
+                        id="reg-password"
+                        type={showPassword ? 'text' : 'password'}
+                        name="password"
+                        required
+                        placeholder="Min 6 characters"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className="luminous-input w-full pl-10 pr-10 py-3 text-sm text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-3.5 text-emerald-300 hover:text-white cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="reg-confirm-password" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                      Confirm Password <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
+                      <input
+                        id="reg-confirm-password"
+                        type={showPassword ? 'text' : 'password'}
+                        name="confirm_password"
+                        required
+                        placeholder="Re-type password"
+                        value={formData.confirm_password}
+                        onChange={handleChange}
+                        className="luminous-input w-full pl-10 pr-4 py-3 text-sm text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex items-center justify-between border-t border-white/10">
+                  <Link to="/login" className="text-xs font-bold text-emerald-300 hover:text-white">
+                    Already registered? Log In to Shop
+                  </Link>
+                  <button
+                    type="submit"
+                    className="meadow-cta-btn px-6 py-3 text-sm flex items-center gap-2 cursor-pointer shadow-lg"
+                  >
+                    <span>Continue to Shop Setup →</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* STEP 2: SHOP & BUSINESS INFO */}
           {step === 2 && (
             <form onSubmit={handleNextStep2} className="space-y-4">
-              <div className="border-b border-slate-200/80 pb-3 mb-2">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Building className="w-5 h-5 text-brand-700" />
-                  Shop & Business Information
+              <div className="border-b border-white/15 pb-3 mb-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Building className="w-5 h-5 text-emerald-400" />
+                  Shop &amp; Business Information
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-emerald-200/80">
                   This appears on customer GST invoices, thermal bills, and tax reports.
                 </p>
               </div>
 
               <div>
-                <label htmlFor="reg-shop-name" className="block text-xs font-bold text-slate-700 mb-1">
-                  Shop / Agency Name <span className="text-red-500">*</span>
+                <label htmlFor="reg-shop-name" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                  Shop / Agency Name <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="reg-shop-name"
@@ -822,13 +830,13 @@ passwords across unencrypted emails or chat messages.
                   placeholder="e.g. Sri Lakshmi Enterprises"
                   value={formData.shop_name}
                   onChange={handleChange}
-                  className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                  className="luminous-input w-full px-4 py-3 text-sm text-white"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="reg-gstin" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-gstin" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     GSTIN Number (Optional)
                   </label>
                   <input
@@ -839,14 +847,14 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. 27ABCDE1234F1Z5"
                     value={formData.gstin}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm uppercase text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm uppercase text-white"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">15-digit GST identification number</span>
+                  <span className="text-[10px] text-emerald-200/80 mt-0.5 block">15-digit GST identification number</span>
                 </div>
 
                 <div>
-                  <label htmlFor="reg-invoice-prefix" className="block text-xs font-bold text-slate-700 mb-1">
-                    Invoice Number Prefix
+                  <label htmlFor="reg-invoice-prefix" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    Invoice Prefix
                   </label>
                   <input
                     id="reg-invoice-prefix"
@@ -856,18 +864,18 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. KSK or INV"
                     value={formData.invoice_prefix}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm uppercase text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm uppercase text-white"
                   />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">e.g. KSK-202609-00001</span>
+                  <span className="text-[10px] text-emerald-200/80 mt-0.5 block">e.g. KSK-202609-00001</span>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="reg-address-line1" className="block text-xs font-bold text-slate-700 mb-1">
-                  Address Line 1 <span className="text-red-500">*</span>
+                <label htmlFor="reg-address-line1" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                  Address Line 1 <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
-                  <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <MapPin className="w-4 h-4 absolute left-3.5 top-3.5 text-emerald-300 pointer-events-none" />
                   <input
                     id="reg-address-line1"
                     type="text"
@@ -876,15 +884,15 @@ passwords across unencrypted emails or chat messages.
                     placeholder="Shop No., Market Yard / APMC Road"
                     value={formData.address_line1}
                     onChange={handleChange}
-                    className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full pl-10 pr-4 py-3 text-sm text-white"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label htmlFor="reg-city" className="block text-xs font-bold text-slate-700 mb-1">
-                    City / Town <span className="text-red-500">*</span>
+                  <label htmlFor="reg-city" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    City / Town <span className="text-red-400">*</span>
                   </label>
                   <input
                     id="reg-city"
@@ -894,13 +902,13 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. Nashik"
                     value={formData.city}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="reg-state" className="block text-xs font-bold text-slate-700 mb-1">
-                    State <span className="text-red-500">*</span>
+                  <label htmlFor="reg-state" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    State <span className="text-red-400">*</span>
                   </label>
                   <input
                     id="reg-state"
@@ -910,13 +918,13 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. Maharashtra"
                     value={formData.state}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="reg-pincode" className="block text-xs font-bold text-slate-700 mb-1">
-                    Pincode <span className="text-red-500">*</span>
+                  <label htmlFor="reg-pincode" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    Pincode <span className="text-red-400">*</span>
                   </label>
                   <input
                     id="reg-pincode"
@@ -927,23 +935,23 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. 422001"
                     value={formData.pincode}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-between">
+              <div className="pt-4 flex items-center justify-between border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="clay-btn-secondary px-5 py-3 text-sm flex items-center gap-1.5"
+                  className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center gap-1.5 cursor-pointer border border-white/20"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
                 <button
                   type="submit"
-                  className="clay-btn-primary px-6 py-3 text-sm flex items-center gap-2"
+                  className="meadow-cta-btn px-6 py-3 text-sm flex items-center gap-2 cursor-pointer shadow-lg"
                 >
                   <span>Continue to Licenses</span>
                   <ArrowRight className="w-4 h-4" />
@@ -955,19 +963,19 @@ passwords across unencrypted emails or chat messages.
           {/* STEP 3: LICENSES & BANKING */}
           {step === 3 && (
             <form onSubmit={(e) => { void handleFinalSubmit(e); }} className="space-y-4">
-              <div className="border-b border-slate-200/80 pb-3 mb-2">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-brand-700" />
-                  Agricultural Licenses & Banking
+              <div className="border-b border-white/15 pb-3 mb-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-emerald-400" />
+                  Agricultural Licenses &amp; Banking
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Department of Agriculture compliance numbers & UPI details for customer QR codes.
+                <p className="text-xs text-emerald-200/80">
+                  Department of Agriculture compliance numbers &amp; UPI details for customer QR billing.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label htmlFor="reg-fertilizer-license" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-fertilizer-license" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     Fertilizer License No.
                   </label>
                   <input
@@ -977,12 +985,12 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. FL/2026/8941"
                     value={formData.fertilizer_license_no}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="reg-pesticide-license" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-pesticide-license" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     Pesticide License No.
                   </label>
                   <input
@@ -992,12 +1000,12 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. PL/2026/3312"
                     value={formData.pesticide_license_no}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="reg-seed-license" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="reg-seed-license" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     Seed License No.
                   </label>
                   <input
@@ -1007,20 +1015,20 @@ passwords across unencrypted emails or chat messages.
                     placeholder="e.g. SL/2026/1029"
                     value={formData.seed_license_no}
                     onChange={handleChange}
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
               </div>
 
-              <div className="border-t border-slate-200/60 pt-4 mt-2">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-emerald-600" />
-                  Banking & QR Code Payments (Optional)
+              <div className="border-t border-white/15 pt-4 mt-2">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-emerald-400" />
+                  Banking &amp; QR Code Payments (Optional)
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="reg-upi-id" className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-upi-id" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                       Shop UPI ID (for QR Billing)
                     </label>
                     <input
@@ -1030,12 +1038,12 @@ passwords across unencrypted emails or chat messages.
                       placeholder="e.g. yourstore@okhdfcbank"
                       value={formData.upi_id}
                       onChange={handleChange}
-                      className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                      className="luminous-input w-full px-4 py-3 text-sm text-white"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="reg-bank-name" className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-name" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                       Bank Name
                     </label>
                     <input
@@ -1045,12 +1053,12 @@ passwords across unencrypted emails or chat messages.
                       placeholder="e.g. State Bank of India"
                       value={formData.bank_name}
                       onChange={handleChange}
-                      className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                      className="luminous-input w-full px-4 py-3 text-sm text-white"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="reg-bank-account" className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-account" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                       Account Number
                     </label>
                     <input
@@ -1060,12 +1068,12 @@ passwords across unencrypted emails or chat messages.
                       placeholder="e.g. 30981290312"
                       value={formData.bank_account_no}
                       onChange={handleChange}
-                      className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                      className="luminous-input w-full px-4 py-3 text-sm text-white"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="reg-bank-ifsc" className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="reg-bank-ifsc" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                       IFSC Code
                     </label>
                     <input
@@ -1075,39 +1083,39 @@ passwords across unencrypted emails or chat messages.
                       placeholder="e.g. SBIN0001234"
                       value={formData.bank_ifsc}
                       onChange={handleChange}
-                      className="clay-input w-full px-4 py-3 text-sm uppercase text-slate-900"
+                      className="luminous-input w-full px-4 py-3 text-sm uppercase text-white"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Server-Side Cryptographic CAPTCHA Verification (skipped when Google OAuth token is verified) */}
+              {/* Server-Side Cryptographic CAPTCHA Verification */}
               {googleAuth ? (
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 text-xs text-emerald-900">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-emerald-400/40 flex items-center gap-2.5 text-xs text-emerald-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>
-                    Identity verified via Google (<strong>{googleAuth.email}</strong>). Hybrid sign-in with both Google and Password will be enabled automatically.
+                    Identity verified via Google (<strong>{googleAuth.email}</strong>). Hybrid sign-in will be enabled automatically.
                   </span>
                 </div>
               ) : (
-                <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-2">
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/20 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="reg-captcha" className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <label htmlFor="reg-captcha" className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Security Verification (CAPTCHA)</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => { void fetchCaptcha(); }}
                       disabled={captchaLoading}
-                      className="text-[10px] font-bold text-brand-700 hover:text-brand-800 flex items-center gap-1 disabled:opacity-60"
+                      className="text-[10px] font-bold text-emerald-300 hover:text-white flex items-center gap-1 disabled:opacity-60 cursor-pointer"
                     >
                       <RefreshCw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
                     </button>
                   </div>
                   <div className="grid grid-cols-12 gap-2.5 items-center">
-                    <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shadow-inner select-none">
+                    <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-white/30 bg-black/60 flex items-center justify-center shadow-inner select-none">
                       {captchaImage ? (
                         <img
                           src={captchaImage}
@@ -1119,7 +1127,7 @@ passwords across unencrypted emails or chat messages.
                           }`}
                         />
                       ) : (
-                        <span className="text-[11px] text-slate-500 font-medium">
+                        <span className="text-[11px] text-slate-400 font-medium">
                           {captchaLoading ? 'Generating...' : 'Unavailable'}
                         </span>
                       )}
@@ -1134,26 +1142,26 @@ passwords across unencrypted emails or chat messages.
                         spellCheck={false}
                         value={captchaCode}
                         onChange={(e) => setCaptchaCode(sanitizeCaptchaCode(e.target.value))}
-                        className="clay-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-slate-900 uppercase"
+                        className="luminous-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-white uppercase"
                         placeholder="6-CHAR"
                       />
                       {captchaCode.length === CAPTCHA_LENGTH && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1.5 pointer-events-none" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 absolute right-2 top-1.5 pointer-events-none" />
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Type the 6 characters shown in the image</span>
-                    <span className="font-mono font-semibold text-slate-600">{captchaCode.length}/{CAPTCHA_LENGTH}</span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-300">
+                    <span>Type the 6 characters shown in image</span>
+                    <span className="font-mono font-semibold text-emerald-300">{captchaCode.length}/{CAPTCHA_LENGTH}</span>
                   </div>
                 </div>
               )}
 
-              <div className="pt-4 flex items-center justify-between">
+              <div className="pt-4 flex items-center justify-between border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="clay-btn-secondary px-5 py-3 text-sm flex items-center gap-1.5"
+                  className="px-5 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-bold flex items-center gap-1.5 cursor-pointer border border-white/20"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
@@ -1161,7 +1169,7 @@ passwords across unencrypted emails or chat messages.
                 <button
                   type="submit"
                   disabled={isLoading || (!googleAuth && captchaCode.length !== CAPTCHA_LENGTH)}
-                  className="clay-btn-primary px-8 py-3 text-sm flex items-center gap-2 disabled:opacity-70"
+                  className="meadow-cta-btn px-8 py-3 text-sm flex items-center gap-2 disabled:opacity-70 cursor-pointer shadow-lg"
                 >
                   {isLoading ? (
                     <>
@@ -1183,28 +1191,28 @@ passwords across unencrypted emails or chat messages.
           {step === 4 && generatedCreds && (
             <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
               {/* Top Banner */}
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="p-4 bg-emerald-950/80 border border-emerald-400/40 rounded-2xl flex items-start gap-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-emerald-900">
+                  <h4 className="text-sm font-bold text-white">
                     Your Shop Account is Created Successfully!
                   </h4>
-                  <p className="text-xs text-emerald-700 mt-0.5">
-                    Your official master access keys and shop credentials have been generated. From your next sign-in, you can log in using either <strong>Continue with Google</strong> or your <strong>Username / Email / Mobile + Password</strong>.
+                  <p className="text-xs text-emerald-200/90 mt-0.5 leading-relaxed">
+                    Your official master access keys have been generated. From your next sign-in, you can log in using either <strong>Continue with Google</strong> or your <strong>Username / Mobile + Password</strong>.
                   </p>
                 </div>
               </div>
 
               {/* Master Credential Card */}
-              <div className="clay-card-dark p-6 rounded-3xl relative overflow-hidden">
-                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="bg-black/60 p-6 rounded-3xl relative overflow-hidden border border-white/20 shadow-inner">
+                <div className="flex items-center justify-between pb-4 border-b border-white/15">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-emerald-400" />
                     <span className="text-xs font-mono tracking-widest uppercase text-emerald-400 font-bold">
                       Business Master Key
                     </span>
                   </div>
-                  <span className="text-xs font-mono text-slate-400">
+                  <span className="text-xs font-mono text-emerald-200">
                     ID: {generatedCreds.account_id}
                   </span>
                 </div>
@@ -1226,17 +1234,17 @@ passwords across unencrypted emails or chat messages.
                     <span className="text-slate-400 block text-[10px] uppercase">Registered Email</span>
                     <span className="text-slate-200">{generatedCreds.email}</span>
                   </div>
-                  <div className="sm:col-span-2 p-3 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between">
+                  <div className="sm:col-span-2 p-3 bg-black/60 rounded-xl border border-white/20 flex items-center justify-between">
                     <div>
                       <span className="text-slate-400 block text-[10px] uppercase">Master Password</span>
-                      <span className="text-amber-300 font-bold text-base tracking-wider">
+                      <span className="text-amber-300 font-bold text-base tracking-wider font-mono">
                         {generatedCreds.initial_password}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={copyCredentialsText}
-                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-sans flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-sans flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -1244,9 +1252,9 @@ passwords across unencrypted emails or chat messages.
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-400 bg-white/5 p-3 rounded-xl border border-white/5">
-                  <span className="font-bold text-slate-300">Login URL: </span>
-                  <span className="text-emerald-400">{generatedCreds.console_login_url}</span>
+                <div className="text-[11px] text-slate-300 bg-white/5 p-3 rounded-xl border border-white/10">
+                  <span className="font-bold text-white">Login URL: </span>
+                  <span className="text-emerald-300 font-mono">{generatedCreds.console_login_url}</span>
                 </div>
               </div>
 
@@ -1255,7 +1263,7 @@ passwords across unencrypted emails or chat messages.
                 <button
                   type="button"
                   onClick={downloadCredentialsCsv}
-                  className="clay-btn-primary py-3.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2"
+                  className="meadow-cta-btn py-3.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download Credentials (.CSV)</span>
@@ -1264,24 +1272,24 @@ passwords across unencrypted emails or chat messages.
                 <button
                   type="button"
                   onClick={downloadCredentialsTxt}
-                  className="clay-btn-secondary py-3.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2"
+                  className="py-3.5 px-4 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
-                  <FileText className="w-4 h-4 text-slate-600" />
+                  <FileText className="w-4 h-4 text-emerald-300" />
                   <span>Download Receipt (.TXT)</span>
                 </button>
               </div>
 
               {/* Proceed to Dashboard CTA */}
-              <div className="pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <span className="text-xs text-slate-500 text-center sm:text-left">
-                  You are automatically authenticated as <strong>{generatedCreds.username}</strong>.
+              <div className="pt-4 border-t border-white/15 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-xs text-slate-300 text-center sm:text-left">
+                  You are authenticated as <strong>{generatedCreds.username}</strong>.
                 </span>
                 <button
                   type="button"
                   onClick={() => navigate('/subscription')}
-                  className="w-full sm:w-auto px-7 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-700/25 active:scale-95 transition-all"
+                  className="meadow-cta-btn w-full sm:w-auto px-7 py-3.5 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xl cursor-pointer"
                 >
-                  <span>Proceed to Payment & Activate License</span>
+                  <span>Proceed to Payment &amp; Activate License</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

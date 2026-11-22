@@ -3,11 +3,12 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   Sprout, Lock, User as UserIcon, AlertCircle, ArrowRight, 
   ShieldCheck, Eye, EyeOff, KeyRound, Mail, CheckCircle2, 
-  Sparkles, X, ScanLine, FileText, Users, Award, Check, RefreshCw
+  Sparkles, X, ScanLine, FileText, Users, Award, RefreshCw, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
 import { authApi, getErrorMessage } from '../api';
+import { GoldenSeedsCanvas } from '../components/common/GoldenSeedsCanvas';
 
 export const LoginPage: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'owner' | 'iam'>('owner');
@@ -376,155 +377,148 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-950 via-slate-900 to-green-950 flex flex-col justify-center items-center p-3 sm:p-6 lg:p-8 relative overflow-hidden">
-      {/* Background Ambient Glows */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-brand-500/15 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute top-3/4 left-1/3 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="min-h-screen bg-[#031b0f] text-white flex flex-col justify-center items-center p-3 sm:p-6 lg:p-8 relative overflow-hidden select-none">
+      {/* ─── PASTORAL STAGE BACKDROP & PROCEDURAL GOLDEN SEEDS CANVAS ───────── */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <img 
+          src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"
+          alt="Sunlit pastoral agricultural meadow landscape"
+          className="w-full h-full object-cover object-center opacity-45 scale-105 filter blur-[1px]"
+        />
+        {/* Scrim Gradients for Sunlight & Emerald Glare Contrast */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#02180c] via-[#032414]/80 to-[#011409]/60" />
+        <div className="absolute inset-0 bg-radial-at-tl from-emerald-500/20 via-transparent to-black/60" />
 
-      {/* Main Container */}
-      <div className="max-w-6xl w-full mx-auto relative z-10 py-3">
-        {/* Top Bar with Home Link */}
-        <div className="mb-4 sm:mb-6 flex items-center justify-between">
+        {/* Procedural Canvas: Floating Golden Seeds & Sun Godrays */}
+        <GoldenSeedsCanvas />
+      </div>
+
+      {/* ─── MAIN RESPONSIVE CONTAINER (TRIPLE-MODE ENGINE) ─────────────────── */}
+      <div className="max-w-7xl w-full mx-auto relative z-10 py-2 sm:py-4">
+        {/* Top Floating Bar */}
+        <div className="mb-4 sm:mb-6 flex items-center justify-between px-2">
           <Link 
             to="/" 
-            className="inline-flex items-center gap-2 text-emerald-300 hover:text-white text-xs font-semibold px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md transition-all hover:bg-white/10 active:scale-95"
+            className="inline-flex items-center gap-2 text-white/90 hover:text-white text-xs font-bold px-4 py-2 rounded-full bg-black/40 hover:bg-black/60 border border-white/30 backdrop-blur-md transition-all active:scale-95 shadow-sm"
           >
-            <span>← Back to NockBill Solutions</span>
+            <span>← Back to NockBill Agriculture</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-2 text-[11px] text-emerald-300/80 bg-emerald-900/40 px-3 py-1.5 rounded-full border border-emerald-500/20">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Cloud Serverless v1.0.0 Active</span>
+          <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-emerald-300 bg-black/40 px-3.5 py-1.5 rounded-full border border-emerald-500/30 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Agri ERP Cloud Grid v2.5 Active</span>
           </div>
         </div>
 
-        {/* 2-Column Responsive Layout */}
+        {/* 2-Column Responsive Layout (Mode A / Mode B / Mode C) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
           
-          {/* Left Column: AgriTech 3D Showcase & Feature Value */}
-          <div className="lg:col-span-7 flex flex-col justify-center space-y-4 sm:space-y-6 text-white order-2 lg:order-1">
+          {/* Left Column: Atmospheric Pastoral Warmth & Enterprise Highlights */}
+          <div className="lg:col-span-7 flex flex-col justify-center space-y-4 sm:space-y-6 text-white order-2 lg:order-1 px-2">
             {/* Header Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-semibold w-fit">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-mono uppercase tracking-wider font-bold w-fit shadow-md backdrop-blur-md">
               <Sprout className="w-4 h-4 text-emerald-400" />
-              <span>NockBill Solutions • Retail &amp; Inventory ERP</span>
+              <span>NockBill Agriculture • Meadowbell POS</span>
             </div>
 
             {/* Title & Description */}
             <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
-                Empowering Retailers with <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Fast Billing &amp; Stock Control</span>
+              <h1 className="font-['Grandstander'] text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+                Empower Your Agro-Store <span className="text-emerald-300">Instantly</span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-                All-in-one GST billing, barcode scanning, batch ledger, price lists, and stock analytics built for high-speed retail counters.
+              <p className="text-xs sm:text-sm text-slate-200/95 leading-relaxed max-w-xl font-medium drop-shadow-md">
+                Microsecond keyboard billing, 80mm ESC/POS thermal printing, statutory Form O registers, and automated digital Farmer Khata credit recovery.
               </p>
             </div>
 
-            {/* 3D AgriTech Visual Showcase Card */}
-            <div className="relative rounded-3xl border border-white/15 bg-white/5 backdrop-blur-xl p-3 sm:p-4 shadow-2xl shadow-emerald-950/60 overflow-hidden group">
-              <div className="relative overflow-hidden rounded-2xl">
-                <img 
-                  src="/images/agritech_3d.jpg" 
-                  alt="NockBill AgriTech 3D Smart Agriculture" 
-                  className="w-full h-48 sm:h-64 lg:h-72 object-cover object-center transform transition-transform duration-700 group-hover:scale-105"
-                  onError={(e) => {
-                    // Fallback to dashboard screen if needed
-                    e.currentTarget.src = '/images/dashboard/billing_screen.png';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent"></div>
-                
-                {/* Floating Highlights over 3D Image */}
-                <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white">
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-500/30 font-semibold shadow-md">
-                    <Award className="w-3.5 h-3.5 text-emerald-400" />
-                    GST & Govt Compliant
+            {/* 3D Pastoral Showcase Visual Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
+              <div className="glass-card-dark rounded-2xl p-3 border border-white/20 shadow-xl overflow-hidden group">
+                <div className="h-28 sm:h-32 w-full rounded-xl overflow-hidden relative bg-emerald-950/40">
+                  <img 
+                    src="/images/pos_3d.jpg" 
+                    alt="Fast Counter POS with thermal printer in sunny meadow"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
+                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[9px] font-bold">
+                    3-SEC POS
                   </span>
-                  <span className="inline-flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/50 font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-                    Offline Ready POS
+                </div>
+                <div className="mt-2.5">
+                  <h4 className="text-xs font-bold text-white">Rapid Counter Checkout</h4>
+                  <p className="text-[10px] text-emerald-200/80 mt-0.5">F1 keystroke &amp; split Cash/UPI payments</p>
+                </div>
+              </div>
+
+              <div className="glass-card-dark rounded-2xl p-3 border border-white/20 shadow-xl overflow-hidden group">
+                <div className="h-28 sm:h-32 w-full rounded-xl overflow-hidden relative bg-emerald-950/40">
+                  <img 
+                    src="/images/compliance_3d.jpg" 
+                    alt="Statutory Form O register with rupee coin in meadow"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
+                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-600 text-white font-mono text-[9px] font-bold">
+                    FORM O READY
                   </span>
+                </div>
+                <div className="mt-2.5">
+                  <h4 className="text-xs font-bold text-white">Fertilizer Compliance</h4>
+                  <p className="text-[10px] text-amber-200/80 mt-0.5">FCO 1985 &amp; Insecticides Act registers</p>
                 </div>
               </div>
             </div>
 
-            {/* 4 Feature Value Pills */}
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 text-xs">
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-white text-[11px] sm:text-xs">GST Tax Invoicing</div>
-                  <div className="text-[10px] text-slate-400 hidden sm:block">1-Click B2B & B2C GSTR-1</div>
-                </div>
+            {/* 4 Feature Value Chips */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+              <div className="glass-card-dark p-2.5 rounded-xl border border-white/15 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span className="text-[11px] font-bold text-white truncate">GST Invoicing</span>
               </div>
-
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-                <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0">
-                  <ScanLine className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-white text-[11px] sm:text-xs">Camera OCR Scanner</div>
-                  <div className="text-[10px] text-slate-400 hidden sm:block">Auto-read Supplier Bills</div>
-                </div>
+              <div className="glass-card-dark p-2.5 rounded-xl border border-white/15 flex items-center gap-2">
+                <ScanLine className="w-4 h-4 text-teal-300 shrink-0" />
+                <span className="text-[11px] font-bold text-white truncate">Barcode Scanner</span>
               </div>
-
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
-                  <Sprout className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-white text-[11px] sm:text-xs">Batch & Expiry Control</div>
-                  <div className="text-[10px] text-slate-400 hidden sm:block">Pesticide & Seed Tracking</div>
-                </div>
+              <div className="glass-card-dark p-2.5 rounded-xl border border-white/15 flex items-center gap-2">
+                <Sprout className="w-4 h-4 text-amber-300 shrink-0" />
+                <span className="text-[11px] font-bold text-white truncate">Batch Expiry</span>
               </div>
-
-              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="font-bold text-white text-[11px] sm:text-xs">Farmers Khata Ledger</div>
-                  <div className="text-[10px] text-slate-400 hidden sm:block">Credit &amp; Balance Tracking</div>
-                </div>
+              <div className="glass-card-dark p-2.5 rounded-xl border border-white/15 flex items-center gap-2">
+                <Users className="w-4 h-4 text-sky-300 shrink-0" />
+                <span className="text-[11px] font-bold text-white truncate">Farmer Khata</span>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Modern Claymorphism Login Card */}
+          {/* Right Column: Translucent Action Pane with Luminous Borders */}
           <div className="lg:col-span-5 w-full order-1 lg:order-2">
-            <div className="clay-card-pillowy p-5 sm:p-7 lg:p-8 border border-white/90 shadow-2xl relative">
+            <div className="glass-card-dark rounded-3xl p-6 sm:p-8 lg:p-9 border border-white/25 shadow-2xl relative overflow-hidden backdrop-blur-xl">
               
-              {/* Card Header */}
-              <div className="text-center space-y-1.5 mb-5 sm:mb-6">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl bg-gradient-to-tr from-brand-700 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-lg shadow-brand-700/30">
-                  <Sprout className="w-8 h-8 sm:w-9 sm:h-9" />
+              {/* Card Header with Animated Seedling Emblem */}
+              <div className="text-center space-y-1 mb-5 sm:mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/60 animate-leaf-pulse border border-white/40">
+                  <Sprout className="w-8 h-8" />
                 </div>
-                <div className="flex items-baseline justify-center gap-1.5">
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                    Nock<span className="text-emerald-700">Bill</span>
-                  </h2>
-                  <span className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">
-                    Solutions
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 font-medium">
-                  Sign in to your Shop Dashboard
+                <h2 className="font-['Grandstander'] text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-sm">
+                  Welcome Back!
+                </h2>
+                <p className="text-xs text-emerald-200/90 font-medium">
+                  Log in to manage your agro-store &amp; billing
                 </p>
               </div>
 
               {/* AWS Console-Style Sign-In Mode Switcher: Shop Owner (Root) vs IAM Staff User */}
-              <div className="mb-4 grid grid-cols-2 gap-1.5 p-1 bg-slate-100 border border-slate-200 rounded-2xl">
+              <div className="mb-4 grid grid-cols-2 gap-1.5 p-1 bg-black/40 border border-white/20 rounded-2xl">
                 <button
                   type="button"
                   onClick={() => {
                     setLoginMode('owner');
                     setError(null);
                   }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     loginMode === 'owner'
-                      ? 'bg-white text-brand-800 shadow-sm border border-slate-200/80'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-emerald-600 text-white shadow-sm border border-emerald-400/40'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   Shop Owner (Root)
@@ -535,10 +529,10 @@ export const LoginPage: React.FC = () => {
                     setLoginMode('iam');
                     setError(null);
                   }}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     loginMode === 'iam'
-                      ? 'bg-slate-900 text-emerald-300 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-slate-800 text-emerald-300 shadow-sm border border-emerald-500/30'
+                      : 'text-slate-300 hover:text-white'
                   }`}
                 >
                   IAM Staff User
@@ -547,8 +541,8 @@ export const LoginPage: React.FC = () => {
 
               {/* Error Notification */}
               {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs flex items-center gap-2.5">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                <div className="mb-4 p-3 bg-red-950/80 border border-red-500/50 text-red-200 rounded-2xl text-xs flex items-center gap-2.5 shadow-md">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                   <span>{error}</span>
                 </div>
               )}
@@ -561,7 +555,7 @@ export const LoginPage: React.FC = () => {
                       type="button"
                       onClick={handleGoogleSignIn}
                       disabled={isLoading}
-                      className="w-full py-3.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border-2 border-slate-200/90 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-3 shadow-sm hover:shadow-md transition-all active:scale-[0.99] disabled:opacity-70 group relative overflow-hidden"
+                      className="w-full py-3.5 px-4 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-3 shadow-lg transition-all active:scale-[0.99] disabled:opacity-70 group relative overflow-hidden cursor-pointer"
                     >
                       <svg className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
                         <path
@@ -581,7 +575,7 @@ export const LoginPage: React.FC = () => {
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span className="tracking-tight text-slate-800">Continue with Google</span>
+                      <span className="tracking-tight text-slate-900 font-extrabold">Sign in with Google</span>
                     </button>
                     {/* Embedded GIS container (if rendered by SDK) */}
                     <div ref={googleBtnRef} className="hidden"></div>
@@ -589,33 +583,33 @@ export const LoginPage: React.FC = () => {
 
                   {/* Divider */}
                   <div className="relative flex items-center justify-center my-4">
-                    <div className="border-t border-slate-200 w-full"></div>
-                    <span className="bg-slate-50 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 absolute">
+                    <div className="border-t border-white/20 w-full"></div>
+                    <span className="bg-black/60 backdrop-blur-md px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-200/70 absolute rounded-full border border-white/10">
                       or sign in with shop credentials
                     </span>
                   </div>
                 </>
               ) : (
-                <div className="mb-4 p-3 rounded-2xl bg-slate-900 text-slate-100 border border-slate-800 text-[11px] flex items-start gap-2.5">
+                <div className="mb-4 p-3 rounded-2xl bg-black/60 text-slate-100 border border-emerald-500/30 text-[11px] flex items-start gap-2.5">
                   <KeyRound className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-white">AWS-Style IAM Staff Console Sign-In</p>
                     <p className="text-slate-300 mt-0.5">
-                      Enter the <strong>Shop Account ID</strong> (e.g. <span className="font-mono text-emerald-300">SHOP-00001</span>) provided by your Shop Owner along with your IAM username and password.
+                      Enter the <strong>Shop Account ID</strong> (e.g. <span className="font-mono text-emerald-300">SHOP-00001</span>) along with your IAM username and password.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Login Form */}
-              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-3.5 sm:space-y-4" autoComplete="off">
+              {/* Login Form with Luminous Fields */}
+              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4" autoComplete="off">
                 {loginMode === 'iam' && (
                   <div>
-                    <label htmlFor="login-shop-account-id" className="block text-xs font-bold text-slate-700 mb-1">
-                      Shop Account ID or Alias <span className="text-red-500">*</span>
+                    <label htmlFor="login-shop-account-id" className="block text-xs font-bold text-white uppercase tracking-wider mb-1 drop-shadow-sm">
+                      Shop Account ID or Alias <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-300">
                         <ShieldCheck className="w-4 h-4" />
                       </div>
                       <input
@@ -624,7 +618,7 @@ export const LoginPage: React.FC = () => {
                         required
                         value={shopAccountId}
                         onChange={(e) => setShopAccountId(e.target.value.toUpperCase())}
-                        className="clay-input w-full pl-10 pr-4 py-3 text-sm font-mono uppercase text-slate-900"
+                        className="luminous-input w-full pl-10 pr-4 py-3 text-sm font-mono uppercase"
                         placeholder="e.g. SHOP-00001 or Shop GSTIN"
                       />
                     </div>
@@ -632,11 +626,11 @@ export const LoginPage: React.FC = () => {
                 )}
 
                 <div>
-                  <label htmlFor="login-username" className="block text-xs font-bold text-slate-700 mb-1">
-                    {loginMode === 'iam' ? 'IAM Username' : 'Email / Username / Mobile Number'}
+                  <label htmlFor="login-username" className="block text-xs font-bold text-white uppercase tracking-wider mb-1 drop-shadow-sm">
+                    {loginMode === 'iam' ? 'IAM Username' : 'Email / Mobile / Username'}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-300">
                       <UserIcon className="w-4 h-4" />
                     </div>
                     <input
@@ -647,20 +641,15 @@ export const LoginPage: React.FC = () => {
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="clay-input w-full pl-10 pr-4 py-3 text-sm text-slate-900"
-                      placeholder={loginMode === 'iam' ? 'e.g. cashier_ravi' : 'Google email, username, or mobile'}
+                      className="luminous-input w-full pl-10 pr-4 py-3 text-sm"
+                      placeholder={loginMode === 'iam' ? 'e.g. cashier_ravi' : 'Registered email or mobile number'}
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    {loginMode === 'iam'
-                      ? 'Assigned by your Shop Owner under Shop Management → IAM Users'
-                      : 'Supports Google email + password or master shop credentials'}
-                  </span>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label htmlFor="login-password" className="block text-xs font-bold text-slate-700">
+                    <label htmlFor="login-password" className="block text-xs font-bold text-white uppercase tracking-wider drop-shadow-sm">
                       Password
                     </label>
                     <button
@@ -669,13 +658,13 @@ export const LoginPage: React.FC = () => {
                         setForgotIdentifier(username);
                         setShowForgotModal(true);
                       }}
-                      className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+                      className="text-xs font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer drop-shadow-sm"
                     >
                       Forgot Password?
                     </button>
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-300">
                       <Lock className="w-4 h-4" />
                     </div>
                     <input
@@ -685,13 +674,13 @@ export const LoginPage: React.FC = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="clay-input w-full pl-10 pr-10 py-3 text-sm text-slate-900"
-                      placeholder="Enter shop password"
+                      className="luminous-input w-full pl-10 pr-10 py-3 text-sm"
+                      placeholder="Enter master password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 p-0.5"
+                      className="absolute right-3.5 top-3.5 text-emerald-300 hover:text-white p-0.5 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -699,10 +688,10 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 {/* Server-Side Cryptographic CAPTCHA Verification */}
-                <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-2">
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/20 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="login-captcha" className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <label htmlFor="login-captcha" className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Security Verification (CAPTCHA)</span>
                     </label>
                     <button
@@ -712,7 +701,7 @@ export const LoginPage: React.FC = () => {
                       }}
                       disabled={captchaLoading}
                       title="Generate new security challenge"
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 disabled:opacity-50 transition-colors"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-100 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       <RefreshCw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
@@ -721,7 +710,7 @@ export const LoginPage: React.FC = () => {
 
                   <div className="grid grid-cols-12 gap-2.5 items-center">
                     {/* Server-Rendered Distorted Raster Image */}
-                    <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shadow-inner select-none">
+                    <div className="col-span-7 relative h-12 rounded-xl overflow-hidden border border-white/30 bg-black/60 flex items-center justify-center shadow-inner select-none">
                       {captchaImage ? (
                         <img
                           src={captchaImage}
@@ -733,7 +722,7 @@ export const LoginPage: React.FC = () => {
                           }`}
                         />
                       ) : (
-                        <span className="text-[11px] text-slate-500 font-medium">
+                        <span className="text-[11px] text-slate-300 font-medium">
                           {captchaLoading ? 'Generating...' : 'Unavailable'}
                         </span>
                       )}
@@ -753,25 +742,26 @@ export const LoginPage: React.FC = () => {
                           const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
                           setCaptchaCode(sanitized);
                         }}
-                        className="clay-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-slate-900 uppercase"
+                        className="luminous-input w-full h-12 px-2.5 text-center font-mono text-base font-black tracking-[0.2em] text-white uppercase"
                         placeholder="6-CHAR"
                       />
                       {captchaCode.length === 6 && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1.5 pointer-events-none" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 absolute right-2 top-1.5 pointer-events-none" />
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Type the 6 characters shown in the image</span>
-                    <span className="font-mono font-semibold text-slate-600">{captchaCode.length}/6</span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-300">
+                    <span>Type the 6 characters shown in image</span>
+                    <span className="font-mono font-semibold text-emerald-300">{captchaCode.length}/6</span>
                   </div>
                 </div>
 
+                {/* Primary CTA: Pill-Shaped Emerald Button */}
                 <button
                   type="submit"
                   disabled={isLoading || captchaCode.length !== 6}
-                  className="clay-btn-primary w-full mt-2 py-3.5 px-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 shadow-md"
+                  className="meadow-cta-btn w-full mt-2 py-3.5 px-4 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 shadow-xl cursor-pointer"
                 >
                   {isLoading ? (
                     <>
@@ -780,42 +770,34 @@ export const LoginPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <span>Sign In to Shop</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <span>Login →</span>
                     </>
                   )}
                 </button>
               </form>
 
-              {/* Registration CTA */}
-              <div className="mt-5 pt-4 border-t border-slate-200/80 text-center space-y-2.5">
-                <p className="text-xs text-slate-600">
-                  New Store Owner or Need Multi-Shop Setup?
+              {/* Registration CTA Link */}
+              <div className="mt-5 pt-4 border-t border-white/15 text-center space-y-2">
+                <p className="text-xs text-slate-200">
+                  Don&apos;t have an account?
                 </p>
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-4 py-2.5 rounded-xl border border-emerald-200/80 transition-colors w-full"
+                  className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-full border border-white/30 transition-all w-full shadow-sm"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Register Your Shop & Download Credentials →</span>
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Start Free / Create Store Account →</span>
                 </Link>
-
-                <div className="pt-1">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    GST Compliant • Code-128 Barcodes • Offline Ready
-                  </span>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Forgot Password Modal (3-Step Flow: 1. Identify -> 2. Verify 6-Digit Code -> 3. Set New Password) */}
+      {/* ─── SCREEN 3: FORGOT PASSWORD & ACCOUNT RECOVERY PORTAL (RESET PASSWORD) ── */}
       {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
-          <div className="clay-card-pillowy max-w-md w-full p-6 sm:p-7 relative border border-white/90">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-card-dark max-w-md w-full p-6 sm:p-7 rounded-3xl border border-white/30 relative text-white shadow-2xl">
             <button
               type="button"
               onClick={() => {
@@ -827,56 +809,56 @@ export const LoginPage: React.FC = () => {
                 setVerifiedResetToken('');
                 setDevOtpCode(null);
               }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              className="absolute top-4 right-4 text-slate-300 hover:text-white cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
             {/* Step Progress Indicator */}
             <div className="flex items-center justify-center gap-2 mb-4">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 1 ? 'bg-brand-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 1 ? 'bg-emerald-600 text-white' : 'bg-emerald-950 text-emerald-300'}`}>
                 1. Account
               </span>
-              <span className="w-4 h-0.5 bg-slate-200"></span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 2 ? 'bg-brand-700 text-white' : forgotStep > 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'}`}>
+              <span className="w-4 h-0.5 bg-white/20"></span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 2 ? 'bg-emerald-600 text-white' : forgotStep > 2 ? 'bg-emerald-950 text-emerald-300' : 'bg-white/10 text-slate-400'}`}>
                 2. Verify OTP
               </span>
-              <span className="w-4 h-0.5 bg-slate-200"></span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 3 ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-400'}`}>
+              <span className="w-4 h-0.5 bg-white/20"></span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 3 ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-400'}`}>
                 3. New Password
               </span>
             </div>
 
             <div className="text-center mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center mx-auto mb-2 shadow-inner">
                 <KeyRound className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="font-['Grandstander'] text-xl font-bold text-white">
                 {forgotStep === 1
-                  ? 'Reset Shop Password'
+                  ? 'Reset Password'
                   : forgotStep === 2
                   ? 'Verify 6-Digit Code'
                   : 'Create New Password'}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
                 {forgotStep === 1
-                  ? 'Enter your registered email, username, or mobile number to receive a 6-digit verification code.'
+                  ? 'Enter your registered mobile or email to receive a secure recovery OTP.'
                   : forgotStep === 2
-                  ? `Enter the 6-digit code for ${maskedTarget || forgotIdentifier} to verify your identity.`
-                  : 'Your identity has been verified. Choose a new password below.'}
+                  ? `Enter the 6-digit code for ${maskedTarget || forgotIdentifier} to verify your store ownership.`
+                  : 'Your store ownership has been verified. Choose a new master password.'}
               </p>
             </div>
 
             {forgotError && (
-              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="mb-4 p-3 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                 <span>{forgotError}</span>
               </div>
             )}
 
             {forgotSuccess && (
-              <div className="mb-4 p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                 <span>{forgotSuccess}</span>
               </div>
             )}
@@ -885,8 +867,8 @@ export const LoginPage: React.FC = () => {
             {forgotStep === 1 && (
               <form onSubmit={(e) => { void handleRequestOtp(e); }} className="space-y-4">
                 <div>
-                  <label htmlFor="forgot-identifier" className="block text-xs font-bold text-slate-700 mb-1">
-                    Registered Email / Username / Mobile
+                  <label htmlFor="forgot-identifier" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
+                    Mobile (+91) or Store Email
                   </label>
                   <input
                     id="forgot-identifier"
@@ -894,70 +876,87 @@ export const LoginPage: React.FC = () => {
                     required
                     value={forgotIdentifier}
                     onChange={(e) => setForgotIdentifier(e.target.value)}
-                    placeholder="e.g. yourname@gmail.com or 9876543210"
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    placeholder="e.g. 9876543210 or dealer@gmail.com"
+                    className="luminous-input w-full px-4 py-3 text-sm"
                   />
+                  <span className="text-[11px] text-emerald-200/80 mt-1 block">
+                    We will send a 6-digit OTP code to verify your store ownership.
+                  </span>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={forgotLoading || !forgotIdentifier.trim()}
-                  className="clay-btn-primary w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {forgotLoading ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Sending Code...</span>
-                    </>
-                  ) : (
-                    'Send 6-Digit Verification Code'
-                  )}
-                </button>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={forgotLoading || !forgotIdentifier.trim()}
+                    className="meadow-cta-btn w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                  >
+                    {forgotLoading ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Sending Recovery OTP...</span>
+                      </>
+                    ) : (
+                      'Send Recovery OTP →'
+                    )}
+                  </button>
+
+                  {/* Dedicated WhatsApp Fallback Option per Section 4.1 Screen 3 */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      // Trigger request OTP and provide WhatsApp confirmation guidance
+                      void handleRequestOtp(e);
+                    }}
+                    disabled={forgotLoading || !forgotIdentifier.trim()}
+                    className="w-full py-2.5 px-4 rounded-full text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                    style={{ backgroundColor: '#25D366' }}
+                  >
+                    <MessageCircle className="w-4 h-4 fill-white" />
+                    <span>Verify with WhatsApp OTP</span>
+                  </button>
+                </div>
               </form>
             )}
 
-            {/* STEP 2: VERIFY 6-DIGIT OTP ONLY */}
+            {/* STEP 2: VERIFY 6-DIGIT OTP */}
             {forgotStep === 2 && (
               <form onSubmit={(e) => { void handleVerifyOtp(e); }} className="space-y-4">
                 {emailSentStatus ? (
-                  <div className="p-3 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-800 space-y-1">
-                    <p className="font-semibold flex items-center gap-1.5">
-                      <Mail className="w-4 h-4 text-emerald-600" />
-                      Verification code sent to {maskedTarget || 'your email'}
+                  <div className="p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 space-y-1">
+                    <p className="font-semibold flex items-center gap-1.5 text-white">
+                      <Mail className="w-4 h-4 text-emerald-400" />
+                      Verification code sent to {maskedTarget || 'your mobile / email'}
                     </p>
-                    <p className="text-[11px] text-emerald-700 leading-relaxed">
-                      Please check your email inbox (and spam folder) and enter the 6-digit code below.
+                    <p className="text-[11px] text-emerald-300 leading-relaxed">
+                      Please enter the 6-digit code below to proceed.
                     </p>
                   </div>
                 ) : (
                   devOtpCode && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 space-y-1.5">
+                    <div className="p-3 bg-amber-950/80 border border-amber-500/40 rounded-xl text-xs text-amber-200 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold">Local Dev Verification Code:</span>
+                        <span className="font-bold text-white">Local Dev Verification Code:</span>
                         <button
                           type="button"
                           onClick={() => setResetOtp(devOtpCode)}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline"
+                          className="text-[11px] font-bold text-emerald-300 hover:text-white underline cursor-pointer"
                         >
                           Click to Fill
                         </button>
                       </div>
-                      <div className="font-mono text-lg font-black tracking-widest text-center py-1 bg-white rounded-lg border border-amber-200">
+                      <div className="font-mono text-lg font-black tracking-widest text-center py-1 bg-black/60 rounded-lg border border-amber-500/40 text-amber-300">
                         {devOtpCode}
                       </div>
-                      <p className="text-[10px] text-amber-700">
-                        Shown locally because outbound email credentials are not active in the local container.
-                      </p>
                     </div>
                   )
                 )}
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label htmlFor="forgot-otp" className="block text-xs font-bold text-slate-700">
-                      6-Digit Verification Code
+                    <label htmlFor="forgot-otp" className="block text-xs font-bold text-white uppercase tracking-wider">
+                      6-Digit Recovery OTP
                     </label>
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-emerald-300">
                       {resetOtp.length}/6 digits
                     </span>
                   </div>
@@ -970,24 +969,23 @@ export const LoginPage: React.FC = () => {
                     maxLength={6}
                     value={resetOtp}
                     onChange={(e) => {
-                      // Strictly allow only digits 0-9 and cap at 6 characters
                       const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 6);
                       setResetOtp(digitsOnly);
                     }}
                     placeholder="000000"
-                    className="clay-input w-full px-4 py-3.5 text-center tracking-[0.5em] font-mono text-xl text-slate-900 font-black"
+                    className="luminous-input w-full px-4 py-3.5 text-center tracking-[0.5em] font-mono text-xl text-white font-black"
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-xs py-1 px-1">
-                  <span className="text-slate-500">Didn't receive the code?</span>
+                  <span className="text-slate-300">Didn&apos;t receive code?</span>
                   <button
                     type="button"
                     disabled={resendCooldown > 0 || forgotLoading}
                     onClick={() => {
                       void handleResendOtp();
                     }}
-                    className="font-bold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition"
+                    className="font-bold text-emerald-300 hover:text-white disabled:text-slate-500 disabled:cursor-not-allowed inline-flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${forgotLoading ? 'animate-spin' : ''}`} />
                     <span>{resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</span>
@@ -1001,14 +999,14 @@ export const LoginPage: React.FC = () => {
                       setForgotStep(1);
                       setForgotError(null);
                     }}
-                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                    className="text-xs font-semibold text-slate-300 hover:text-white cursor-pointer"
                   >
                     ← Change Account
                   </button>
                   <button
                     type="submit"
                     disabled={forgotLoading || resetOtp.length !== 6}
-                    className="clay-btn-primary px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60"
+                    className="meadow-cta-btn px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer"
                   >
                     {forgotLoading ? (
                       <>
@@ -1026,16 +1024,16 @@ export const LoginPage: React.FC = () => {
               </form>
             )}
 
-            {/* STEP 3: SET NEW PASSWORD (ONLY AFTER OTP IS VERIFIED) */}
+            {/* STEP 3: SET NEW MASTER PASSWORD */}
             {forgotStep === 3 && (
               <form onSubmit={(e) => { void handleResetPassword(e); }} className="space-y-4">
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="p-2.5 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Code verified for <strong>{maskedTarget || forgotIdentifier}</strong></span>
                 </div>
 
                 <div>
-                  <label htmlFor="forgot-new-password" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="forgot-new-password" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     New Master Password
                   </label>
                   <div className="relative">
@@ -1047,12 +1045,12 @@ export const LoginPage: React.FC = () => {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min 6 characters"
-                      className="clay-input w-full pl-4 pr-10 py-3 text-sm text-slate-900"
+                      className="luminous-input w-full pl-4 pr-10 py-3 text-sm text-white"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3.5 top-3.5 text-emerald-300 hover:text-white cursor-pointer"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -1060,18 +1058,18 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="forgot-confirm-password" className="block text-xs font-bold text-slate-700 mb-1">
+                  <label htmlFor="forgot-confirm-password" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
                     Confirm New Password
                   </label>
                   <input
                     id="forgot-confirm-password"
-                    type={showNewPassword ? 'text' : 'password'}
+                    type="password"
                     required
                     minLength={6}
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Re-type new password"
-                    className="clay-input w-full px-4 py-3 text-sm text-slate-900"
+                    placeholder="Re-enter password"
+                    className="luminous-input w-full px-4 py-3 text-sm text-white"
                   />
                 </div>
 
@@ -1082,99 +1080,30 @@ export const LoginPage: React.FC = () => {
                       setForgotStep(2);
                       setForgotError(null);
                     }}
-                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                    className="text-xs font-semibold text-slate-300 hover:text-white cursor-pointer"
                   >
-                    ← Back
+                    ← Back to OTP
                   </button>
                   <button
                     type="submit"
                     disabled={forgotLoading || newPassword.length < 6}
-                    className="clay-btn-primary px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60"
+                    className="meadow-cta-btn px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer"
                   >
                     {forgotLoading ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Updating...</span>
+                        <span>Updating Password...</span>
                       </>
                     ) : (
-                      'Update Password'
+                      <>
+                        <span>Save &amp; Login</span>
+                        <CheckCircle2 className="w-4 h-4" />
+                      </>
                     )}
                   </button>
                 </div>
               </form>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Google OAuth Setup Guide Modal */}
-      {showGoogleGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in">
-          <div className="clay-card-pillowy max-w-lg w-full p-6 sm:p-7 relative border border-white/90 max-h-[90vh] overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => setShowGoogleGuide(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-white shadow-md flex items-center justify-center shrink-0 border border-slate-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-slate-900">Google Single Sign-On Help</h4>
-                <p className="text-xs text-slate-500">Sign in with Google OAuth 2.0</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600 leading-relaxed mb-5">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 space-y-2">
-                <p className="font-bold text-slate-800">Ensure your origin is authorized in Google Cloud:</p>
-                <div className="text-slate-700 space-y-1">
-                  <div>1. Go to <strong>Google Cloud Console &rarr; APIs & Services &rarr; Credentials</strong></div>
-                  <div>2. Open your Web Client ID: <code className="text-[10px] bg-slate-200 px-1 py-0.5 rounded font-mono break-all">{googleClientId}</code></div>
-                  <div>3. In <strong>Authorized JavaScript Origins</strong>, verify that your current browser URL origin is added:
-                    <div className="font-mono bg-white p-1.5 rounded border border-slate-200 mt-1 select-all text-[11px] text-slate-800">
-                      http://localhost:5173<br/>
-                      http://localhost:3000<br/>
-                      https://nockbill.com
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px]">
-                <strong>Quick Test:</strong> You can also log in immediately using the Master Admin account below.
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('admin');
-                  setPassword('admin123');
-                  setShowGoogleGuide(false);
-                }}
-                className="clay-btn-primary w-full py-2.5 text-xs font-bold"
-              >
-                Autofill Admin Demo Credentials (admin / admin123)
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowGoogleGuide(false)}
-                className="clay-btn-secondary w-full py-2 text-xs font-semibold"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
