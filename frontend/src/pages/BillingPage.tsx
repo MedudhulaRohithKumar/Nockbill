@@ -284,6 +284,11 @@ export const BillingPage: React.FC = () => {
     const state = location.state as any;
     if (state?.pendingBillItem) {
       addItemToCart(state.pendingBillItem);
+    } else if (Array.isArray(state?.stagedCartItems) && state.stagedCartItems.length > 0) {
+      state.stagedCartItems.forEach((item: any) => addItemToCart(item));
+      if (state.selectedTender) {
+        setSelectedTender(state.selectedTender);
+      }
     }
   }, [user?.id, location.state]);
 

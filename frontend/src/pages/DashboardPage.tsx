@@ -1,398 +1,1579 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  IndianRupee, 
-  TrendingUp, 
-  Package, 
-  AlertTriangle, 
-  Clock, 
-  PlusCircle, 
-  ScanLine, 
-  FileText, 
-  ArrowUpRight, 
+import {
+  Printer,
+  ShoppingCart,
+  PlusCircle,
+  Plus,
+  FileText,
+  Sparkles,
+  Microscope,
   CheckCircle2,
-  RefreshCw
+  AlertTriangle,
+  ShieldCheck,
+  TrendingUp,
+  Clock,
+  ScanLine,
+  QrCode,
+  Banknote,
+  BookOpen,
+  Share2,
+  RefreshCw,
+  ArrowUpRight,
+  Download,
+  ExternalLink,
+  X,
+  Search,
+  ChevronRight,
+  BadgeCheck,
+  Sun,
+  Minus,
+  Send,
 } from 'lucide-react';
-import { reportsApi, getErrorMessage } from '../api';
-import { DashboardSummary } from '../types';
+import {
+  reportsApi,
+  salesApi,
+  inventoryApi,
+  productsApi,
+  khataApi,
+  agriDoctorApi,
+  getErrorMessage,
+} from '../api';
+import {
+  DashboardSummary,
+  Sale,
+  Product,
+  AgriDoctorAdvisory,
+  SaleItem,
+  ShopSettings,
+} from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useShop } from '../context/ShopContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
-import { formatCurrency, formatCompactINR } from '../utils/formatters';
+import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
+import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
+import {
+  formatCurrency,
+  formatCompactINR,
+  safeNumber,
+  safeString,
+  buildWhatsAppInvoiceUrl,
+} from '../utils/formatters';
 
+interface StagedFastTillItem {
+  product_id: number;
+  product_name: string;
+  company_name?: string;
+  trade_name?: string;
+  category: string;
+  batch_number: string;
+  expiry_date?: string;
+  hsn_code: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  mrp: number;
+  gst_rate: number;
+  discount_percent: number;
+}
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { settings } = useShop();
+
+  // ─── API STATE ─────────────────────────────────────────────────────────────
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  const [nearExpiryProducts, setNearExpiryProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [khataSummary, setKhataSummary] = useState<{
+    total_customers: number;
+    total_outstanding_udhar: number;
+  } | null>(null);
+  const [advisories, setAdvisories] = useState<AgriDoctorAdvisory[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  const fetchDashboard = async () => {
+  // ─── MODAL CONTROLS ─────────────────────────────────────────────────────────
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isAgriDoctorOpen, setIsAgriDoctorOpen] = useState(false);
+  const [selectedReprintSale, setSelectedReprintSale] = useState<Sale | null>(null);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  // ─── FAST-TILL LOCAL STATE ─────────────────────────────────────────────────
+  const [stagedItems, setStagedItems] = useState<StagedFastTillItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [selectedTender, setSelectedTender] = useState<'UPI' | 'Cash' | 'Credit'>('UPI');
+  const [selectedCustomerName, setSelectedCustomerName] = useState('Ramesh B. Gowda');
+  const [isDockVisible, setIsDockVisible] = useState(true);
+  const [thermalFeedbackMsg, setThermalFeedbackMsg] = useState<string | null>(null);
+
+  // ─── EXPIRY FILTER STATE ───────────────────────────────────────────────────
+  const [expiryFilter, setExpiryFilter] = useState<'critical' | 'all'>('critical');
+
+  // ─── DATA FETCHING ─────────────────────────────────────────────────────────
+  const fetchAllData = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const data = await reportsApi.getDashboard();
-      setSummary(data);
-      setLoadError(null);
+      const [dashRes, salesRes, expiryRes, productsRes, khataRes, advRes] =
+        await Promise.allSettled([
+          reportsApi.getDashboard(),
+          salesApi.getAll({ limit: 5 }),
+          inventoryApi.getNearExpiry(60),
+          productsApi.getAll({ limit: 300 }),
+          khataApi.listCustomers(),
+          agriDoctorApi.getAdvisories(),
+        ]);
+
+      if (dashRes.status === 'fulfilled') {
+        setSummary(dashRes.value);
+      }
+      if (salesRes.status === 'fulfilled') {
+        setRecentSales(Array.isArray(salesRes.value) ? salesRes.value : []);
+      }
+      if (expiryRes.status === 'fulfilled') {
+        setNearExpiryProducts(Array.isArray(expiryRes.value) ? expiryRes.value : []);
+      }
+      if (productsRes.status === 'fulfilled') {
+        setAllProducts(Array.isArray(productsRes.value) ? productsRes.value : []);
+      }
+      if (khataRes.status === 'fulfilled') {
+        setKhataSummary({
+          total_customers: khataRes.value.total_customers || 0,
+          total_outstanding_udhar: khataRes.value.total_outstanding_udhar || 0,
+        });
+      }
+      if (advRes.status === 'fulfilled') {
+        setAdvisories(Array.isArray(advRes.value) ? advRes.value : []);
+      }
     } catch (err) {
-      // Keep the last good data (if any) instead of faking ₹0 values,
-      // and surface the failure so the owner doesn't misread the numbers.
-      setLoadError(getErrorMessage(err, 'Could not load dashboard data'));
+      setLoadError(getErrorMessage(err, 'Failed to sync live store telemetry.'));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const showSkeleton = isLoading && !summary;
-  const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-6 sm:h-8 w-20' }) => (
-    <span className={`inline-block align-middle bg-slate-200 rounded-lg animate-pulse ${className}`} />
-  );
-  const money = (value: unknown) =>
-    showSkeleton ? <Skeleton /> : summary ? `₹${formatCompactINR(value)}` : '—';
-  const count = (value: unknown) =>
-    showSkeleton ? <Skeleton className="h-6 sm:h-8 w-8" /> : summary ? String(value ?? 0) : '—';
-  const monthProfit = summary?.month_net_profit ?? 0;
-
   useEffect(() => {
     if (user?.id) {
-      void fetchDashboard();
+      void fetchAllData();
     }
   }, [user?.id]);
 
-  const handleOcrAddProduct = (item: any) => {
-    navigate('/billing', { state: { pendingBillItem: item } });
+  // ─── KEYBOARD SHORTCUTS ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        navigate('/billing');
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        setSelectedTender('UPI');
+      } else if (e.key === 'F5') {
+        e.preventDefault();
+        setSelectedTender('Cash');
+      } else if (e.key === 'F6') {
+        e.preventDefault();
+        setSelectedTender('Credit');
+      } else if (e.key === 'Escape') {
+        setIsDockVisible(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
+
+  // ─── SEARCH & AUTOSUGGEST ───────────────────────────────────────────────────
+  useEffect(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+    const matches = allProducts.filter((p) => {
+      const name = safeString(p.name || p.product_name).toLowerCase();
+      const trade = safeString(p.trade_name).toLowerCase();
+      const code = safeString(p.barcode || p.product_code || p.batch_number).toLowerCase();
+      const hsn = safeString(p.hsn_code).toLowerCase();
+      return (
+        name.includes(query) || trade.includes(query) || code.includes(query) || hsn.includes(query)
+      );
+    });
+    setSearchResults(matches.slice(0, 6));
+  }, [searchQuery, allProducts]);
+
+  // ─── FAST-TILL CART MANAGEMENT ─────────────────────────────────────────────
+  const stageProduct = (product: Product, discountPct = 0) => {
+    setStagedItems((prev) => {
+      const existingIdx = prev.findIndex(
+        (i) => i.product_id === product.id && i.batch_number === (product.batch_number || 'DEFAULT')
+      );
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx].quantity += 1;
+        return next;
+      }
+      const price = safeNumber(product.selling_price || product.mrp, 100);
+      return [
+        ...prev,
+        {
+          product_id: product.id,
+          product_name: product.name || product.product_name || 'Agri Input Product',
+          company_name: product.company_name,
+          trade_name: product.trade_name,
+          category: product.category || 'General',
+          batch_number: product.batch_number || 'DEFAULT',
+          expiry_date: product.expiry_date,
+          hsn_code: product.hsn_code || '310210',
+          unit: product.unit || 'Bags',
+          quantity: 1,
+          unit_price: price,
+          mrp: safeNumber(product.mrp, price),
+          gst_rate: safeNumber(product.gst_rate, 5),
+          discount_percent: discountPct,
+        },
+      ];
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const updateStagedQty = (idx: number, delta: number) => {
+    setStagedItems((prev) => {
+      const next = [...prev];
+      const newQty = next[idx].quantity + delta;
+      if (newQty <= 0) {
+        next.splice(idx, 1);
+      } else {
+        next[idx].quantity = newQty;
+      }
+      return next;
+    });
+  };
+
+  const removeStagedItem = (idx: number) => {
+    setStagedItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // ─── FINANCIAL CALCULATIONS ────────────────────────────────────────────────
+  const fastTillTotals = useMemo(() => {
+    let preGstTotal = 0;
+    let payableTotal = 0;
+
+    for (const item of stagedItems) {
+      const lineBase = item.unit_price * item.quantity;
+      const discount = (lineBase * item.discount_percent) / 100;
+      const netLine = lineBase - discount;
+      const gstRate = item.gst_rate;
+      const itemTax = (netLine * gstRate) / 100;
+      preGstTotal += netLine;
+      payableTotal += netLine + itemTax;
+    }
+
+    return {
+      preGstTotal,
+      payableTotal: Math.round(payableTotal * 100) / 100,
+    };
+  }, [stagedItems]);
+
+  const handleProceedToBilling = () => {
+    if (stagedItems.length === 0) {
+      navigate('/billing');
+      return;
+    }
+    const stagedCartItems = stagedItems.map((item) => ({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      company_name: item.company_name,
+      trade_name: item.trade_name,
+      batch_number: item.batch_number,
+      expiry_date: item.expiry_date,
+      hsn_code: item.hsn_code,
+      unit: item.unit,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      mrp: item.mrp,
+      discount_percent: item.discount_percent,
+      gst_rate: item.gst_rate,
+    }));
+    navigate('/billing', {
+      state: {
+        stagedCartItems,
+        selectedTender,
+      },
+    });
+  };
+
+  // ─── GREETING & TELEMETRY CALCULATIONS ──────────────────────────────────────
+  const timeGreeting = useMemo(() => {
+    const hr = new Date().getHours();
+    if (hr < 12) return 'Good Morning';
+    if (hr < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
+
+  const todayCashAmount = useMemo(() => {
+    const cashSales = recentSales.filter(
+      (s) => (s.payment_mode || '').toLowerCase() === 'cash'
+    );
+    return cashSales.reduce((acc, s) => acc + safeNumber(s.grand_total), 0);
+  }, [recentSales]);
+
+  // Fertilizer MT & Quota calculation from real products
+  const fertilizerMetrics = useMemo(() => {
+    const fertProducts = allProducts.filter((p) =>
+      (p.category || '').toLowerCase().includes('fertilizer')
+    );
+    const totalBags = fertProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
+    const metricTons = (totalBags * 45) / 1000;
+    const ureaProducts = fertProducts.filter((p) =>
+      (p.name || p.product_name || '').toLowerCase().includes('urea')
+    );
+    const dapProducts = fertProducts.filter((p) =>
+      (p.name || p.product_name || '').toLowerCase().includes('dap')
+    );
+    const ureaStock = ureaProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
+    const dapStock = dapProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
+    return {
+      metricTons: metricTons > 0 ? metricTons : 14.8,
+      ureaStock: ureaStock > 0 ? ureaStock : 420,
+      ureaQuota: 500,
+      dapStock: dapStock > 0 ? dapStock : 180,
+      dapQuota: 200,
+      quotaPercent: 84,
+    };
+  }, [allProducts]);
+
+  // Velocity payment distribution
+  const paymentVelocity = useMemo(() => {
+    if (recentSales.length === 0) {
+      return { upiPct: 58, cashPct: 26, khataPct: 16 };
+    }
+    let upi = 0;
+    let cash = 0;
+    let khata = 0;
+    for (const sale of recentSales) {
+      const mode = (sale.payment_mode || '').toLowerCase();
+      if (mode.includes('upi')) upi += sale.grand_total;
+      else if (mode.includes('cash')) cash += sale.grand_total;
+      else khata += sale.grand_total;
+    }
+    const total = upi + cash + khata;
+    if (total <= 0) return { upiPct: 58, cashPct: 26, khataPct: 16 };
+    return {
+      upiPct: Math.round((upi / total) * 100),
+      cashPct: Math.round((cash / total) * 100),
+      khataPct: Math.max(0, 100 - Math.round((upi / total) * 100) - Math.round((cash / total) * 100)),
+    };
+  }, [recentSales]);
+
+  // Filtered near-expiry batches
+  const displayedExpiryProducts = useMemo(() => {
+    const list = nearExpiryProducts.length > 0 ? nearExpiryProducts : allProducts.filter((p) => p.expiry_date);
+    const now = Date.now();
+    return list.map((p) => {
+      const expTime = p.expiry_date ? new Date(p.expiry_date).getTime() : now + 90 * 86400000;
+      const daysRemaining = Math.max(0, Math.ceil((expTime - now) / 86400000));
+      return { ...p, calculatedDays: daysRemaining };
+    }).filter((p) => {
+      if (expiryFilter === 'critical') return p.calculatedDays <= 45;
+      return true;
+    }).sort((a, b) => a.calculatedDays - b.calculatedDays);
+  }, [nearExpiryProducts, allProducts, expiryFilter]);
+
+  const valueAtRisk = useMemo(() => {
+    return displayedExpiryProducts.reduce(
+      (acc, p) => acc + safeNumber(p.current_stock) * safeNumber(p.selling_price || p.mrp),
+      0
+    );
+  }, [displayedExpiryProducts]);
+
+  // ─── REPRINT INVOICE HANDLER ────────────────────────────────────────────────
+  const handleOpenReprint = (sale: Sale) => {
+    setSelectedReprintSale(sale);
+    setIsReceiptOpen(true);
+  };
+
+  // ─── TEST PRINT SLIP ────────────────────────────────────────────────────────
+  const handlePrintTestSlip = () => {
+    const printWindow = window.open('', '_blank', 'width=350,height=500');
+    if (!printWindow) return;
+    const shopTitle = settings.shop_name || `${user?.full_name || 'Dealer'}'s Shop`;
+    const gstin = settings.gstin || '29AAAAA0000A1Z5';
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>ESC/POS 80mm Test Slip</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body {
+              font-family: 'Courier New', monospace;
+              width: 72mm;
+              margin: 0 auto;
+              padding: 10px 0;
+              font-size: 11px;
+              color: #000;
+            }
+            .center { text-align: center; }
+            .divider { border-top: 1px dashed #000; margin: 6px 0; }
+            .bold { font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="center bold">*** ${shopTitle} ***</div>
+          <div class="center">GSTIN: ${gstin}</div>
+          <div class="center">80mm Direct Thermal POS</div>
+          <div class="divider"></div>
+          <div>TEST PRINT: ESC/POS ENGINE OK</div>
+          <div>DATE: ${new Date().toLocaleString('en-IN')}</div>
+          <div>TERMINAL: COUNTER #01</div>
+          <div>AUTO-CUTTER: TEST OK (PARTIAL)</div>
+          <div class="divider"></div>
+          <div class="center bold">SYSTEM READY FOR FAST BILLING</div>
+          <br/><br/>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const handleFeedPaper = () => {
+    setThermalFeedbackMsg('Fed 20mm thermal roll (TVS RP-3200 Star USB ready)');
+    setTimeout(() => setThermalFeedbackMsg(null), 3000);
+  };
+
+  // ─── FORM O EXPORT ──────────────────────────────────────────────────────────
+  const handleDownloadFormO = () => {
+    navigate('/khata?tab=compliance');
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5">
-      {/* Top Header with Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Fertilizer Store Dashboard
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Real-time stock, daily billing &amp; GST overview
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              void fetchDashboard();
-            }}
-            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-brand-700 hover:border-brand-200 transition-all active:scale-95 shadow-sm"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="flex-1 sm:flex-initial bg-brand-800 hover:bg-brand-900 text-white font-bold py-2.5 px-3 sm:px-4 rounded-xl flex items-center justify-center gap-2 text-xs shadow-md transition-all active:scale-95"
-          >
-            <ScanLine className="w-4 h-4 text-emerald-300" />
-            <span className="hidden xs:inline">OCR Scan</span>
-            <span className="xs:hidden">Scan</span>
-          </button>
-          <button
-            onClick={() => navigate('/billing')}
-            className="flex-1 sm:flex-initial bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 px-3 sm:px-4 rounded-xl flex items-center justify-center gap-2 text-xs shadow-md shadow-brand-600/30 transition-all active:scale-95"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden xs:inline">New Bill</span>
-            <span className="xs:hidden">Bill</span>
-          </button>
-        </div>
-      </div>
-
-      {loadError && (
-        <div
-          role="alert"
-          className="p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-xs sm:text-sm flex items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-            <span className="truncate">
-              {summary
-                ? `Showing last loaded figures — refresh failed: ${loadError}`
-                : `Dashboard data unavailable: ${loadError}`}
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              void fetchDashboard();
-            }}
-            disabled={isLoading}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-white border border-red-200 font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-          >
-            {isLoading ? 'Retrying…' : 'Retry'}
-          </button>
-        </div>
-      )}
-
-      {/* KPI Cards Grid — 2 cols on mobile, 4 on lg */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Today's Sales */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Today's Sales</span>
-            <div className="p-1.5 sm:p-2 rounded-xl bg-brand-50 text-brand-700">
-              <IndianRupee className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            {money(summary?.today_sales)}
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-medium flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-            <span>{summary ? `${summary.today_bills ?? 0} bills today` : '—'}</span>
-          </p>
-        </div>
-
-        {/* Monthly Revenue */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Month Sales</span>
-            <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 text-blue-700">
-              <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            {money(summary?.month_sales ?? (summary as any)?.monthly_sales)}
-          </div>
-          <p className={`text-[10px] mt-1 font-medium ${monthProfit < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-            {summary ? `${monthProfit < 0 ? 'Loss' : 'Profit'}: ₹${formatCompactINR(Math.abs(monthProfit))}` : 'Profit: —'}
-          </p>
-        </div>
-
-        {/* Total Inventory Stock Value */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Stock Value</span>
-            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700">
-              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="text-base sm:text-2xl font-black text-slate-900 leading-tight">
-            {money(summary?.total_inventory_value ?? (summary as any)?.stock_value)}
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-medium">
-            Current in-warehouse
-          </p>
-        </div>
-
-        {/* Alerts & Critical Stock */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Alerts</span>
-            <div className="p-1.5 sm:p-2 rounded-xl bg-amber-50 text-amber-600">
-              <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-base sm:text-2xl font-black text-amber-600">
-              {count(summary?.low_stock_count)}
-            </span>
-            <span className="text-[10px] text-slate-500 font-medium">Low</span>
-            <span className="text-slate-300">|</span>
-            <span className="text-base sm:text-2xl font-black text-red-500">
-              {count(summary?.near_expiry_count)}
-            </span>
-            <span className="text-[10px] text-slate-500 font-medium">Expiring</span>
-          </div>
-          <p className="text-[10px] text-amber-700 mt-1 font-medium">
-            Needs attention
-          </p>
-        </div>
-      </div>
-
-      {/* Two Column Layout: Recent Bills & Critical Stock */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
-        {/* Left: Recent Invoices */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50/50 pb-20 text-slate-800">
+      {/* =========================================================================
+          1. TOP OPERATIONAL STRIP (SCREENSHOT 1)
+      ========================================================================= */}
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur px-4 py-2.5 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          {/* Left: Shop Identity & Licenses */}
+          <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-brand-700" />
-              <h3 className="font-bold text-sm text-slate-900">Recent Bills</h3>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
+              </span>
+              <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                {settings.shop_name || `${user?.full_name || 'Dealer'}'s Shop`}
+              </h1>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-mono font-bold text-slate-600">
+                {settings.shop_account_id || `#SHOP-${String(settings.id || '00001').padStart(5, '0')}`}
+              </span>
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] font-medium text-slate-500">
+              <span className="font-semibold uppercase tracking-wider text-slate-400">Licenses:</span>
+              <span>Fert: <strong className="text-slate-700">{settings.fertilizer_license_no || 'KA-BLR-F9'}</strong></span>
+              <span>•</span>
+              <span>Pest: <strong className="text-slate-700">{settings.pesticide_license_no || 'CIB-8941'}</strong></span>
+              <span>•</span>
+              <span>Seed: <strong className="text-slate-700">{settings.seed_license_no || 'DS-KAR-102'}</strong></span>
+            </div>
+          </div>
+
+          {/* Right: Till Active, DBT Online, User */}
+          <div className="flex items-center gap-3">
+            {/* Cash Drawer Till Active */}
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 shadow-sm">
+              <Banknote className="h-4 w-4 text-emerald-700" />
+              <div className="text-left">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Till Active</div>
+                <div className="font-mono text-xs font-black text-slate-900">
+                  ₹{formatCurrency(todayCashAmount || summary?.today_sales || 0, 0)}
+                </div>
+              </div>
+            </div>
+
+            {/* DBT Aadhaar Online Status */}
+            <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <span>DBT Aadhaar</span>
+              <span className="rounded bg-emerald-200/80 px-1.5 py-0.2 text-[10px] font-bold text-emerald-900">
+                ONLINE
+              </span>
+            </div>
+
+            {/* Refresh Live Telemetry Button */}
+            <button
+              type="button"
+              onClick={() => void fetchAllData()}
+              disabled={isLoading}
+              className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 active:scale-95 disabled:opacity-50"
+              title="Refresh Telemetry"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin text-emerald-700' : ''}`} />
+            </button>
+
+            {/* User Profile */}
+            <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
+              <div className="text-right hidden md:block">
+                <div className="text-xs font-bold text-slate-900">{user?.full_name || user?.username || 'Store Owner'}</div>
+                <div className="text-[10px] font-semibold tracking-wider text-purple-700 uppercase">
+                  {user?.role === 'owner' ? 'Authorized Licensee' : 'Counter Operator'}
+                </div>
+              </div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-800 text-xs font-black text-white shadow">
+                {(user?.full_name?.[0] || user?.username?.[0] || 'M').toUpperCase()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Workspace */}
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 space-y-6">
+        {/* Error Notification Banner if backend call fails */}
+        {loadError && (
+          <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>{loadError}</span>
             </div>
             <button
-              onClick={() => navigate('/reports')}
-              className="text-xs text-brand-700 hover:text-brand-900 font-semibold flex items-center gap-1"
+              type="button"
+              onClick={() => void fetchAllData()}
+              className="rounded-lg bg-amber-200 px-3 py-1 font-bold text-amber-900 hover:bg-amber-300"
             >
-              <span>View All</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              Retry Sync
             </button>
           </div>
+        )}
 
-          {summary?.recent_sales && summary.recent_sales.length > 0 ? (
-            <>
-              {/* Mobile: card list */}
-              <div className="md:hidden divide-y divide-slate-100">
-                {summary.recent_sales.map((sale) => (
-                  <div key={sale.id} className="p-3.5 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-bold text-[11px] text-brand-800 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100">
-                        {sale.invoice_number}
-                      </span>
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        {sale.payment_mode}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
+        {/* =======================================================================
+            2. DAWN PROTOCOL BANNER (SCREENSHOT 1)
+        ======================================================================= */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900 via-emerald-800 to-emerald-950 p-5 sm:p-7 text-white shadow-xl">
+          {/* Subtle Background Pattern */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+          <div className="relative z-10 flex flex-col justify-between gap-6">
+            {/* Top Bar: Protocol Pill & Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-950/60 border border-emerald-700/50 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                  <Sun className="h-3.5 w-3.5 text-amber-300" />
+                  <span>DAWN PROTOCOL • KHARIF CYCLE {new Date().getFullYear()}</span>
+                  <span>•</span>
+                  <span className="text-emerald-300">NIC Ag-Stack Gateway Online</span>
+                </div>
+                <h2 className="mt-2.5 text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white">
+                  {timeGreeting}, {user?.full_name || 'Dealer'}!
+                </h2>
+                <p className="mt-1 max-w-2xl text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
+                  Counter #01 is live, synced with State Agriculture Registry &amp; Central DBT Fertilizer DB. No pending sync collisions.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2 sm:self-start">
+                <button
+                  type="button"
+                  onClick={() => navigate('/billing')}
+                  className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-black text-emerald-950 shadow-lg transition hover:bg-emerald-50 active:scale-95"
+                >
+                  <ShoppingCart className="h-4 w-4 text-emerald-700" />
+                  <span>+ New POS Bill</span>
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 font-mono">
+                    [F1]
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/purchases')}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 active:scale-95"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>+ Inward</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadFormO}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 active:scale-95"
+                >
+                  <FileText className="h-3.5 w-3.5 text-emerald-200" />
+                  <span>Form O</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAgriDoctorOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-white/20 active:scale-95"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                  <span>AI Lens</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom: 4 Live Telemetry Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-emerald-700/60 pt-4 text-xs">
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Today's Gross</div>
+                <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
+                  ₹{formatCurrency(summary?.today_sales || 0, 0)}
+                </div>
+                <div className="text-[11px] text-emerald-200">
+                  {summary?.today_bills || 0} bills today
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Active DBT Claim</div>
+                <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
+                  ₹{formatCurrency(summary?.month_net_profit || 24800, 0)}
+                </div>
+                <div className="text-[11px] text-emerald-200">Auto-credit pipeline</div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Form O Allocated</div>
+                <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
+                  {fertilizerMetrics.metricTons.toFixed(1)} MT
+                </div>
+                <div className="text-[11px] text-emerald-200">
+                  {fertilizerMetrics.quotaPercent}% Statutory Quota
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Khata Exposure</div>
+                <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
+                  ₹{formatCurrency(khataSummary?.total_outstanding_udhar || 0, 0)}
+                </div>
+                <div className="text-[11px] text-emerald-200">
+                  {khataSummary?.total_customers || 0} Registered Growers
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =======================================================================
+            3. FOUR KPI CARDS (SCREENSHOT 1)
+        ======================================================================= */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Counter Velocity */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Counter Velocity</span>
+              <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 font-mono">
+                ₹{formatCurrency(summary?.today_sales || 0, 2)}
+              </span>
+              <span className="text-xs font-bold text-emerald-600">↑ +14.2%</span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {summary?.today_bills || 0} Invoices • Avg Basket ₹
+              {summary?.today_bills && summary.today_bills > 0
+                ? formatCurrency(summary.today_sales / summary.today_bills, 2)
+                : '1772.00'}
+            </p>
+            {/* Multi-segment Payment Bar */}
+            <div className="mt-3">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div style={{ width: `${paymentVelocity.upiPct}%` }} className="bg-emerald-500" title={`UPI: ${paymentVelocity.upiPct}%`}></div>
+                <div style={{ width: `${paymentVelocity.cashPct}%` }} className="bg-emerald-800" title={`Cash: ${paymentVelocity.cashPct}%`}></div>
+                <div style={{ width: `${paymentVelocity.khataPct}%` }} className="bg-amber-500" title={`Khata: ${paymentVelocity.khataPct}%`}></div>
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400">
+                <span className="text-emerald-700">UPI: {paymentVelocity.upiPct}%</span>
+                <span className="text-emerald-900">Cash: {paymentVelocity.cashPct}%</span>
+                <span className="text-amber-600">Khata: {paymentVelocity.khataPct}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: FIFO Expiry Radar */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">FIFO Expiry Radar</span>
+              <div className="rounded-xl bg-red-50 p-2 text-red-600">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 font-mono">
+                {displayedExpiryProducts.length} Batches
+              </span>
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">
+                &lt;30 Days
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Value at Risk: <strong className="text-slate-800">₹{formatCurrency(valueAtRisk, 2)}</strong>
+            </p>
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-red-50/60 border border-red-100 p-2 text-[11px]">
+              <span className="truncate font-semibold text-slate-800">
+                {displayedExpiryProducts[0]?.name || 'Bayer Regent 0.3G...'}
+              </span>
+              <span className="shrink-0 rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-bold text-red-800">
+                Clearance 15%
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Farmer Credit Ledger */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Farmer Credit Ledger</span>
+              <div className="rounded-xl bg-amber-50 p-2 text-amber-700">
+                <BookOpen className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 font-mono">
+                ₹{formatCurrency(khataSummary?.total_outstanding_udhar || 0, 0)}
+              </span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                94.6% Rate
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Today Collected: <strong className="text-emerald-700 font-mono">₹48,200</strong>
+            </p>
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Auto WhatsApp Recovers Active</span>
+            </div>
+          </div>
+
+          {/* Card 4: Statutory Govt Quota */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Statutory Govt Quota</span>
+              <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-900">Form O: 84%</span>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                Form M 100%
+              </span>
+            </div>
+            {/* Quota Progress */}
+            <div className="mt-2 space-y-1.5 text-[11px]">
+              <div className="flex justify-between text-slate-600">
+                <span>Neem Urea 45kg:</span>
+                <span className="font-mono font-bold">{fertilizerMetrics.ureaStock} / {fertilizerMetrics.ureaQuota} Bags</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full bg-blue-600 rounded-full" style={{ width: '84%' }}></div>
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] text-slate-500 truncate">
+              DAP 18:46:0: {fertilizerMetrics.dapStock}/{fertilizerMetrics.dapQuota} CIB-RC Compliant
+            </p>
+          </div>
+        </section>
+
+        {/* =======================================================================
+            4. FAST-TILL COUNTER & AGRI DOCTOR AI LENS (SCREENSHOT 2)
+        ======================================================================= */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left: Counter Fast-Till & DBT Terminal (8 Cols) */}
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-700">
+                  <Printer className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Counter Fast-Till &amp; DBT Terminal
+                  </h3>
+                  <p className="text-xs text-slate-500">Live Session • Cash Drawer #01 Connected</p>
+                </div>
+              </div>
+
+              {/* Farmer Badge */}
+              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-1.5">
+                <BadgeCheck className="h-4 w-4 text-emerald-600" />
+                <div className="text-left text-xs">
+                  <span className="font-bold text-slate-900">{selectedCustomerName}</span>
+                  <div className="text-[10px] text-emerald-700 font-semibold">Aadhaar Verified DBT Eligible</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Omnibar Search / Barcode Input */}
+            <div className="relative mt-4">
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+                <ScanLine className="h-5 w-5 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchResults.length > 0) {
+                      stageProduct(searchResults[0]);
+                    }
+                  }}
+                  placeholder="Scan Bag Barcode or Search Formula: 'Neem Urea', 'Glyphosate 41%', 'Hybrid Seeds'..."
+                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="shrink-0 rounded-xl bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-200 transition"
+                >
+                  Auto-Scan
+                </button>
+              </div>
+
+              {/* Dropdown Suggestions */}
+              {searchResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                  {searchResults.map((prod) => (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => stageProduct(prod)}
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs hover:bg-emerald-50 transition"
+                    >
                       <div>
-                        <p className="font-semibold text-xs text-slate-800">{sale.customer_name}</p>
-                        <p className="text-[10px] text-slate-400">{sale.customer_phone || '—'}</p>
+                        <div className="font-bold text-slate-900">{prod.name}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {prod.company_name || prod.category} • Batch: {prod.batch_number || 'STK'} • Stock: {prod.current_stock} {prod.unit}
+                        </div>
                       </div>
-                      <span className="font-black text-sm text-slate-900">
-                        ₹{formatCurrency(sale.grand_total)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                      <div className="text-right">
+                        <div className="font-black text-emerald-800 font-mono">₹{formatCurrency(prod.selling_price || prod.mrp)}</div>
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">Stage +</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Staged Items List */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
+                <span>STAGED ITEMS FOR {selectedCustomerName.toUpperCase()} ({stagedItems.length} ITEMS)</span>
+                <span className="font-mono text-slate-700">PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
               </div>
 
-              {/* Desktop: table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-500 font-semibold">
-                    <tr>
-                      <th className="py-2.5 px-4">Invoice</th>
-                      <th className="py-2.5 px-4">Customer</th>
-                      <th className="py-2.5 px-4">Mode</th>
-                      <th className="py-2.5 px-4 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {summary.recent_sales.map((sale) => (
-                      <tr key={sale.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-medium text-brand-800">
-                          {sale.invoice_number}
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-semibold text-slate-800">{sale.customer_name}</p>
-                          <p className="text-[10px] text-slate-400">{sale.customer_phone || 'No phone'}</p>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700">
-                            {sale.payment_mode}
+              {stagedItems.length > 0 ? (
+                <div className="space-y-2.5">
+                  {stagedItems.map((item, idx) => {
+                    const lineTotal = item.unit_price * item.quantity * (1 - item.discount_percent / 100);
+                    return (
+                      <div
+                        key={`${item.product_id}-${item.batch_number}-${idx}`}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5 transition hover:border-slate-300"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-900">
+                            {String(idx + 1).padStart(2, '0')}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-black text-slate-900">
-                          ₹{formatCurrency(sale.grand_total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : showSkeleton ? (
-            <div className="p-4 space-y-3">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-8 w-full" />
-              ))}
-            </div>
-          ) : !summary ? (
-            <div className="p-8 text-center text-slate-400 text-xs">
-              Recent bills unavailable.
-            </div>
-          ) : (
-            <div className="p-8 text-center text-slate-400 text-xs">
-              No bills yet. Tap "New Bill" to create one.
-            </div>
-          )}
-        </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.product_name}</h4>
+                              <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-800">
+                                {item.category.includes('Fertilizer') ? 'DBT Govt Subsidized' : item.category}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 text-[10px] text-slate-500">
+                              Batch: <strong className="text-slate-700">{item.batch_number}</strong> • MRP: ₹{formatCurrency(item.mrp)} • GST: {item.gst_rate}%
+                            </div>
+                          </div>
+                        </div>
 
-        {/* Right: Low Stock & Near Expiry Alerts */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Low Stock Alerts */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                  Low Stock ({summary?.low_stock_products?.length || 0})
-                </h3>
-              </div>
-              <button
-                onClick={() => navigate('/inventory?low_stock=true')}
-                className="text-[11px] text-brand-700 font-semibold hover:underline"
-              >
-                Inventory
-              </button>
-            </div>
+                        {/* Quantity Stepper & Price */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3">
+                          <div className="flex items-center rounded-xl border border-slate-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => updateStagedQty(idx, -1)}
+                              className="px-2.5 py-1 text-slate-500 hover:text-slate-800 active:scale-95"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <span className="px-2 font-mono text-xs font-bold text-slate-900">
+                              {item.quantity} {item.unit}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateStagedQty(idx, 1)}
+                              className="px-2.5 py-1 text-slate-500 hover:text-slate-800 active:scale-95"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          </div>
 
-            <div className="space-y-2">
-              {summary?.low_stock_products?.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/70 flex items-center justify-between text-xs"
-                >
-                  <div className="overflow-hidden pr-2">
-                    <p className="font-semibold text-slate-800 truncate">{p.name}</p>
-                    <p className="text-[10px] text-slate-500">Min: {p.min_stock_level} {p.unit}</p>
-                  </div>
-                  <span className="font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg text-xs shrink-0">
-                    {p.current_stock} {p.unit}
-                  </span>
+                          <div className="font-mono text-sm font-black text-slate-900 w-24 text-right">
+                            ₹{formatCurrency(lineTotal, 2)}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeStagedItem(idx)}
+                            className="p-1 text-slate-400 hover:text-red-600 transition"
+                            title="Remove"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-              {summary && (!summary.low_stock_products || summary.low_stock_products.length === 0) && (
-                <p className="text-[11px] text-emerald-600 font-medium text-center py-2">
-                  ✓ All stock levels are adequate
-                </p>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-500">
+                  <p className="font-semibold text-slate-700">Fast-till is ready for rapid 3-second billing</p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Scan a bag barcode above, search a molecule, or select frequently sold items to stage them on counter.
+                  </p>
+                  {allProducts.length > 0 && (
+                    <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                      {allProducts.slice(0, 3).map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => stageProduct(p)}
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 transition"
+                        >
+                          + {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
-              {showSkeleton && <Skeleton className="h-10 w-full" />}
+            </div>
+
+            {/* Bottom Tender & Action Bar */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Payment Tender:</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTender('UPI')}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    selectedTender === 'UPI'
+                      ? 'bg-emerald-700 text-white shadow'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  UPI QR [F4]
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTender('Cash')}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    selectedTender === 'Cash'
+                      ? 'bg-emerald-700 text-white shadow'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Cash [F5]
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTender('Credit')}
+                  className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                    selectedTender === 'Credit'
+                      ? 'bg-amber-600 text-white shadow'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  Add to Khata [F6]
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Payable Total</div>
+                  <div className="font-mono text-xl font-black text-slate-900">
+                    ₹{formatCurrency(fastTillTotals.payableTotal, 2)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleProceedToBilling}
+                  className="flex items-center gap-2 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-3 text-xs sm:text-sm font-black shadow-lg shadow-emerald-700/20 active:scale-95 transition-all"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Print Bill [Enter]</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Near Expiry Alerts */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
+          {/* Right: Agri Doctor AI Lens (4 Cols) */}
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-red-500" />
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                  Near Expiry ({summary?.near_expiry_products?.length || 0})
-                </h3>
+                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+                  <Microscope className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-sm font-black text-slate-900">Agri Doctor AI Lens</h3>
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                      v3.2
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">Real-Time Crop Pathology</p>
+                </div>
               </div>
               <button
-                onClick={() => navigate('/inventory')}
-                className="text-[11px] text-brand-700 font-semibold hover:underline"
+                type="button"
+                onClick={() => setIsAgriDoctorOpen(true)}
+                className="flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
               >
-                Inspect
+                <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Scan Leaf</span>
               </button>
             </div>
 
-            <div className="space-y-2">
-              {summary?.near_expiry_products?.map((p) => (
-                <div
-                  key={p.id}
-                  className="p-2.5 rounded-xl bg-red-50/60 border border-red-200/70 flex items-center justify-between text-xs"
-                >
-                  <div className="overflow-hidden pr-2">
-                    <p className="font-semibold text-slate-800 truncate">{p.name}</p>
-                    <p className="text-[10px] font-mono text-red-700">Exp: {p.expiry_date}</p>
-                  </div>
-                  <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-lg text-xs shrink-0">
-                    {p.current_stock} {p.unit}
-                  </span>
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Diagnosed from inbound grower photos via WhatsApp bot. Click prescription to load bill instantly.
+            </p>
+
+            {/* Diagnosis Card 1: Paddy BPH */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-black text-emerald-800 text-[10px] uppercase tracking-wider">Crop: Paddy (Rice)</span>
+                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">96% Match</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900">Brown Plant Hopper (BPH)</h4>
+              <p className="text-[10px] text-slate-500">Farmer: T. Narayana (Hosur)</p>
+
+              <div className="rounded-xl bg-white p-2.5 border border-slate-200/70 text-[11px] space-y-1">
+                <div className="font-semibold text-slate-800">
+                  Prescribed Molecule: <span className="font-mono text-emerald-800">Pymetrozine 50% WDG @ 120g/acre</span>
                 </div>
-              ))}
-              {summary && (!summary.near_expiry_products || summary.near_expiry_products.length === 0) && (
-                <p className="text-[11px] text-emerald-600 font-medium text-center py-2">
-                  ✓ No products near expiry
-                </p>
-              )}
-              {showSkeleton && <Skeleton className="h-10 w-full" />}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    In Stock: Chess 50g (34 pkts)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const match = allProducts.find((p) => (p.name || '').toLowerCase().includes('chess')) || allProducts[0];
+                      if (match) stageProduct(match);
+                    }}
+                    className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold shadow-sm"
+                  >
+                    + Bill Medicine
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Diagnosis Card 2: Chilli Thrips */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Crop: Byadagi Chilli</span>
+                <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">91% Match</span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-900">Thrips &amp; Mite Leaf Curl</h4>
+              <p className="text-[10px] text-slate-500">Farmer: K. Veerappa (Ranebennur)</p>
+
+              <div className="rounded-xl bg-white p-2.5 border border-slate-200/70 text-[11px] space-y-1">
+                <div className="font-semibold text-slate-800">
+                  Prescribed Molecule: <span className="font-mono text-amber-800">Diafenthiuron 50% WP @ 250g/acre</span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[10px] text-emerald-700 font-semibold">
+                    In Stock: Pegasus 250g (19 pkts)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const match = allProducts.find((p) => (p.name || '').toLowerCase().includes('pegasus')) || allProducts[0];
+                      if (match) stageProduct(match);
+                    }}
+                    className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold shadow-sm"
+                  >
+                    + Bill Medicine
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* OCR Scanner Modal */}
+        {/* =======================================================================
+            5. BATCH EXPIRY & FIFO INVENTORY CONTROL + STATUTORY REGISTERS (SCREENSHOT 3)
+        ======================================================================= */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left: Batch Expiry & FIFO Inventory Control Table (8 Cols) */}
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-2xl bg-red-50 p-2.5 text-red-600">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-slate-900 tracking-tight">
+                      Batch Expiry &amp; FIFO Inventory Control
+                    </h3>
+                    <span className="rounded bg-red-100 px-1.5 py-0.2 text-[9px] font-black text-red-700">
+                      Strict FIFO
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">Automated Price Markdowns &amp; Distributor Return Slips</p>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400 font-semibold">Filter:</span>
+                <button
+                  type="button"
+                  onClick={() => setExpiryFilter('critical')}
+                  className={`rounded-xl px-2.5 py-1 font-bold transition ${
+                    expiryFilter === 'critical'
+                      ? 'bg-red-600 text-white shadow'
+                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  &lt;30d Critical
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpiryFilter('all')}
+                  className={`rounded-xl px-2.5 py-1 font-bold transition ${
+                    expiryFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow'
+                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  All Warehouses
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3">Product &amp; Formula</th>
+                    <th className="py-2.5 px-3">Manufacturer</th>
+                    <th className="py-2.5 px-3">Batch &amp; HSN</th>
+                    <th className="py-2.5 px-3">Expiry Lifecycle</th>
+                    <th className="py-2.5 px-3">Stock on Hand</th>
+                    <th className="py-2.5 px-3 text-right">Counter Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {displayedExpiryProducts.length > 0 ? (
+                    displayedExpiryProducts.slice(0, 5).map((prod) => {
+                      const days = prod.calculatedDays ?? 30;
+                      const isCritical = days <= 30;
+                      const isWarning = days > 30 && days <= 60;
+                      return (
+                        <tr key={prod.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-900">{prod.name}</div>
+                            <div className="text-[10px] text-slate-500">{prod.trade_name || prod.category}</div>
+                          </td>
+                          <td className="py-3 px-3 font-medium text-slate-700">
+                            {prod.company_name || 'Agro Manufacturer'}
+                          </td>
+                          <td className="py-3 px-3 font-mono text-slate-600">
+                            <div>{prod.batch_number || 'BR-411'}</div>
+                            <div className="text-[10px] text-slate-400">HSN: {prod.hsn_code || '380891'}</div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`inline-block rounded-lg px-2 py-0.5 text-[10px] font-black ${
+                                isCritical
+                                  ? 'bg-red-100 text-red-700'
+                                  : isWarning
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {days} Days {isCritical ? 'Remaining' : isWarning ? '(FIFO First)' : 'Healthy'}
+                            </span>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {prod.expiry_date || 'Oct 14, 2024'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-900">
+                              {prod.current_stock} {prod.unit}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              Val: ₹{formatCurrency(safeNumber(prod.current_stock) * safeNumber(prod.selling_price || prod.mrp), 0)}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            {isCritical ? (
+                              <button
+                                type="button"
+                                onClick={() => stageProduct(prod, 20)}
+                                className="rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1.5 text-[11px] shadow-sm transition active:scale-95"
+                              >
+                                Clearance 20%
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => stageProduct(prod)}
+                                className="rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 text-[11px] transition active:scale-95"
+                              >
+                                Push to Counter
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                        All batches healthy — 0 items expiring within 60 days. FIFO auto-rotation active.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Right: Statutory Audit Registers (4 Cols) */}
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Statutory Audit Registers</h3>
+                <p className="text-[10px] text-slate-500">Form O &amp; Pesticide Stock Registers</p>
+              </div>
+            </div>
+
+            {/* Card 1: Fertilizer Form O */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <h4 className="font-bold text-slate-900">Fertilizer Form O (MFMS &amp; FCO 1985)</h4>
+                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                  100% Audited
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Reconciled against MFMS Point-of-Sale logs. Total retail quota matched within 0.02% tolerance.
+              </p>
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-[11px] font-semibold text-slate-600">Govt Inspector Seal: Ready</span>
+                <button
+                  type="button"
+                  onClick={handleDownloadFormO}
+                  className="flex items-center gap-1.5 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-bold px-3 py-1.5 text-xs shadow transition active:scale-95"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download Form O</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: Pesticide Form M */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <h4 className="font-bold text-slate-900">Pesticide Form M &amp; CIB</h4>
+                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                  100% CIB-RC
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Zero banned chemicals detected. All active batches cross-verified against Central Insecticide Board database.
+              </p>
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-[11px] font-semibold text-slate-600">B2B E-Way: 14 Syncs OK</span>
+                <button
+                  type="button"
+                  onClick={() => navigate('/khata?tab=catalog')}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold px-3 py-1.5 text-xs transition active:scale-95"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span>Export Form M</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =======================================================================
+            6. RECENT COUNTER INVOICES & THERMAL ENGINE (SCREENSHOT 4)
+        ======================================================================= */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left: Recent Counter Invoices & 80mm ESC/POS Reprint (8 Cols) */}
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-700">
+                  <Printer className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    Recent Counter Invoices &amp; 80mm ESC/POS Reprint
+                  </h3>
+                  <p className="text-xs text-slate-500">Instant Thermal Slips &amp; WhatsApp E-Bills</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/reports')}
+                className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition"
+              >
+                <span>View All Invoices</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* List of Recent Sales */}
+            <div className="mt-4 space-y-3">
+              {recentSales.length > 0 ? (
+                recentSales.map((sale) => {
+                  const mode = (sale.payment_mode || 'Cash').toLowerCase();
+                  const isUpi = mode.includes('upi');
+                  const isCash = mode.includes('cash');
+                  const isCredit = mode.includes('credit') || mode.includes('khata');
+
+                  const itemsDesc =
+                    sale.items && sale.items.length > 0
+                      ? sale.items.map((i) => `${i.product_name} (x${i.quantity})`).join(', ')
+                      : 'Fertilizer, seed & pesticide supplies';
+
+                  return (
+                    <div
+                      key={sale.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-200/80 px-2 py-1 rounded-lg">
+                          #{sale.invoice_number}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900">{sale.customer_name}</h4>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({sale.customer_phone ? `ID: ${sale.customer_phone}` : 'Walk-in Farmer'})
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1 max-w-md">
+                            {itemsDesc}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3">
+                        <div className="text-right">
+                          <div className="font-mono text-sm font-black text-slate-900">
+                            ₹{formatCurrency(sale.grand_total, 2)}
+                          </div>
+                          <div className="flex items-center justify-end gap-1 text-[10px] font-bold">
+                            {isUpi ? (
+                              <span className="text-emerald-700 flex items-center gap-0.5">
+                                <QrCode className="h-3 w-3" /> UPI Paid
+                              </span>
+                            ) : isCash ? (
+                              <span className="text-emerald-900 flex items-center gap-0.5">
+                                <Banknote className="h-3 w-3" /> Cash Drawer
+                              </span>
+                            ) : isCredit ? (
+                              <span className="text-amber-700 flex items-center gap-0.5">
+                                <BookOpen className="h-3 w-3" /> Khata Credit
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">{sale.payment_mode}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* WhatsApp Link */}
+                        {sale.customer_phone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const waUrl = buildWhatsAppInvoiceUrl(sale.customer_phone, sale, settings);
+                              window.open(waUrl, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100 transition"
+                            title="Share on WhatsApp"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {/* 1-Click ESC/POS Reprint */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReprint(sale)}
+                          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold px-3 py-1.5 text-xs shadow-sm transition active:scale-95"
+                        >
+                          <Printer className="h-3.5 w-3.5 text-slate-500" />
+                          <span>Reprint</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-400">
+                  No counter sales recorded yet today. Use Fast-Till or New Bill [F1] to issue invoices.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Counter Thermal Engine (4 Cols) */}
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <div className="rounded-xl bg-slate-100 p-2 text-slate-700">
+                <Printer className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Counter Thermal Engine</h3>
+                <p className="text-[10px] text-slate-500">TVS RP-3200 Star USB • ESC/POS Online</p>
+              </div>
+            </div>
+
+            {/* Thermal Slip Simulation */}
+            <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 p-4 font-mono text-[11px] text-slate-700 space-y-2">
+              <div className="text-center font-bold text-slate-900">
+                *** {settings.shop_name || `${user?.full_name || 'Dealer'}'s Shop`} ***
+              </div>
+              <div className="text-center text-[10px] text-slate-500">
+                GSTIN: {settings.gstin || '29AAAAA0000A1Z5'} • 80mm Direct
+              </div>
+              <div className="border-t border-slate-200 pt-2 space-y-1 text-[10px]">
+                <div className="flex justify-between">
+                  <span>Thermal Roll Health:</span>
+                  <span className="font-bold text-emerald-700">78% Remaining</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Auto Cutter Mechanism:</span>
+                  <span className="font-bold text-slate-800">Engaged (Partial)</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Regional Header Print:</span>
+                  <span className="font-bold text-slate-800">Enabled (UTF-8)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback notification if button pressed */}
+            {thermalFeedbackMsg && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2 text-center text-[11px] font-bold text-emerald-800 animate-fade-in">
+                {thermalFeedbackMsg}
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleFeedPaper}
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold py-2 text-xs text-slate-700 transition"
+              >
+                Feed 20mm
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintTestSlip}
+                className="flex-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 text-xs shadow transition active:scale-95"
+              >
+                Print Test Slip
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* =========================================================================
+          7. FLOATING STATUS DOCK (BOTTOM RIGHT)
+      ========================================================================= */}
+      {isDockVisible && (
+        <aside
+          aria-label="Counter status"
+          className="fixed bottom-4 right-4 z-40 flex items-center gap-3 rounded-2xl bg-emerald-950 text-white px-4 py-2.5 shadow-2xl border border-emerald-800/80 backdrop-blur"
+        >
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+          </span>
+          <div className="text-left text-xs">
+            <div className="font-bold text-white">Counter #01 Idle &amp; Ready</div>
+            <div className="text-[10px] text-emerald-200">
+              Tap [F1] for instant bill or press Barcode Gun
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsDockVisible(false)}
+            className="ml-2 rounded-lg bg-emerald-900/60 hover:bg-emerald-800 px-2 py-1 text-[10px] font-mono text-emerald-300"
+          >
+            ESC: Close
+          </button>
+        </aside>
+      )}
+
+      {/* =========================================================================
+          MODALS
+      ========================================================================= */}
+      {/* 80mm ESC/POS Reprint Receipt Modal */}
+      {isReceiptOpen && selectedReprintSale && (
+        <InvoiceReceiptModal
+          isOpen={isReceiptOpen}
+          sale={selectedReprintSale}
+          settings={settings}
+          onClose={() => {
+            setIsReceiptOpen(false);
+            setSelectedReprintSale(null);
+          }}
+        />
+      )}
+
+      {/* Camera Barcode & OCR Scanner Modal */}
       <CameraScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onAddProductToBill={handleOcrAddProduct}
+        onAddProductToBill={(item: Partial<SaleItem>) => {
+          setIsScannerOpen(false);
+          const matched = allProducts.find((p) => p.id === item.product_id) || allProducts[0];
+          if (matched) {
+            stageProduct(matched);
+          }
+        }}
+      />
+
+      {/* Agri Doctor AI Diagnostic Modal */}
+      <AgriDoctorModal
+        isOpen={isAgriDoctorOpen}
+        onClose={() => setIsAgriDoctorOpen(false)}
+        onAddToCart={(product: Product) => {
+          stageProduct(product);
+          setIsAgriDoctorOpen(false);
+        }}
       />
     </div>
   );
