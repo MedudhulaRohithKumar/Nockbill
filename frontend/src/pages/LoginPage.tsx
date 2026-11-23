@@ -377,7 +377,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#031b0f] text-white flex flex-col justify-between items-center p-2 sm:p-4 lg:py-2 lg:px-6 relative select-none w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#031b0f] text-white flex flex-col justify-between items-center p-2 sm:p-3 lg:py-1.5 lg:px-6 relative select-none w-full max-w-full overflow-x-hidden">
       {/* ─── PASTORAL STAGE BACKDROP & PROCEDURAL GOLDEN SEEDS CANVAS ───────── */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <img 
@@ -394,130 +394,130 @@ export const LoginPage: React.FC = () => {
       </div>
 
       {/* ─── MAIN RESPONSIVE CONTAINER (TRIPLE-MODE ENGINE) ─────────────────── */}
-      <div className="max-w-7xl w-full mx-auto relative z-10 py-1 sm:py-2 flex-1 flex flex-col justify-center">
+      <div className="max-w-7xl w-full mx-auto relative z-10 py-0.5 sm:py-1 flex-1 flex flex-col justify-center">
         {/* Top Floating Bar */}
-        <div className="mb-2 sm:mb-3 flex items-center justify-between px-1">
+        <div className="mb-1 sm:mb-2 flex items-center justify-between px-1">
           <Link 
             to="/" 
-            className="inline-flex items-center gap-2 text-white/90 hover:text-white text-xs font-bold px-3 py-1.5 rounded-full bg-black/40 hover:bg-black/60 border border-white/30 backdrop-blur-md transition-all active:scale-95 shadow-sm"
+            className="inline-flex items-center gap-1.5 text-white/90 hover:text-white text-[11px] font-bold px-3 py-1 rounded-full bg-black/40 hover:bg-black/60 border border-white/30 backdrop-blur-md transition-all active:scale-95 shadow-xs"
           >
             <span>← Back to NockBill Agriculture</span>
           </Link>
-          <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-emerald-300 bg-black/40 px-3 py-1 rounded-full border border-emerald-500/30 backdrop-blur-md">
+          <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-emerald-300 bg-black/40 px-3 py-0.5 rounded-full border border-emerald-500/30 backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             <span>Agri ERP Cloud Grid v2.5 Active</span>
           </div>
         </div>
 
         {/* 2-Column Responsive Layout (Mode A / Mode B / Mode C) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 items-center w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-6 items-center w-full">
           
           {/* Left Column: Atmospheric Pastoral Warmth & Enterprise Highlights (Desktop Only for Clean Single-Screen View) */}
-          <div className="hidden lg:flex lg:col-span-7 flex-col justify-center space-y-2.5 text-white order-2 lg:order-1 px-1">
+          <div className="hidden lg:flex lg:col-span-7 flex-col justify-center space-y-2 text-white order-2 lg:order-1 px-1">
             {/* Header Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[10px] font-mono uppercase tracking-wider font-bold w-fit shadow-md backdrop-blur-md">
-              <Sprout className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9px] font-mono uppercase tracking-wider font-bold w-fit shadow-xs backdrop-blur-md">
+              <Sprout className="w-3 h-3 text-emerald-400" />
               <span>NockBill Agriculture • Meadowbell POS</span>
             </div>
 
             {/* Title & Description */}
-            <div className="space-y-1">
-              <h1 className="font-['Grandstander'] text-2xl lg:text-3xl font-black tracking-tight text-white leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
+            <div className="space-y-0.5">
+              <h1 className="font-['Grandstander'] text-xl lg:text-2xl font-black tracking-tight text-white leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
                 Empower Your Agro-Store <span className="text-emerald-300">Instantly</span>
               </h1>
-              <p className="text-xs text-slate-200/90 leading-snug max-w-lg font-medium drop-shadow-md">
+              <p className="text-[11px] text-slate-200/90 leading-snug max-w-lg font-medium drop-shadow-xs">
                 Microsecond keyboard billing, 80mm ESC/POS thermal printing, statutory Form O registers, and automated digital Farmer Khata credit recovery.
               </p>
             </div>
 
             {/* 3D Pastoral Showcase Visual Cards */}
-            <div className="grid grid-cols-2 gap-3 pt-0.5">
-              <div className="glass-card-dark rounded-xl p-2.5 border border-white/20 shadow-xl overflow-hidden group">
-                <div className="h-20 lg:h-22 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
+            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+              <div className="glass-card-dark rounded-xl p-2 border border-white/20 shadow-lg overflow-hidden group">
+                <div className="h-16 lg:h-18 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
                   <img 
                     src="/images/pos_3d.jpg" 
                     alt="Fast Counter POS with thermal printer in sunny meadow"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                  <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[8px] font-bold">
+                  <span className="absolute top-1 right-1 px-1.5 py-0.2 rounded-full bg-emerald-600 text-white font-mono text-[8px] font-bold">
                     3-SEC POS
                   </span>
                 </div>
-                <div className="mt-1.5">
-                  <h4 className="text-[11px] font-bold text-white">Rapid Counter Checkout</h4>
-                  <p className="text-[9px] text-emerald-200/80">F1 keystroke &amp; split Cash/UPI</p>
+                <div className="mt-1">
+                  <h4 className="text-[10px] font-bold text-white">Rapid Counter Checkout</h4>
+                  <p className="text-[8px] text-emerald-200/80">F1 keystroke &amp; split Cash/UPI</p>
                 </div>
               </div>
 
-              <div className="glass-card-dark rounded-xl p-2.5 border border-white/20 shadow-xl overflow-hidden group">
-                <div className="h-20 lg:h-22 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
+              <div className="glass-card-dark rounded-xl p-2 border border-white/20 shadow-lg overflow-hidden group">
+                <div className="h-16 lg:h-18 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
                   <img 
                     src="/images/compliance_3d.jpg" 
                     alt="Statutory Form O register with rupee coin in meadow"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                  <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-amber-600 text-white font-mono text-[8px] font-bold">
+                  <span className="absolute top-1 right-1 px-1.5 py-0.2 rounded-full bg-amber-600 text-white font-mono text-[8px] font-bold">
                     FORM O READY
                   </span>
                 </div>
-                <div className="mt-1.5">
-                  <h4 className="text-[11px] font-bold text-white">Fertilizer Compliance</h4>
-                  <p className="text-[9px] text-amber-200/80">FCO 1985 &amp; statutory registers</p>
+                <div className="mt-1">
+                  <h4 className="text-[10px] font-bold text-white">Fertilizer Compliance</h4>
+                  <p className="text-[8px] text-amber-200/80">FCO 1985 &amp; statutory registers</p>
                 </div>
               </div>
             </div>
 
             {/* 4 Feature Value Chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs pt-0.5">
-              <div className="glass-card-dark p-2 rounded-lg border border-white/15 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                <span className="text-[10px] font-bold text-white truncate">GST Invoicing</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs pt-0.5">
+              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
+                <FileText className="w-3 h-3 text-emerald-300 shrink-0" />
+                <span className="text-[9px] font-bold text-white truncate">GST Invoicing</span>
               </div>
-              <div className="glass-card-dark p-2 rounded-lg border border-white/15 flex items-center gap-1.5">
-                <ScanLine className="w-3.5 h-3.5 text-teal-300 shrink-0" />
-                <span className="text-[10px] font-bold text-white truncate">Barcode Scanner</span>
+              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
+                <ScanLine className="w-3 h-3 text-teal-300 shrink-0" />
+                <span className="text-[9px] font-bold text-white truncate">Barcode Scanner</span>
               </div>
-              <div className="glass-card-dark p-2 rounded-lg border border-white/15 flex items-center gap-1.5">
-                <Sprout className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span className="text-[10px] font-bold text-white truncate">Batch Expiry</span>
+              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
+                <Sprout className="w-3 h-3 text-amber-300 shrink-0" />
+                <span className="text-[9px] font-bold text-white truncate">Batch Expiry</span>
               </div>
-              <div className="glass-card-dark p-2 rounded-lg border border-white/15 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-sky-300 shrink-0" />
-                <span className="text-[10px] font-bold text-white truncate">Farmer Khata</span>
+              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
+                <Users className="w-3 h-3 text-sky-300 shrink-0" />
+                <span className="text-[9px] font-bold text-white truncate">Farmer Khata</span>
               </div>
             </div>
           </div>
 
           {/* Right Column: Translucent Action Pane with Luminous Borders */}
           <div className="lg:col-span-5 w-full max-w-md mx-auto order-1 lg:order-2">
-            <div className="glass-card-dark rounded-2xl p-4 sm:p-5 lg:p-4.5 border border-white/25 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+            <div className="glass-card-dark rounded-2xl p-3 sm:p-4 lg:p-3.5 border border-white/25 shadow-2xl relative overflow-hidden backdrop-blur-xl">
               
               {/* Card Header with Animated Seedling Emblem */}
-              <div className="text-center space-y-0.5 mb-2.5 sm:mb-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-md shadow-emerald-950/60 animate-leaf-pulse border border-white/40">
-                  <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
+              <div className="text-center space-y-0.5 mb-2">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-sm shadow-emerald-950/60 animate-leaf-pulse border border-white/40">
+                  <Sprout className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                 </div>
-                <h2 className="font-['Grandstander'] text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-sm">
+                <h2 className="font-['Grandstander'] text-lg sm:text-xl font-black text-white tracking-tight drop-shadow-xs">
                   Welcome Back!
                 </h2>
-                <p className="text-[11px] text-emerald-200/90 font-medium">
+                <p className="text-[10px] text-emerald-200/90 font-medium">
                   Log in to manage your agro-store &amp; billing
                 </p>
               </div>
 
               {/* AWS Console-Style Sign-In Mode Switcher: Shop Owner (Root) vs IAM Staff User */}
-              <div className="mb-2.5 grid grid-cols-2 gap-1 p-0.5 bg-black/40 border border-white/20 rounded-xl">
+              <div className="mb-2 grid grid-cols-2 gap-1 p-0.5 bg-black/40 border border-white/20 rounded-xl">
                 <button
                   type="button"
                   onClick={() => {
                     setLoginMode('owner');
                     setError(null);
                   }}
-                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  className={`py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                     loginMode === 'owner'
-                      ? 'bg-emerald-600 text-white shadow-sm border border-emerald-400/40'
+                      ? 'bg-emerald-600 text-white shadow-xs border border-emerald-400/40'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
@@ -529,9 +529,9 @@ export const LoginPage: React.FC = () => {
                     setLoginMode('iam');
                     setError(null);
                   }}
-                  className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  className={`py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                     loginMode === 'iam'
-                      ? 'bg-slate-800 text-emerald-300 shadow-sm border border-emerald-500/30'
+                      ? 'bg-slate-800 text-emerald-300 shadow-xs border border-emerald-500/30'
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
@@ -541,7 +541,7 @@ export const LoginPage: React.FC = () => {
 
               {/* Error Notification */}
               {error && (
-                <div className="mb-2.5 p-2 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-xs flex items-center gap-2 shadow-md">
+                <div className="mb-2 p-1.5 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-[11px] flex items-center gap-1.5 shadow-md">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
                   <span>{error}</span>
                 </div>
@@ -550,14 +550,14 @@ export const LoginPage: React.FC = () => {
               {loginMode === 'owner' ? (
                 <>
                   {/* PROMINENT GOOGLE SIGN-IN BUTTON (Owner / Root Mode) */}
-                  <div className="mb-2">
+                  <div className="mb-1.5">
                     <button
                       type="button"
                       onClick={handleGoogleSignIn}
                       disabled={isLoading}
-                      className="w-full py-2.5 px-3 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2.5 shadow-md transition-all active:scale-[0.99] disabled:opacity-70 group relative overflow-hidden cursor-pointer"
+                      className="w-full py-2 px-3 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] disabled:opacity-70 group relative overflow-hidden cursor-pointer"
                     >
-                      <svg className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                      <svg className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
                         <path
                           fill="#4285F4"
                           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -575,23 +575,23 @@ export const LoginPage: React.FC = () => {
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span className="tracking-tight text-slate-900 font-extrabold">Sign in with Google</span>
+                      <span className="tracking-tight text-slate-900 font-extrabold text-xs">Sign in with Google</span>
                     </button>
                     {/* Embedded GIS container (if rendered by SDK) */}
                     <div ref={googleBtnRef} className="hidden"></div>
                   </div>
 
                   {/* Divider */}
-                  <div className="relative flex items-center justify-center my-2">
+                  <div className="relative flex items-center justify-center my-1.5">
                     <div className="border-t border-white/20 w-full"></div>
-                    <span className="bg-black/60 backdrop-blur-md px-2.5 text-[9px] font-bold uppercase tracking-wider text-emerald-200/70 absolute rounded-full border border-white/10">
-                      or sign in with shop credentials
+                    <span className="bg-black/60 backdrop-blur-md px-2 text-[8px] font-bold uppercase tracking-wider text-emerald-200/70 absolute rounded-full border border-white/10">
+                      or sign in with credentials
                     </span>
                   </div>
                 </>
               ) : (
-                <div className="mb-2.5 p-2 rounded-xl bg-black/60 text-slate-100 border border-emerald-500/30 text-[10px] flex items-start gap-2">
-                  <KeyRound className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="mb-2 p-1.5 rounded-xl bg-black/60 text-slate-100 border border-emerald-500/30 text-[9px] flex items-start gap-1.5">
+                  <KeyRound className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-white">AWS-Style IAM Staff Console Sign-In</p>
                     <p className="text-slate-300 mt-0.5 leading-tight">
@@ -602,15 +602,15 @@ export const LoginPage: React.FC = () => {
               )}
 
               {/* Login Form with Luminous Fields */}
-              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-2 sm:space-y-2.5" autoComplete="off">
+              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-1.5" autoComplete="off">
                 {loginMode === 'iam' && (
                   <div>
-                    <label htmlFor="login-shop-account-id" className="block text-[11px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-sm">
+                    <label htmlFor="login-shop-account-id" className="block text-[10px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-xs">
                       Shop Account ID or Alias <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-300">
-                        <ShieldCheck className="w-3.5 h-3.5" />
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
+                        <ShieldCheck className="w-3 h-3" />
                       </div>
                       <input
                         id="login-shop-account-id"
@@ -618,7 +618,7 @@ export const LoginPage: React.FC = () => {
                         required
                         value={shopAccountId}
                         onChange={(e) => setShopAccountId(e.target.value.toUpperCase())}
-                        className="luminous-input w-full pl-9 pr-3 py-1.5 text-base sm:text-xs font-mono uppercase h-9"
+                        className="luminous-input w-full pl-8 pr-2.5 py-1 text-base sm:text-xs font-mono uppercase h-8"
                         placeholder="e.g. SHOP-00001 or Shop GSTIN"
                       />
                     </div>
@@ -626,12 +626,12 @@ export const LoginPage: React.FC = () => {
                 )}
 
                 <div>
-                  <label htmlFor="login-username" className="block text-[11px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-sm">
+                  <label htmlFor="login-username" className="block text-[10px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-xs">
                     {loginMode === 'iam' ? 'IAM Username' : 'Email / Mobile / Username'}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-300">
-                      <UserIcon className="w-3.5 h-3.5" />
+                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
+                      <UserIcon className="w-3 h-3" />
                     </div>
                     <input
                       id="login-username"
@@ -641,7 +641,7 @@ export const LoginPage: React.FC = () => {
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="luminous-input w-full pl-9 pr-3 py-1.5 text-base sm:text-xs h-9"
+                      className="luminous-input w-full pl-8 pr-2.5 py-1 text-base sm:text-xs h-8"
                       placeholder={loginMode === 'iam' ? 'e.g. cashier_ravi' : 'Registered email or mobile number'}
                     />
                   </div>
@@ -649,7 +649,7 @@ export const LoginPage: React.FC = () => {
 
                 <div>
                   <div className="flex items-center justify-between mb-0.5">
-                    <label htmlFor="login-password" className="block text-[11px] font-bold text-white uppercase tracking-wider drop-shadow-sm">
+                    <label htmlFor="login-password" className="block text-[10px] font-bold text-white uppercase tracking-wider drop-shadow-xs">
                       Password
                     </label>
                     <button
@@ -658,14 +658,14 @@ export const LoginPage: React.FC = () => {
                         setForgotIdentifier(username);
                         setShowForgotModal(true);
                       }}
-                      className="text-[11px] font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer drop-shadow-sm"
+                      className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer drop-shadow-xs"
                     >
                       Forgot Password?
                     </button>
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-300">
-                      <Lock className="w-3.5 h-3.5" />
+                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
+                      <Lock className="w-3 h-3" />
                     </div>
                     <input
                       id="login-password"
@@ -674,13 +674,13 @@ export const LoginPage: React.FC = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="luminous-input w-full pl-9 pr-9 py-1.5 text-base sm:text-xs h-9"
+                      className="luminous-input w-full pl-8 pr-8 py-1 text-base sm:text-xs h-8"
                       placeholder="Enter master password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-2 text-emerald-300 hover:text-white p-0.5 cursor-pointer"
+                      className="absolute right-2 top-1.5 text-emerald-300 hover:text-white p-0.5 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
@@ -688,10 +688,10 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 {/* Server-Side Cryptographic CAPTCHA Verification */}
-                <div className="p-2 rounded-xl bg-black/40 border border-white/20 space-y-1.5">
+                <div className="p-1.5 rounded-xl bg-black/40 border border-white/20 space-y-1">
                   <div className="flex items-center justify-between">
-                    <label htmlFor="login-captcha" className="text-[10px] font-bold text-white flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <label htmlFor="login-captcha" className="text-[9px] font-bold text-white flex items-center gap-1">
+                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
                       <span>Security Verification (CAPTCHA)</span>
                     </label>
                     <button
@@ -701,16 +701,16 @@ export const LoginPage: React.FC = () => {
                       }}
                       disabled={captchaLoading}
                       title="Generate new security challenge"
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300 hover:text-emerald-100 disabled:opacity-50 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-300 hover:text-emerald-100 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       <RefreshCw className={`w-2.5 h-2.5 ${captchaLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-12 gap-2 items-center">
+                  <div className="grid grid-cols-12 gap-1.5 items-center">
                     {/* Server-Rendered Distorted Raster Image */}
-                    <div className="col-span-7 relative h-9 rounded-lg overflow-hidden border border-white/30 bg-black/60 flex items-center justify-center shadow-inner select-none">
+                    <div className="col-span-7 relative h-8 rounded-lg overflow-hidden border border-white/30 bg-black/60 flex items-center justify-center shadow-inner select-none">
                       {captchaImage ? (
                         <img
                           src={captchaImage}
@@ -722,7 +722,7 @@ export const LoginPage: React.FC = () => {
                           }`}
                         />
                       ) : (
-                        <span className="text-[10px] text-slate-300 font-medium">
+                        <span className="text-[9px] text-slate-300 font-medium">
                           {captchaLoading ? 'Generating...' : 'Unavailable'}
                         </span>
                       )}
@@ -742,16 +742,16 @@ export const LoginPage: React.FC = () => {
                           const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
                           setCaptchaCode(sanitized);
                         }}
-                        className="luminous-input w-full h-9 px-2 text-center font-mono text-base font-black tracking-[0.15em] text-white uppercase"
+                        className="luminous-input w-full h-8 px-1.5 text-center font-mono text-sm font-black tracking-[0.12em] text-white uppercase"
                         placeholder="6-CHAR"
                       />
                       {captchaCode.length === 6 && (
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400 absolute right-1.5 top-1 pointer-events-none" />
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400 absolute right-1 top-2 pointer-events-none" />
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-[9px] text-slate-300">
+                  <div className="flex items-center justify-between text-[8px] text-slate-300">
                     <span>Type characters from image</span>
                     <span className="font-mono font-semibold text-emerald-300">{captchaCode.length}/6</span>
                   </div>
@@ -761,11 +761,11 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading || captchaCode.length !== 6}
-                  className="meadow-cta-btn w-full mt-1 py-2.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 shadow-xl cursor-pointer min-h-[44px]"
+                  className="meadow-cta-btn w-full mt-1 py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 shadow-lg cursor-pointer min-h-[40px] sm:min-h-[36px]"
                 >
                   {isLoading ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Signing In...</span>
                     </>
                   ) : (
@@ -777,13 +777,13 @@ export const LoginPage: React.FC = () => {
               </form>
 
               {/* Registration CTA Link */}
-              <div className="mt-2.5 pt-2 border-t border-white/15 text-center space-y-1">
-                <p className="text-[11px] text-slate-200">
+              <div className="mt-1.5 pt-1.5 border-t border-white/15 text-center space-y-0.5">
+                <p className="text-[10px] text-slate-200">
                   Don&apos;t have an account?
                 </p>
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-1 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full border border-white/30 transition-all w-full shadow-sm"
+                  className="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-full border border-white/30 transition-all w-full shadow-xs"
                 >
                   <Sparkles className="w-3 h-3 text-emerald-300" />
                   <span>Start Free / Create Store Account →</span>
