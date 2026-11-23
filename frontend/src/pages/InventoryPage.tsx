@@ -484,7 +484,7 @@ export const InventoryPage: React.FC = () => {
   };
 
   // Curated Fallback Batches when catalog is loading or has few rows
-  const displayBatches = filteredProducts.length > 0 ? filteredProducts : [
+  const displayBatches: Product[] = filteredProducts.length > 0 ? filteredProducts : [
     {
       id: 1,
       name: 'Bayer Regent 0.3G',
@@ -503,6 +503,7 @@ export const InventoryPage: React.FC = () => {
       gst_rate: 18,
       category: 'Pesticide',
       min_stock_level: 10,
+      is_active: true,
     },
     {
       id: 2,
@@ -522,6 +523,7 @@ export const InventoryPage: React.FC = () => {
       gst_rate: 18,
       category: 'Pesticide',
       min_stock_level: 15,
+      is_active: true,
     },
     {
       id: 3,
@@ -541,6 +543,7 @@ export const InventoryPage: React.FC = () => {
       gst_rate: 5,
       category: 'Fertilizer',
       min_stock_level: 50,
+      is_active: true,
     },
     {
       id: 4,
@@ -560,6 +563,7 @@ export const InventoryPage: React.FC = () => {
       gst_rate: 5,
       category: 'Fertilizer',
       min_stock_level: 100,
+      is_active: true,
     },
     {
       id: 5,
@@ -579,6 +583,7 @@ export const InventoryPage: React.FC = () => {
       gst_rate: 18,
       category: 'Pesticide',
       min_stock_level: 20,
+      is_active: true,
     },
   ];
 
