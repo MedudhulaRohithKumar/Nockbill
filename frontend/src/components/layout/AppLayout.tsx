@@ -60,7 +60,6 @@ export const AppLayout: React.FC = () => {
   const location = useLocation();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [drawerCash, setDrawerCash] = useState<number>(42850);
   const [isRefreshingTelemetry, setIsRefreshingTelemetry] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -96,16 +95,13 @@ export const AppLayout: React.FC = () => {
 
   const isOwner = (user?.role || '').toLowerCase() === 'owner';
 
-  // Fetch live counter cash drawer telemetry from reports API
+  // Fetch live counter telemetry
   const fetchTelemetry = useCallback(async () => {
     setIsRefreshingTelemetry(true);
     try {
-      const summary = await reportsApi.getDashboard();
-      if (summary && typeof summary.today_sales === 'number') {
-        setDrawerCash(summary.today_sales > 0 ? summary.today_sales : 42850);
-      }
+      await reportsApi.getDashboard();
     } catch {
-      // Graceful fallback to default counter float balance
+      // Telemetry sync
     } finally {
       setIsRefreshingTelemetry(false);
     }
@@ -545,19 +541,6 @@ export const AppLayout: React.FC = () => {
 
         {/* Right: Live Telemetry Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Real-time Till / Drawer Cash Balance */}
-          <div className="flex items-center gap-2 rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 px-2.5 sm:px-3 py-1.5 shadow-2xs">
-            <Banknote className="h-4 w-4 text-forest-emerald shrink-0" />
-            <div className="text-left">
-              <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-outline dark:text-slate-400">
-                Drawer Cash
-              </div>
-              <div className="font-mono text-xs sm:text-sm font-black text-on-surface dark:text-white">
-                ₹{formatCurrency(drawerCash, 0)}
-              </div>
-            </div>
-          </div>
-
           {/* Central Govt Cloud Sync Indicator */}
           <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
             <ShieldCheck className="h-4 w-4 text-forest-emerald" />

@@ -29,6 +29,7 @@ import {
   Sun,
   Minus,
   Send,
+  Package,
 } from 'lucide-react';
 import {
   reportsApi,
@@ -107,7 +108,7 @@ export const DashboardPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [selectedTender, setSelectedTender] = useState<'UPI' | 'Cash' | 'Credit'>('UPI');
-  const [selectedCustomerName, setSelectedCustomerName] = useState('Ramesh B. Gowda');
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string>('');
   const [isDockVisible, setIsDockVisible] = useState(true);
   const [thermalFeedbackMsg, setThermalFeedbackMsg] = useState<string | null>(null);
 
@@ -322,35 +323,23 @@ export const DashboardPage: React.FC = () => {
     return cashSales.reduce((acc, s) => acc + safeNumber(s.grand_total), 0);
   }, [recentSales]);
 
-  // Fertilizer MT & Quota calculation from real products
-  const fertilizerMetrics = useMemo(() => {
-    const fertProducts = allProducts.filter((p) =>
-      (p.category || '').toLowerCase().includes('fertilizer')
-    );
-    const totalBags = fertProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
-    const metricTons = (totalBags * 45) / 1000;
-    const ureaProducts = fertProducts.filter((p) =>
-      (p.name || p.product_name || '').toLowerCase().includes('urea')
-    );
-    const dapProducts = fertProducts.filter((p) =>
-      (p.name || p.product_name || '').toLowerCase().includes('dap')
-    );
-    const ureaStock = ureaProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
-    const dapStock = dapProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
+  // Real inventory metrics calculation from live database products
+  const inventoryMetrics = useMemo(() => {
+    const totalStockQty = allProducts.reduce((acc, p) => acc + safeNumber(p.current_stock), 0);
+    const inStockCount = allProducts.filter((p) => safeNumber(p.current_stock) > 0).length;
+    const outOfStockCount = allProducts.filter((p) => safeNumber(p.current_stock) <= 0).length;
     return {
-      metricTons: metricTons > 0 ? metricTons : 14.8,
-      ureaStock: ureaStock > 0 ? ureaStock : 420,
-      ureaQuota: 500,
-      dapStock: dapStock > 0 ? dapStock : 180,
-      dapQuota: 200,
-      quotaPercent: 84,
+      totalStockQty,
+      inStockCount,
+      outOfStockCount,
+      totalSkus: allProducts.length,
     };
   }, [allProducts]);
 
   // Velocity payment distribution
   const paymentVelocity = useMemo(() => {
     if (recentSales.length === 0) {
-      return { upiPct: 58, cashPct: 26, khataPct: 16 };
+      return { upiPct: 0, cashPct: 0, khataPct: 0 };
     }
     let upi = 0;
     let cash = 0;
@@ -362,7 +351,7 @@ export const DashboardPage: React.FC = () => {
       else khata += sale.grand_total;
     }
     const total = upi + cash + khata;
-    if (total <= 0) return { upiPct: 58, cashPct: 26, khataPct: 16 };
+    if (total <= 0) return { upiPct: 0, cashPct: 0, khataPct: 0 };
     return {
       upiPct: Math.round((upi / total) * 100),
       cashPct: Math.round((cash / total) * 100),
@@ -592,120 +581,126 @@ export const DashboardPage: React.FC = () => {
         ======================================================================= */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Counter Velocity */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Counter Velocity</span>
-              <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Counter Velocity</span>
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-700 dark:text-emerald-300">
                 <TrendingUp className="h-4 w-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
                 ₹{formatCurrency(summary?.today_sales || 0, 2)}
               </span>
-              <span className="text-xs font-bold text-emerald-600">↑ +14.2%</span>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                {summary?.today_bills ? `+${summary.today_bills} bills` : 'Ready'}
+              </span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
               {summary?.today_bills || 0} Invoices • Avg Basket ₹
               {summary?.today_bills && summary.today_bills > 0
                 ? formatCurrency(summary.today_sales / summary.today_bills, 2)
-                : '1772.00'}
+                : '0.00'}
             </p>
             {/* Multi-segment Payment Bar */}
             <div className="mt-3">
-              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                 <div style={{ width: `${paymentVelocity.upiPct}%` }} className="bg-emerald-500" title={`UPI: ${paymentVelocity.upiPct}%`}></div>
-                <div style={{ width: `${paymentVelocity.cashPct}%` }} className="bg-emerald-800" title={`Cash: ${paymentVelocity.cashPct}%`}></div>
+                <div style={{ width: `${paymentVelocity.cashPct}%` }} className="bg-emerald-800 dark:bg-emerald-600" title={`Cash: ${paymentVelocity.cashPct}%`}></div>
                 <div style={{ width: `${paymentVelocity.khataPct}%` }} className="bg-amber-500" title={`Khata: ${paymentVelocity.khataPct}%`}></div>
               </div>
-              <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400">
-                <span className="text-emerald-700">UPI: {paymentVelocity.upiPct}%</span>
-                <span className="text-emerald-900">Cash: {paymentVelocity.cashPct}%</span>
-                <span className="text-amber-600">Khata: {paymentVelocity.khataPct}%</span>
+              <div className="mt-1 flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500">
+                <span className="text-emerald-700 dark:text-emerald-400">UPI: {paymentVelocity.upiPct}%</span>
+                <span className="text-emerald-900 dark:text-emerald-300">Cash: {paymentVelocity.cashPct}%</span>
+                <span className="text-amber-600 dark:text-amber-400">Khata: {paymentVelocity.khataPct}%</span>
               </div>
             </div>
           </div>
 
           {/* Card 2: FIFO Expiry Radar */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">FIFO Expiry Radar</span>
-              <div className="rounded-xl bg-red-50 p-2 text-red-600">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">FIFO Expiry Radar</span>
+              <div className="rounded-xl bg-red-50 dark:bg-red-950/60 p-2 text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-4 w-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
                 {displayedExpiryProducts.length} Batches
               </span>
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">
+              <span className="rounded-full bg-red-100 dark:bg-red-950/60 px-2 py-0.5 text-[10px] font-black text-red-700 dark:text-red-300">
                 &lt;30 Days
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Value at Risk: <strong className="text-slate-800">₹{formatCurrency(valueAtRisk, 2)}</strong>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Value at Risk: <strong className="text-slate-800 dark:text-slate-200">₹{formatCurrency(valueAtRisk, 2)}</strong>
             </p>
-            <div className="mt-3 flex items-center justify-between rounded-xl bg-red-50/60 border border-red-100 p-2 text-[11px]">
-              <span className="truncate font-semibold text-slate-800">
-                {displayedExpiryProducts[0]?.name || 'Bayer Regent 0.3G...'}
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-red-50/60 dark:bg-red-950/40 border border-red-100 dark:border-red-900/60 p-2 text-[11px]">
+              <span className="truncate font-semibold text-slate-800 dark:text-slate-200">
+                {displayedExpiryProducts[0]?.name || 'All batches healthy'}
               </span>
-              <span className="shrink-0 rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-bold text-red-800">
-                Clearance 15%
-              </span>
+              {displayedExpiryProducts.length > 0 && (
+                <span className="shrink-0 rounded bg-red-200 dark:bg-red-900/80 px-1.5 py-0.5 text-[10px] font-bold text-red-800 dark:text-red-200">
+                  Near Expiry
+                </span>
+              )}
             </div>
           </div>
 
           {/* Card 3: Farmer Credit Ledger */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Farmer Credit Ledger</span>
-              <div className="rounded-xl bg-amber-50 p-2 text-amber-700">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Farmer Credit Ledger</span>
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-950/60 p-2 text-amber-700 dark:text-amber-400">
                 <BookOpen className="h-4 w-4" />
               </div>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-slate-900 font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
                 ₹{formatCurrency(khataSummary?.total_outstanding_udhar || 0, 0)}
               </span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
-                94.6% Rate
+              <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-black text-emerald-800 dark:text-emerald-300">
+                {khataSummary?.total_customers || 0} Growers
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">
-              Today Collected: <strong className="text-emerald-700 font-mono">₹48,200</strong>
+            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              Today Cash Inward: <strong className="text-emerald-700 dark:text-emerald-400 font-mono">₹{formatCurrency(todayCashAmount, 0)}</strong>
             </p>
-            <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700">
+            <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Auto WhatsApp Recovers Active</span>
+              <span>WhatsApp Reminders Ready</span>
             </div>
           </div>
 
-          {/* Card 4: Statutory Govt Quota */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="flex items-center justify-between text-slate-500 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">Statutory Govt Quota</span>
-              <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
-                <ShieldCheck className="h-4 w-4" />
+          {/* Card 4: Store Inventory */}
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Store Inventory</span>
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-700 dark:text-blue-300">
+                <Package className="h-4 w-4" />
               </div>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-900">Form O: 84%</span>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                Form M 100%
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                {inventoryMetrics.totalSkus} SKUs
+              </span>
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                {inventoryMetrics.inStockCount} In Stock
               </span>
             </div>
-            {/* Quota Progress */}
-            <div className="mt-2 space-y-1.5 text-[11px]">
-              <div className="flex justify-between text-slate-600">
-                <span>Neem Urea 45kg:</span>
-                <span className="font-mono font-bold">{fertilizerMetrics.ureaStock} / {fertilizerMetrics.ureaQuota} Bags</span>
+            <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 dark:text-slate-300">
+              <div className="flex justify-between">
+                <span>Total Units in Stock:</span>
+                <span className="font-mono font-bold">{inventoryMetrics.totalStockQty} Units</span>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full" style={{ width: '84%' }}></div>
+              <div className="flex justify-between">
+                <span>Near Expiry Batches:</span>
+                <span className="font-mono font-bold text-red-600 dark:text-red-400">{nearExpiryProducts.length} Batches</span>
               </div>
             </div>
-            <p className="mt-2 text-[10px] text-slate-500 truncate">
-              DAP 18:46:0: {fertilizerMetrics.dapStock}/{fertilizerMetrics.dapQuota} CIB-RC Compliant
+            <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500 truncate">
+              {summary?.low_stock_count || 0} items low stock • FIFO tracking active
             </p>
           </div>
         </section>
@@ -715,35 +710,39 @@ export const DashboardPage: React.FC = () => {
         ======================================================================= */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left: Counter Fast-Till POS Terminal (8 Cols) */}
-          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
             {/* Header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-700">
+                <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 p-2.5 text-emerald-700 dark:text-emerald-300">
                   <Printer className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                     Counter Fast-Till POS Terminal
                   </h3>
-                  <p className="text-xs text-slate-500">Live Session • Cash Drawer #01 Connected</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Live Session • Cash Drawer Connected</p>
                 </div>
               </div>
 
               {/* Farmer Badge */}
-              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-1.5">
-                <BadgeCheck className="h-4 w-4 text-emerald-600" />
+              <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 px-3 py-1.5">
+                <BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 <div className="text-left text-xs">
-                  <span className="font-bold text-slate-900">{selectedCustomerName}</span>
-                  <div className="text-[10px] text-emerald-700 font-semibold">Registered Farmer • Active Credit</div>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {selectedCustomerName || 'Walk-in Customer'}
+                  </span>
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                    {selectedCustomerName ? 'Registered Farmer • Active Credit' : 'Counter Till • Instant Bill'}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Omnibar Search / Barcode Input */}
             <div className="relative mt-4">
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
-                <ScanLine className="h-5 w-5 text-slate-400 shrink-0" />
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800 px-3.5 py-2.5 focus-within:border-emerald-600 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+                <ScanLine className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -754,12 +753,12 @@ export const DashboardPage: React.FC = () => {
                     }
                   }}
                   placeholder="Scan Bag Barcode or Search Formula: 'Neem Urea', 'Glyphosate 41%', 'Hybrid Seeds'..."
-                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none"
+                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(true)}
-                  className="shrink-0 rounded-xl bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800 hover:bg-emerald-200 transition"
+                  className="shrink-0 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 transition"
                 >
                   Auto-Scan
                 </button>
@@ -767,23 +766,23 @@ export const DashboardPage: React.FC = () => {
 
               {/* Dropdown Suggestions */}
               {searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1.5 shadow-xl">
                   {searchResults.map((prod) => (
                     <button
                       key={prod.id}
                       type="button"
                       onClick={() => stageProduct(prod)}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs hover:bg-emerald-50 transition"
+                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
                     >
                       <div>
-                        <div className="font-bold text-slate-900">{prod.name}</div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="font-bold text-slate-900 dark:text-white">{prod.name}</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
                           {prod.company_name || prod.category} • Batch: {prod.batch_number || 'STK'} • Stock: {prod.current_stock} {prod.unit}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-black text-emerald-800 font-mono">₹{formatCurrency(prod.selling_price || prod.mrp)}</div>
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">Stage +</span>
+                        <div className="font-black text-emerald-800 dark:text-emerald-300 font-mono">₹{formatCurrency(prod.selling_price || prod.mrp)}</div>
+                        <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1 rounded">Stage +</span>
                       </div>
                     </button>
                   ))}
@@ -793,9 +792,9 @@ export const DashboardPage: React.FC = () => {
 
             {/* Staged Items List */}
             <div className="mt-4">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
-                <span>STAGED ITEMS FOR {selectedCustomerName.toUpperCase()} ({stagedItems.length} ITEMS)</span>
-                <span className="font-mono text-slate-700">PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
+                <span>STAGED ITEMS {selectedCustomerName ? `FOR ${selectedCustomerName.toUpperCase()}` : ''} ({stagedItems.length} ITEMS)</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300">PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
               </div>
 
               {stagedItems.length > 0 ? (
@@ -805,48 +804,48 @@ export const DashboardPage: React.FC = () => {
                     return (
                       <div
                         key={`${item.product_id}-${item.batch_number}-${idx}`}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5 transition hover:border-slate-300"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 p-3.5 transition hover:border-slate-300 dark:hover:border-slate-700"
                       >
                         <div className="flex items-start gap-3">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-900">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-[11px] font-black text-emerald-900 dark:text-emerald-200">
                             {String(idx + 1).padStart(2, '0')}
                           </span>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.product_name}</h4>
-                              <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-800">
+                              <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">{item.product_name}</h4>
+                              <span className="rounded bg-blue-100 dark:bg-blue-950/60 px-1.5 py-0.2 text-[9px] font-bold text-blue-800 dark:text-blue-300">
                                 {item.category}
                               </span>
                             </div>
-                            <div className="mt-0.5 text-[10px] text-slate-500">
-                              Batch: <strong className="text-slate-700">{item.batch_number}</strong> • MRP: ₹{formatCurrency(item.mrp)} • GST: {item.gst_rate}%
+                            <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                              Batch: <strong className="text-slate-700 dark:text-slate-300">{item.batch_number}</strong> • MRP: ₹{formatCurrency(item.mrp)} • GST: {item.gst_rate}%
                             </div>
                           </div>
                         </div>
 
                         {/* Quantity Stepper & Price */}
                         <div className="flex items-center justify-between sm:justify-end gap-3">
-                          <div className="flex items-center rounded-xl border border-slate-200 bg-white">
+                          <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                             <button
                               type="button"
                               onClick={() => updateStagedQty(idx, -1)}
-                              className="px-2.5 py-1 text-slate-500 hover:text-slate-800 active:scale-95"
+                              className="px-2.5 py-1 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white active:scale-95"
                             >
                               <Minus className="h-3 w-3" />
                             </button>
-                            <span className="px-2 font-mono text-xs font-bold text-slate-900">
+                            <span className="px-2 font-mono text-xs font-bold text-slate-900 dark:text-white">
                               {item.quantity} {item.unit}
                             </span>
                             <button
                               type="button"
                               onClick={() => updateStagedQty(idx, 1)}
-                              className="px-2.5 py-1 text-slate-500 hover:text-slate-800 active:scale-95"
+                              className="px-2.5 py-1 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white active:scale-95"
                             >
                               <Plus className="h-3 w-3" />
                             </button>
                           </div>
 
-                          <div className="font-mono text-sm font-black text-slate-900 w-24 text-right">
+                          <div className="font-mono text-sm font-black text-slate-900 dark:text-white w-24 text-right">
                             ₹{formatCurrency(lineTotal, 2)}
                           </div>
 
@@ -864,10 +863,10 @@ export const DashboardPage: React.FC = () => {
                   })}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-500">
-                  <p className="font-semibold text-slate-700">Fast-till is ready for rapid 3-second billing</p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Scan a bag barcode above, search a molecule, or select frequently sold items to stage them on counter.
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">Fast-till is ready for rapid billing</p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                    Scan a bag barcode above, search a molecule, or select in-stock items to stage them on counter.
                   </p>
                   {allProducts.length > 0 && (
                     <div className="mt-3 flex flex-wrap justify-center gap-1.5">
@@ -876,7 +875,7 @@ export const DashboardPage: React.FC = () => {
                           key={p.id}
                           type="button"
                           onClick={() => stageProduct(p)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 transition"
+                          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-emerald-300 hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
                         >
                           + {p.name}
                         </button>
@@ -888,16 +887,16 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Bottom Tender & Action Bar */}
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800 pt-4">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500">Payment Tender:</span>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Payment Tender:</span>
                 <button
                   type="button"
                   onClick={() => setSelectedTender('UPI')}
                   className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                     selectedTender === 'UPI'
                       ? 'bg-emerald-700 text-white shadow'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   UPI QR [F4]
@@ -908,7 +907,7 @@ export const DashboardPage: React.FC = () => {
                   className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                     selectedTender === 'Cash'
                       ? 'bg-emerald-700 text-white shadow'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   Cash [F5]
@@ -919,7 +918,7 @@ export const DashboardPage: React.FC = () => {
                   className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                     selectedTender === 'Credit'
                       ? 'bg-amber-600 text-white shadow'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   Add to Khata [F6]
@@ -929,7 +928,7 @@ export const DashboardPage: React.FC = () => {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Payable Total</div>
-                  <div className="font-mono text-xl font-black text-slate-900">
+                  <div className="font-mono text-xl font-black text-slate-900 dark:text-white">
                     ₹{formatCurrency(fastTillTotals.payableTotal, 2)}
                   </div>
                 </div>
@@ -947,97 +946,78 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           {/* Right: Agri Doctor AI Lens (4 Cols) */}
-          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700">
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-700 dark:text-emerald-300">
                   <Microscope className="h-4 w-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black text-slate-900">Agri Doctor AI Lens</h3>
-                    <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Agri Doctor AI Lens</h3>
+                    <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                       v3.2
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Real-Time Crop Pathology</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Real-Time Crop Pathology</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAgriDoctorOpen(true)}
-                className="flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-200"
+                className="flex items-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
               >
-                <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                <Sparkles className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
                 <span>Scan Leaf</span>
               </button>
             </div>
 
-            <p className="text-[11px] text-slate-500 leading-snug">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
               Diagnosed from inbound grower photos via WhatsApp bot. Click prescription to load bill instantly.
             </p>
 
-            {/* Diagnosis Card 1: Paddy BPH */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-black text-emerald-800 text-[10px] uppercase tracking-wider">Crop: Paddy (Rice)</span>
-                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">96% Match</span>
-              </div>
-              <h4 className="text-xs font-bold text-slate-900">Brown Plant Hopper (BPH)</h4>
-              <p className="text-[10px] text-slate-500">Farmer: T. Narayana (Hosur)</p>
-
-              <div className="rounded-xl bg-white p-2.5 border border-slate-200/70 text-[11px] space-y-1">
-                <div className="font-semibold text-slate-800">
-                  Prescribed Molecule: <span className="font-mono text-emerald-800">Pymetrozine 50% WDG @ 120g/acre</span>
+            {/* Real Advisories from Database / Backend */}
+            {advisories.length > 0 ? (
+              advisories.slice(0, 2).map((adv, aIdx) => (
+                <div key={aIdx} className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-black text-emerald-800 dark:text-emerald-300 text-[10px] uppercase tracking-wider">Crop: {adv.crop_name}</span>
+                    <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">Active</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">{adv.pest_disease}</h4>
+                  <div className="rounded-xl bg-white dark:bg-slate-900 p-2.5 border border-slate-200/70 dark:border-slate-800 text-[11px] space-y-1">
+                    <div className="font-semibold text-slate-800 dark:text-slate-200">
+                      Prescribed Molecule: <span className="font-mono text-emerald-700 dark:text-emerald-400">{adv.technical_molecule}</span>
+                    </div>
+                    {adv.matching_products && adv.matching_products.length > 0 && (
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold truncate max-w-[160px]">
+                          In Stock: {adv.matching_products[0].product_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const match = allProducts.find((p) => p.id === adv.matching_products[0].id);
+                            if (match) stageProduct(match);
+                          }}
+                          className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold shadow-xs"
+                        >
+                          + Bill Medicine
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] text-emerald-700 font-semibold">
-                    In Stock: Chess 50g (34 pkts)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const match = allProducts.find((p) => (p.name || '').toLowerCase().includes('chess')) || allProducts[0];
-                      if (match) stageProduct(match);
-                    }}
-                    className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold shadow-sm"
-                  >
-                    + Bill Medicine
-                  </button>
-                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                <Microscope className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="font-semibold text-slate-700 dark:text-slate-300">No active disease outbreaks</p>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  Click 'Scan Leaf' to diagnose crop symptoms or trigger instant molecular prescription.
+                </p>
               </div>
-            </div>
-
-            {/* Diagnosis Card 2: Chilli Thrips */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-black text-amber-800 text-[10px] uppercase tracking-wider">Crop: Byadagi Chilli</span>
-                <span className="rounded bg-amber-100 px-1.5 py-0.2 text-[10px] font-bold text-amber-800">91% Match</span>
-              </div>
-              <h4 className="text-xs font-bold text-slate-900">Thrips &amp; Mite Leaf Curl</h4>
-              <p className="text-[10px] text-slate-500">Farmer: K. Veerappa (Ranebennur)</p>
-
-              <div className="rounded-xl bg-white p-2.5 border border-slate-200/70 text-[11px] space-y-1">
-                <div className="font-semibold text-slate-800">
-                  Prescribed Molecule: <span className="font-mono text-amber-800">Diafenthiuron 50% WP @ 250g/acre</span>
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[10px] text-emerald-700 font-semibold">
-                    In Stock: Pegasus 250g (19 pkts)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const match = allProducts.find((p) => (p.name || '').toLowerCase().includes('pegasus')) || allProducts[0];
-                      if (match) stageProduct(match);
-                    }}
-                    className="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white px-2.5 py-1 text-[10px] font-bold shadow-sm"
-                  >
-                    + Bill Medicine
-                  </button>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </section>
 
@@ -1046,35 +1026,35 @@ export const DashboardPage: React.FC = () => {
         ======================================================================= */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left: Batch Expiry & FIFO Inventory Control Table (8 Cols) */}
-          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-2xl bg-red-50 p-2.5 text-red-600">
+                <div className="rounded-2xl bg-red-50 dark:bg-red-950/60 p-2.5 text-red-600 dark:text-red-400">
                   <Clock className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-slate-900 tracking-tight">
+                    <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                       Batch Expiry &amp; FIFO Inventory Control
                     </h3>
-                    <span className="rounded bg-red-100 px-1.5 py-0.2 text-[9px] font-black text-red-700">
+                    <span className="rounded bg-red-100 dark:bg-red-950/60 px-1.5 py-0.2 text-[9px] font-black text-red-700 dark:text-red-300">
                       Strict FIFO
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500">Automated Price Markdowns &amp; Distributor Return Slips</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Automated Price Markdowns &amp; Distributor Return Slips</p>
                 </div>
               </div>
 
               {/* Filters */}
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400 font-semibold">Filter:</span>
+                <span className="text-slate-400 dark:text-slate-500 font-semibold">Filter:</span>
                 <button
                   type="button"
                   onClick={() => setExpiryFilter('critical')}
                   className={`rounded-xl px-2.5 py-1 font-bold transition ${
                     expiryFilter === 'critical'
                       ? 'bg-red-600 text-white shadow'
-                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      : 'border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   &lt;30d Critical
@@ -1085,7 +1065,7 @@ export const DashboardPage: React.FC = () => {
                   className={`rounded-xl px-2.5 py-1 font-bold transition ${
                     expiryFilter === 'all'
                       ? 'bg-slate-800 text-white shadow'
-                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      : 'border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   }`}
                 >
                   All Warehouses
@@ -1096,7 +1076,7 @@ export const DashboardPage: React.FC = () => {
             {/* Table */}
             <div className="mt-4 overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                <thead className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider">
                   <tr>
                     <th className="py-2.5 px-3">Product &amp; Formula</th>
                     <th className="py-2.5 px-3">Manufacturer</th>
@@ -1106,46 +1086,46 @@ export const DashboardPage: React.FC = () => {
                     <th className="py-2.5 px-3 text-right">Counter Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {displayedExpiryProducts.length > 0 ? (
                     displayedExpiryProducts.slice(0, 5).map((prod) => {
                       const days = prod.calculatedDays ?? 30;
                       const isCritical = days <= 30;
                       const isWarning = days > 30 && days <= 60;
                       return (
-                        <tr key={prod.id} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={prod.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="py-3 px-3">
-                            <div className="font-bold text-slate-900">{prod.name}</div>
-                            <div className="text-[10px] text-slate-500">{prod.trade_name || prod.category}</div>
+                            <div className="font-bold text-slate-900 dark:text-white">{prod.name}</div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">{prod.trade_name || prod.category}</div>
                           </td>
-                          <td className="py-3 px-3 font-medium text-slate-700">
+                          <td className="py-3 px-3 font-medium text-slate-700 dark:text-slate-300">
                             {prod.company_name || 'Agro Manufacturer'}
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-600">
-                            <div>{prod.batch_number || 'BR-411'}</div>
-                            <div className="text-[10px] text-slate-400">HSN: {prod.hsn_code || '380891'}</div>
+                          <td className="py-3 px-3 font-mono text-slate-600 dark:text-slate-400">
+                            <div>{prod.batch_number || 'STK'}</div>
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500">HSN: {prod.hsn_code || '380891'}</div>
                           </td>
                           <td className="py-3 px-3">
                             <span
                               className={`inline-block rounded-lg px-2 py-0.5 text-[10px] font-black ${
                                 isCritical
-                                  ? 'bg-red-100 text-red-700'
+                                  ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300'
                                   : isWarning
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                  : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
                               }`}
                             >
                               {days} Days {isCritical ? 'Remaining' : isWarning ? '(FIFO First)' : 'Healthy'}
                             </span>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              {prod.expiry_date || 'Oct 14, 2024'}
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                              {prod.expiry_date || 'No Expiry Set'}
                             </div>
                           </td>
                           <td className="py-3 px-3">
-                            <div className="font-bold text-slate-900">
+                            <div className="font-bold text-slate-900 dark:text-white">
                               {prod.current_stock} {prod.unit}
                             </div>
-                            <div className="text-[10px] text-slate-400 font-mono">
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                               Val: ₹{formatCurrency(safeNumber(prod.current_stock) * safeNumber(prod.selling_price || prod.mrp), 0)}
                             </div>
                           </td>
@@ -1162,7 +1142,7 @@ export const DashboardPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => stageProduct(prod)}
-                                className="rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 text-[11px] transition active:scale-95"
+                                className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold px-3 py-1.5 text-[11px] transition active:scale-95"
                               >
                                 Push to Counter
                               </button>
@@ -1173,7 +1153,7 @@ export const DashboardPage: React.FC = () => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                      <td colSpan={6} className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
                         All batches healthy — 0 items expiring within 60 days. FIFO auto-rotation active.
                       </td>
                     </tr>
@@ -1184,30 +1164,30 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           {/* Right: Statutory Audit Registers (4 Cols) */}
-          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <div className="rounded-xl bg-blue-50 p-2 text-blue-700">
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-700 dark:text-blue-300">
                 <ShieldCheck className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900">Statutory Audit Registers</h3>
-                <p className="text-[10px] text-slate-500">Form O &amp; Pesticide Stock Registers</p>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Statutory Audit Registers</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Form O &amp; Pesticide Stock Registers</p>
               </div>
             </div>
 
             {/* Card 1: Fertilizer Form O */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 space-y-2.5">
+            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <h4 className="font-bold text-slate-900">Fertilizer Form O (MFMS &amp; FCO 1985)</h4>
-                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                <h4 className="font-bold text-slate-900 dark:text-white">Fertilizer Form O (MFMS &amp; FCO 1985)</h4>
+                <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                   100% Audited
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 leading-snug">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
                 Reconciled against MFMS Point-of-Sale logs. Total retail quota matched within 0.02% tolerance.
               </p>
               <div className="flex items-center justify-between pt-1 text-xs">
-                <span className="text-[11px] font-semibold text-slate-600">Govt Inspector Seal: Ready</span>
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Govt Inspector Seal: Ready</span>
                 <button
                   type="button"
                   onClick={handleDownloadFormO}
@@ -1220,22 +1200,22 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Card 2: Pesticide Form M */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 space-y-2.5">
+            <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <h4 className="font-bold text-slate-900">Pesticide Form M &amp; CIB</h4>
-                <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                <h4 className="font-bold text-slate-900 dark:text-white">Pesticide Form M &amp; CIB</h4>
+                <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                   100% CIB-RC
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 leading-snug">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
                 Zero banned chemicals detected. All active batches cross-verified against Central Insecticide Board database.
               </p>
               <div className="flex items-center justify-between pt-1 text-xs">
-                <span className="text-[11px] font-semibold text-slate-600">B2B E-Way: 14 Syncs OK</span>
+                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">B2B E-Way: 14 Syncs OK</span>
                 <button
                   type="button"
                   onClick={() => navigate('/khata?tab=catalog')}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold px-3 py-1.5 text-xs transition active:scale-95"
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-3 py-1.5 text-xs transition active:scale-95"
                 >
                   <FileText className="h-3.5 w-3.5" />
                   <span>Export Form M</span>
@@ -1250,23 +1230,23 @@ export const DashboardPage: React.FC = () => {
         ======================================================================= */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left: Recent Counter Invoices & 80mm ESC/POS Reprint (8 Cols) */}
-          <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="lg:col-span-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-700">
+                <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 p-2.5 text-emerald-700 dark:text-emerald-300">
                   <Printer className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 tracking-tight">
+                  <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                     Recent Counter Invoices &amp; 80mm ESC/POS Reprint
                   </h3>
-                  <p className="text-xs text-slate-500">Instant Thermal Slips &amp; WhatsApp E-Bills</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Instant Thermal Slips &amp; WhatsApp E-Bills</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/reports')}
-                className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition"
+                className="flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 transition"
               >
                 <span>View All Invoices</span>
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -1290,20 +1270,20 @@ export const DashboardPage: React.FC = () => {
                   return (
                     <div
                       key={sale.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition hover:border-slate-300 hover:bg-slate-50"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4 transition hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/70"
                     >
                       <div className="flex items-start gap-3">
-                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-200/80 px-2 py-1 rounded-lg">
+                        <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-700/80 px-2 py-1 rounded-lg">
                           #{sale.invoice_number}
                         </span>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900">{sale.customer_name}</h4>
-                            <span className="text-[10px] text-slate-400 font-mono">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">{sale.customer_name}</h4>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                               ({sale.customer_phone ? `ID: ${sale.customer_phone}` : 'Walk-in Farmer'})
                             </span>
                           </div>
-                          <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-1 max-w-md">
+                          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 max-w-md">
                             {itemsDesc}
                           </p>
                         </div>
@@ -1311,24 +1291,24 @@ export const DashboardPage: React.FC = () => {
 
                       <div className="flex items-center justify-between sm:justify-end gap-3">
                         <div className="text-right">
-                          <div className="font-mono text-sm font-black text-slate-900">
+                          <div className="font-mono text-sm font-black text-slate-900 dark:text-white">
                             ₹{formatCurrency(sale.grand_total, 2)}
                           </div>
                           <div className="flex items-center justify-end gap-1 text-[10px] font-bold">
                             {isUpi ? (
-                              <span className="text-emerald-700 flex items-center gap-0.5">
+                              <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-0.5">
                                 <QrCode className="h-3 w-3" /> UPI Paid
                               </span>
                             ) : isCash ? (
-                              <span className="text-emerald-900 flex items-center gap-0.5">
+                              <span className="text-emerald-900 dark:text-emerald-300 flex items-center gap-0.5">
                                 <Banknote className="h-3 w-3" /> Cash Drawer
                               </span>
                             ) : isCredit ? (
-                              <span className="text-amber-700 flex items-center gap-0.5">
+                              <span className="text-amber-700 dark:text-amber-400 flex items-center gap-0.5">
                                 <BookOpen className="h-3 w-3" /> Khata Credit
                               </span>
                             ) : (
-                              <span className="text-slate-600">{sale.payment_mode}</span>
+                              <span className="text-slate-600 dark:text-slate-400">{sale.payment_mode}</span>
                             )}
                           </div>
                         </div>
@@ -1341,7 +1321,7 @@ export const DashboardPage: React.FC = () => {
                               const waUrl = buildWhatsAppInvoiceUrl(sale.customer_phone, sale, settings);
                               window.open(waUrl, '_blank', 'noopener,noreferrer');
                             }}
-                            className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100 transition"
+                            className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition"
                             title="Share on WhatsApp"
                           >
                             <Send className="h-3.5 w-3.5" />
@@ -1352,9 +1332,9 @@ export const DashboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenReprint(sale)}
-                          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold px-3 py-1.5 text-xs shadow-sm transition active:scale-95"
+                          className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-3 py-1.5 text-xs shadow-sm transition active:scale-95"
                         >
-                          <Printer className="h-3.5 w-3.5 text-slate-500" />
+                          <Printer className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
                           <span>Reprint</span>
                         </button>
                       </div>
@@ -1362,7 +1342,7 @@ export const DashboardPage: React.FC = () => {
                   );
                 })
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-400">
+                <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 text-center text-xs text-slate-400 dark:text-slate-500">
                   No counter sales recorded yet today. Use Fast-Till or New Bill [F1] to issue invoices.
                 </div>
               )}
@@ -1370,44 +1350,44 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           {/* Right: Counter Thermal Engine (4 Cols) */}
-          <div className="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <div className="rounded-xl bg-slate-100 p-2 text-slate-700">
+          <div className="lg:col-span-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="rounded-xl bg-slate-100 dark:bg-slate-800 p-2 text-slate-700 dark:text-slate-300">
                 <Printer className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900">Counter Thermal Engine</h3>
-                <p className="text-[10px] text-slate-500">TVS RP-3200 Star USB • ESC/POS Online</p>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Counter Thermal Engine</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">TVS RP-3200 Star USB • ESC/POS Online</p>
               </div>
             </div>
 
             {/* Thermal Slip Simulation */}
-            <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/70 p-4 font-mono text-[11px] text-slate-700 space-y-2">
-              <div className="text-center font-bold text-slate-900">
+            <div className="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-950/80 p-4 font-mono text-[11px] text-slate-700 dark:text-slate-300 space-y-2">
+              <div className="text-center font-bold text-slate-900 dark:text-white">
                 *** {settings.shop_name || `${user?.full_name || 'Dealer'}'s Shop`} ***
               </div>
-              <div className="text-center text-[10px] text-slate-500">
+              <div className="text-center text-[10px] text-slate-500 dark:text-slate-400">
                 GSTIN: {settings.gstin || '29AAAAA0000A1Z5'} • 80mm Direct
               </div>
-              <div className="border-t border-slate-200 pt-2 space-y-1 text-[10px]">
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 space-y-1 text-[10px]">
                 <div className="flex justify-between">
                   <span>Thermal Roll Health:</span>
-                  <span className="font-bold text-emerald-700">78% Remaining</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">78% Remaining</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Auto Cutter Mechanism:</span>
-                  <span className="font-bold text-slate-800">Engaged (Partial)</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Engaged (Partial)</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Regional Header Print:</span>
-                  <span className="font-bold text-slate-800">Enabled (UTF-8)</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Enabled (UTF-8)</span>
                 </div>
               </div>
             </div>
 
             {/* Feedback notification if button pressed */}
             {thermalFeedbackMsg && (
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2 text-center text-[11px] font-bold text-emerald-800 animate-fade-in">
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 p-2 text-center text-[11px] font-bold text-emerald-800 dark:text-emerald-300 animate-fade-in">
                 {thermalFeedbackMsg}
               </div>
             )}
@@ -1417,14 +1397,14 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleFeedPaper}
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold py-2 text-xs text-slate-700 transition"
+                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold py-2 text-xs text-slate-700 dark:text-slate-200 transition"
               >
                 Feed 20mm
               </button>
               <button
                 type="button"
                 onClick={handlePrintTestSlip}
-                className="flex-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 text-xs shadow transition active:scale-95"
+                className="flex-1 rounded-xl bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold py-2 text-xs shadow transition active:scale-95"
               >
                 Print Test Slip
               </button>

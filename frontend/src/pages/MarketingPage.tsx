@@ -275,7 +275,7 @@ export const MarketingPage: React.FC = () => {
   const compileMessage = (templateText: string, farmer?: FarmerSegmentItem): string => {
     if (!templateText) return '';
     let msg = templateText;
-    const name = farmer?.customer_name || 'Ramesh Gowda';
+    const name = farmer?.customer_name || 'Farmer';
     const shop = settings.shop_name || 'Green Valley Agro Kendra';
     const phone = settings.phone || '9448212093';
     const village = farmer?.village || farmer?.customer_address || 'Mandya Cluster';
