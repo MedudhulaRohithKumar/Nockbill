@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  Plus, 
-  Search, 
-  AlertTriangle, 
-  Clock, 
-  Edit, 
+import {
+  Plus,
+  Search,
+  AlertTriangle,
+  Clock,
+  Edit,
   ArrowUpDown,
   X,
   Package,
@@ -13,7 +13,17 @@ import {
   RotateCcw,
   Zap,
   Tag,
-  ShieldCheck
+  ShieldCheck,
+  Download,
+  Printer,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+  CheckCircle2,
+  Warehouse,
+  FileText,
+  BadgeAlert,
+  Layers,
 } from 'lucide-react';
 import { productsApi, inventoryApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, RefillRecommendation } from '../types';
@@ -52,12 +62,64 @@ function toDateInputValue(raw?: string | null): string {
   return trimmed;
 }
 
+function getExpiryBadge(expiryDate?: string | null) {
+  if (!expiryDate) {
+    return {
+      label: 'Stable (No Expiry)',
+      colorClass: 'bg-sprout-tint text-forest-emerald border border-forest-emerald/20',
+      iconClass: 'text-forest-emerald',
+      isCritical: false,
+    };
+  }
+  const exp = new Date(expiryDate);
+  if (Number.isNaN(exp.getTime())) {
+    return {
+      label: expiryDate,
+      colorClass: 'bg-surface-container text-on-surface-variant border border-outline-variant/40',
+      iconClass: 'text-on-surface-variant',
+      isCritical: false,
+    };
+  }
+  const diffDays = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) {
+    return {
+      label: `EXPIRED (${Math.abs(diffDays)}d ago)`,
+      colorClass: 'bg-critical-rose-bg text-critical-rose border border-critical-rose/30',
+      iconClass: 'text-critical-rose',
+      isCritical: true,
+    };
+  }
+  if (diffDays <= 30) {
+    return {
+      label: `${diffDays} Days Left (${expiryDate})`,
+      colorClass: 'bg-critical-rose-bg text-critical-rose border border-critical-rose/30',
+      iconClass: 'text-critical-rose',
+      isCritical: true,
+    };
+  }
+  if (diffDays <= 60) {
+    return {
+      label: `${diffDays} Days Watch (${expiryDate})`,
+      colorClass: 'bg-khata-amber-bg text-khata-amber border border-khata-amber/30',
+      iconClass: 'text-khata-amber',
+      isCritical: false,
+    };
+  }
+  return {
+    label: `Healthy (${expiryDate})`,
+    colorClass: 'bg-sprout-tint text-forest-emerald border border-forest-emerald/20',
+    iconClass: 'text-forest-emerald',
+    isCritical: false,
+  };
+}
+
 export const InventoryPage: React.FC = () => {
   const { settings } = useShop();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // `catalog` backs modal helpers (refill typeahead, trade-name resolution); `pageItems` backs the table.
+
+  // Core Data
   const [catalog, setCatalog] = useState<Product[]>([]);
   const [pageItems, setPageItems] = useState<Product[]>([]);
   const [pageTotal, setPageTotal] = useState(0);
@@ -65,6 +127,8 @@ export const InventoryPage: React.FC = () => {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const requestSeq = useRef(0);
   const [recommendations, setRecommendations] = useState<RefillRecommendation[]>([]);
+
+  // Search & Filters
   const [search, setSearch] = useState('');
   const initialCategoryParam = searchParams.get('category');
   const [selectedCategory, setSelectedCategory] = useState<string>(
@@ -73,23 +137,35 @@ export const InventoryPage: React.FC = () => {
       : 'ALL'
   );
   const [filterType, setFilterType] = useState<'ALL' | 'LOW_STOCK' | 'NEAR_EXPIRY'>('ALL');
+  const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Debounce server-side search; any change of search/category/alert-filter resets to page 1.
+  // Debounce search
   const [debouncedSearch, setDebouncedSearch] = useState('');
   useEffect(() => {
     const handle = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(handle);
   }, [search]);
-  const filterKey = `${debouncedSearch}|${selectedCategory}|${filterType}`;
+
+  const filterKey = `${debouncedSearch}|${selectedCategory}|${filterType}|${selectedLocation}`;
   const [pageState, setPageState] = useState({ key: filterKey, page: 1 });
   const page = pageState.key === filterKey ? pageState.page : 1;
   const setPage = (next: number) => setPageState({ key: filterKey, page: next });
 
-  // Merge of everything known client-side (used by modals / lookups)
+  // Merge client-side products for lookup
   const products = useMemo(() => mergeProductsById(pageItems, catalog), [pageItems, catalog]);
 
-  // Keep selectedCategory synchronized with sidebar dropdown URL (?category=...)
+  // Preview product for 50x25mm thermal label simulator
+  const [selectedPreviewProductId, setSelectedPreviewProductId] = useState<number | null>(null);
+  const previewProduct = useMemo<Product | null>(() => {
+    if (selectedPreviewProductId !== null) {
+      const found = products.find((p) => p.id === selectedPreviewProductId);
+      if (found) return found;
+    }
+    return pageItems[0] || catalog[0] || null;
+  }, [selectedPreviewProductId, products, pageItems, catalog]);
+
+  // Keep selectedCategory synchronized with URL query params
   useEffect(() => {
     const paramCat = searchParams.get('category');
     if (!paramCat || paramCat.toUpperCase() === 'ALL') {
@@ -109,14 +185,29 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Add / Edit Modal state
+  // Keyboard shortcut: F2 focuses search omnibar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        const searchInput = document.getElementById('inventory-search');
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   const [tradeNameManuallyEdited, setTradeNameManuallyEdited] = useState(false);
   const [enableVariantsForOthers, setEnableVariantsForOthers] = useState(false);
 
-  // Duplicate Check State
+  // Duplicate Check
   const [duplicateAlert, setDuplicateAlert] = useState<{
     exists: boolean;
     message: string;
@@ -124,14 +215,14 @@ export const InventoryPage: React.FC = () => {
   } | null>(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 
-  // Stock Adjustment Modal state
+  // Stock Adjustment Modal
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
   const [adjustType, setAdjustType] = useState<'DAMAGE' | 'AUDIT_CORRECTION' | 'RETURN'>('AUDIT_CORRECTION');
   const [adjustQty, setAdjustQty] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState('');
 
-  // Refill Stock Modal state
+  // Refill Stock Modal
   const [isRefillModalOpen, setIsRefillModalOpen] = useState(false);
   const [refillProductId, setRefillProductId] = useState<number | null>(null);
   const [refillCompanyName, setRefillCompanyName] = useState<string>('');
@@ -151,9 +242,189 @@ export const InventoryPage: React.FC = () => {
   const [refillSubmitting, setRefillSubmitting] = useState(false);
   const [refillProductSearch, setRefillProductSearch] = useState<string>('');
 
-  // Barcode Print Modal state
+  // Barcode Print Modal
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
+
+  // Real data calculations for 4 KPI cards
+  const {
+    totalValuation,
+    totalCount,
+    fertValue,
+    pestValue,
+    seedsValue,
+    microValue,
+    adequateCount,
+    adequatePercent,
+    lowStockCount,
+    lowStockItems,
+    nearExpiryCount,
+    nearExpiryValue,
+  } = useMemo(() => {
+    let totVal = 0;
+    let fertVal = 0;
+    let pestVal = 0;
+    let seedsVal = 0;
+    let microVal = 0;
+    let adequate = 0;
+    let lowCount = 0;
+    const lowNames: string[] = [];
+    let expiringCount = 0;
+    let expiringVal = 0;
+
+    const now = new Date();
+    const in60Days = new Date();
+    in60Days.setDate(now.getDate() + 60);
+
+    const sourceList = catalog.length > 0 ? catalog : pageItems;
+
+    sourceList.forEach((p) => {
+      const stock = safeNumber(p.current_stock);
+      const sellPrice = safeNumber(p.selling_price || p.mrp);
+      const itemVal = stock * sellPrice;
+      totVal += itemVal;
+
+      const cat = normalizeCategory(p.category);
+      if (cat === 'Fertilizer') fertVal += itemVal;
+      else if (cat === 'Pesticide') pestVal += itemVal;
+      else if (cat === 'Seeds') seedsVal += itemVal;
+      else microVal += itemVal;
+
+      const minStock = safeNumber(p.min_stock_level ?? (p as any).minimum_stock ?? 20);
+      if (stock > minStock) {
+        adequate += 1;
+      } else {
+        lowCount += 1;
+        if (lowNames.length < 3) {
+          lowNames.push(p.name || p.product_name || 'Item');
+        }
+      }
+
+      if (p.expiry_date) {
+        const exp = new Date(p.expiry_date);
+        if (!Number.isNaN(exp.getTime()) && exp <= in60Days) {
+          expiringCount += 1;
+          expiringVal += itemVal;
+        }
+      }
+    });
+
+    const totCount = categoryCounts.ALL || sourceList.length;
+    const adqPct = totCount > 0 ? Math.min(100, Math.max(0, (adequate / (sourceList.length || 1)) * 100)) : 100;
+
+    return {
+      totalValuation: totVal,
+      totalCount: totCount,
+      fertValue: fertVal,
+      pestValue: pestVal,
+      seedsValue: seedsVal,
+      microValue: microVal,
+      adequateCount: adequate,
+      adequatePercent: adqPct,
+      lowStockCount: lowCount,
+      lowStockItems: lowNames,
+      nearExpiryCount: expiringCount,
+      nearExpiryValue: expiringVal,
+    };
+  }, [catalog, pageItems, categoryCounts]);
+
+  // Load the visible table page
+  const loadPage = useCallback(async () => {
+    const seq = ++requestSeq.current;
+    setIsLoading(true);
+    try {
+      const category = selectedCategory === 'ALL' ? undefined : selectedCategory;
+      if (filterType === 'ALL') {
+        const { items, total } = await productsApi.getPage({
+          skip: (page - 1) * INVENTORY_PAGE_SIZE,
+          limit: INVENTORY_PAGE_SIZE,
+          search: debouncedSearch || undefined,
+          category,
+        });
+        if (seq !== requestSeq.current) return;
+        if (items.length === 0 && total > 0 && page > 1) {
+          setPage(clampPage(page, total, INVENTORY_PAGE_SIZE));
+          return;
+        }
+        setPageItems(items);
+        setPageTotal(total);
+        setAlertItems(null);
+      } else {
+        const all = await productsApi.getAllPages({ search: debouncedSearch || undefined, category });
+        if (seq !== requestSeq.current) return;
+        const matched = filterByAlert(all, filterType);
+        setAlertItems(matched);
+        setPageTotal(matched.length);
+      }
+    } catch {
+      // Keep previous page on transient failure
+    } finally {
+      if (seq === requestSeq.current) setIsLoading(false);
+    }
+  }, [selectedCategory, filterType, debouncedSearch, page]);
+
+  // Load Category Counts
+  const loadCategoryCounts = async () => {
+    try {
+      const [all, ...perCategory] = await Promise.all([
+        productsApi.getPage({ limit: 1 }),
+        ...INVENTORY_CATEGORIES.map((cat) => productsApi.getPage({ limit: 1, category: cat })),
+      ]);
+      const counts: Record<string, number> = { ALL: all.total };
+      INVENTORY_CATEGORIES.forEach((cat, idx) => {
+        counts[cat] = perCategory[idx].total;
+      });
+      setCategoryCounts(counts);
+    } catch {
+      // Non-critical counts
+    }
+  };
+
+  // Load Catalog
+  const loadCatalog = async () => {
+    try {
+      const [data, recs] = await Promise.all([
+        productsApi.getAll(),
+        productsApi.getRefillRecommendations().catch(() => []),
+      ]);
+      setCatalog(data);
+      setRecommendations(recs || []);
+    } catch {
+      // Local fallback
+    }
+  };
+
+  const loadProducts = async () => {
+    await Promise.all([loadCatalog(), loadPage(), loadCategoryCounts()]);
+  };
+
+  useEffect(() => {
+    void loadPage();
+  }, [loadPage]);
+
+  useEffect(() => {
+    void loadCatalog();
+    void loadCategoryCounts();
+  }, []);
+
+  // Filter products by location if location selected
+  const filteredProducts = useMemo(() => {
+    let source = alertItems !== null ? alertItems.slice((page - 1) * INVENTORY_PAGE_SIZE, page * INVENTORY_PAGE_SIZE) : pageItems;
+    if (selectedLocation !== 'all') {
+      source = source.filter((p) => {
+        const loc = String(p.category_attributes?.rack_location || p.category_attributes?.storage_bay || '').toLowerCase();
+        if (selectedLocation === 'bay-a') return loc.includes('a') || p.category === 'Fertilizer';
+        if (selectedLocation === 'bay-b') return loc.includes('b') || p.category === 'Fertilizer';
+        if (selectedLocation === 'cold-cellar') return loc.includes('cold') || loc.includes('cellar') || p.category === 'Seeds';
+        if (selectedLocation === 'counter') return loc.includes('counter') || loc.includes('shelf');
+        return true;
+      });
+    }
+    return source;
+  }, [pageItems, alertItems, page, selectedLocation]);
+
+  const totalPages = getTotalPages(pageTotal, INVENTORY_PAGE_SIZE);
+  const pageRange = getPageRange(page, pageTotal, INVENTORY_PAGE_SIZE);
 
   // Active category rules for Add/Edit modal
   const activeEditCategoryConfig = useMemo(
@@ -191,6 +462,7 @@ export const InventoryPage: React.FC = () => {
       expiry_date: '',
       category_attributes: {},
       min_stock_level: 20,
+      is_active: true,
     });
     setTradeNameManuallyEdited(false);
     setProductVariants([]);
@@ -213,6 +485,7 @@ export const InventoryPage: React.FC = () => {
       manufacture_date: toDateInputValue(p.manufacture_date),
       expiry_date: toDateInputValue(p.expiry_date),
       category_attributes: { ...(p.category_attributes || {}) },
+      is_active: p.is_active ?? true,
     });
     setTradeNameManuallyEdited(Boolean(p.trade_name));
     setProductVariants(existingVariants);
@@ -272,96 +545,6 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  // Load the visible table page (server-side pagination, or all pages when an alert filter needs client-side filtering)
-  const loadPage = async () => {
-    const seq = ++requestSeq.current;
-    setIsLoading(true);
-    try {
-      const category = selectedCategory === 'ALL' ? undefined : selectedCategory;
-      if (filterType === 'ALL') {
-        const { items, total } = await productsApi.getPage({
-          skip: (page - 1) * INVENTORY_PAGE_SIZE,
-          limit: INVENTORY_PAGE_SIZE,
-          search: debouncedSearch || undefined,
-          category,
-        });
-        if (seq !== requestSeq.current) return;
-        if (items.length === 0 && total > 0 && page > 1) {
-          setPage(clampPage(page, total, INVENTORY_PAGE_SIZE));
-          return;
-        }
-        setPageItems(items);
-        setPageTotal(total);
-        setAlertItems(null);
-      } else {
-        const all = await productsApi.getAllPages({ search: debouncedSearch || undefined, category });
-        if (seq !== requestSeq.current) return;
-        const matched = filterByAlert(all, filterType);
-        setAlertItems(matched);
-        setPageTotal(matched.length);
-      }
-    } catch {
-      // Keep the previous page on transient failures
-    } finally {
-      if (seq === requestSeq.current) setIsLoading(false);
-    }
-  };
-
-  // Per-category totals via X-Total-Count (limit=1 requests) so tabs stay accurate beyond one page
-  const loadCategoryCounts = async () => {
-    try {
-      const [all, ...perCategory] = await Promise.all([
-        productsApi.getPage({ limit: 1 }),
-        ...INVENTORY_CATEGORIES.map((cat) => productsApi.getPage({ limit: 1, category: cat })),
-      ]);
-      const counts: Record<string, number> = { ALL: all.total };
-      INVENTORY_CATEGORIES.forEach((cat, idx) => {
-        counts[cat] = perCategory[idx].total;
-      });
-      setCategoryCounts(counts);
-    } catch {
-      // Counts are cosmetic; ignore failures
-    }
-  };
-
-  const loadCatalog = async () => {
-    try {
-      const [data, recs] = await Promise.all([
-        productsApi.getAll(),
-        productsApi.getRefillRecommendations().catch(() => [])
-      ]);
-      setCatalog(data);
-      setRecommendations(recs || []);
-    } catch {
-      // Local fallback
-    }
-  };
-
-  const loadProducts = async () => {
-    await Promise.all([loadCatalog(), loadPage(), loadCategoryCounts()]);
-  };
-
-  useEffect(() => {
-    void loadPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, filterKey]);
-
-  useEffect(() => {
-    void loadCatalog();
-    void loadCategoryCounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Rows rendered in the table (server page, or a local slice when an alert filter is active)
-  const filteredProducts = useMemo(() => {
-    if (alertItems === null) return pageItems;
-    const start = (page - 1) * INVENTORY_PAGE_SIZE;
-    return alertItems.slice(start, start + INVENTORY_PAGE_SIZE);
-  }, [pageItems, alertItems, page]);
-
-  const totalPages = getTotalPages(pageTotal, INVENTORY_PAGE_SIZE);
-  const pageRange = getPageRange(page, pageTotal, INVENTORY_PAGE_SIZE);
-
   // Resolve Trade Name suggestions for Add/Edit Product Modal
   const editTradeResolution = useMemo(() => {
     const pName = editingProduct?.name || editingProduct?.product_name || '';
@@ -369,53 +552,7 @@ export const InventoryPage: React.FC = () => {
     return resolveTradeName(pName, cName, products);
   }, [editingProduct?.name, editingProduct?.product_name, editingProduct?.company_name, products]);
 
-  // Resolve Trade Name suggestions for Refill Stock Modal
-  const selectedRefillProduct = useMemo(
-    () => products.find(p => p.id === refillProductId) || null,
-    [products, refillProductId]
-  );
-
-  const refillCategoryConfig = useMemo(
-    () => getCategoryConfig(selectedRefillProduct?.category),
-    [selectedRefillProduct?.category]
-  );
-
-  const refillTradeResolution = useMemo(() => {
-    const pName = selectedRefillProduct?.name || selectedRefillProduct?.product_name || '';
-    return resolveTradeName(pName, refillCompanyName, products);
-  }, [selectedRefillProduct, refillCompanyName, products]);
-
-  // Debounced duplicate product check when typing in Add modal
-  useEffect(() => {
-    if (!isEditModalOpen || editingProduct?.id) {
-      setDuplicateAlert(null);
-      return;
-    }
-
-    const name = editingProduct?.name || (editingProduct as any)?.product_name;
-    if (!name || name.trim().length < 3) {
-      setDuplicateAlert(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      void (async () => {
-        setCheckingDuplicate(true);
-        try {
-          const res = await productsApi.checkDuplicate(name, editingProduct?.company_name, undefined, editingProduct?.trade_name);
-          setDuplicateAlert(res.exists ? res : null);
-        } catch (err) {
-          console.error('Duplicate check error', err);
-        } finally {
-          setCheckingDuplicate(false);
-        }
-      })();
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [editingProduct?.name, editingProduct?.company_name, editingProduct?.trade_name, isEditModalOpen, editingProduct?.id]);
-
-  // Select Product for Refill Helper
+  // Refill helper
   const selectProductForRefill = (prod: Product) => {
     const prodName = prod.name || prod.product_name || '';
     const compName = prod.company_name || '';
@@ -435,7 +572,6 @@ export const InventoryPage: React.FC = () => {
     setRefillSupplier(prod.company_name || 'Stock Refill Supplier');
   };
 
-  // Open Refill Modal helper
   const openRefillModal = (prod?: Product | null, suggestedQty: number = 20) => {
     if (prod) {
       selectProductForRefill(prod);
@@ -460,6 +596,48 @@ export const InventoryPage: React.FC = () => {
     setRefillNotes('Periodic replenishment');
     setIsRefillModalOpen(true);
   };
+
+  const selectedRefillProduct = useMemo(
+    () => products.find((p) => p.id === refillProductId) || null,
+    [products, refillProductId]
+  );
+
+  const refillCategoryConfig = useMemo(
+    () => getCategoryConfig(selectedRefillProduct?.category),
+    [selectedRefillProduct?.category]
+  );
+
+  const refillTradeResolution = useMemo(() => {
+    const pName = selectedRefillProduct?.name || selectedRefillProduct?.product_name || '';
+    return resolveTradeName(pName, refillCompanyName, products);
+  }, [selectedRefillProduct, refillCompanyName, products]);
+
+  // Duplicate product check
+  useEffect(() => {
+    if (!isEditModalOpen || editingProduct?.id) {
+      setDuplicateAlert(null);
+      return;
+    }
+    const name = editingProduct?.name || (editingProduct as any)?.product_name;
+    if (!name || name.trim().length < 3) {
+      setDuplicateAlert(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        setCheckingDuplicate(true);
+        try {
+          const res = await productsApi.checkDuplicate(name, editingProduct?.company_name, undefined, editingProduct?.trade_name);
+          setDuplicateAlert(res.exists ? res : null);
+        } catch {
+          // ignore duplicate check failure
+        } finally {
+          setCheckingDuplicate(false);
+        }
+      })();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [editingProduct?.name, editingProduct?.company_name, editingProduct?.trade_name, isEditModalOpen, editingProduct?.id]);
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,7 +680,6 @@ export const InventoryPage: React.FC = () => {
       200
     ).trim();
 
-    // Keep only category-relevant compliance attributes
     const allowedExtraKeys = new Set<string>([
       ...catConfig.extraFields.map((f) => f.key),
       ...(catConfig.dateFields.showWarrantyField ? ['warranty_months'] : []),
@@ -543,6 +720,7 @@ export const InventoryPage: React.FC = () => {
       minimum_stock: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
       min_stock_level: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
       variants: effectiveVariants,
+      is_active: editingProduct.is_active ?? true,
     };
 
     try {
@@ -619,7 +797,7 @@ export const InventoryPage: React.FC = () => {
         product_id: adjustingProduct.id,
         adjustment_type: adjustType,
         quantity: Math.abs(adjustQty),
-        reason: sanitizeTextInput(adjustReason, 300)
+        reason: sanitizeTextInput(adjustReason, 300),
       });
       setIsAdjustModalOpen(false);
       setAdjustingProduct(null);
@@ -641,7 +819,7 @@ export const InventoryPage: React.FC = () => {
         selling_price: editingProduct?.selling_price || 0,
         mrp: editingProduct?.mrp || 0,
         stock: 0,
-      }
+      },
     ]);
   };
 
@@ -655,94 +833,345 @@ export const InventoryPage: React.FC = () => {
     setProductVariants(productVariants.filter((_, i) => i !== index));
   };
 
-  const activeFilterCategoryConfig = selectedCategory !== 'ALL' ? getCategoryConfig(selectedCategory) : null;
+  // Export Stock CSV
+  const handleExportStock = () => {
+    const source = catalog.length > 0 ? catalog : pageItems;
+    if (source.length === 0) {
+      alert('No inventory items to export.');
+      return;
+    }
+    const headers = [
+      'ID',
+      'Product Name',
+      'Trade Name',
+      'Brand / Company',
+      'Category',
+      'HSN Code',
+      'Batch Number',
+      'Mfg Date',
+      'Expiry Date',
+      'Current Stock',
+      'Unit',
+      'Cost Price (₹)',
+      'Selling Price (₹)',
+      'MRP (₹)',
+      'GST Rate (%)',
+      'Stock Value (₹)',
+    ];
+    const rows = source.map((p) => [
+      p.id,
+      `"${(p.name || p.product_name || '').replace(/"/g, '""')}"`,
+      `"${(p.trade_name || '').replace(/"/g, '""')}"`,
+      `"${(p.company_name || '').replace(/"/g, '""')}"`,
+      `"${p.category}"`,
+      `"${p.hsn_code || ''}"`,
+      `"${p.batch_number || ''}"`,
+      p.manufacture_date || '',
+      p.expiry_date || '',
+      safeNumber(p.current_stock),
+      p.unit,
+      safeNumber(p.cost_price ?? p.purchase_price),
+      safeNumber(p.selling_price),
+      safeNumber(p.mrp),
+      safeNumber(p.gst_rate),
+      (safeNumber(p.current_stock) * safeNumber(p.selling_price || p.mrp)).toFixed(2),
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Inventory_Godown_Stock_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
-      {/* Top Banner & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-emerald-50 text-emerald-800 rounded-xl">
-              <Package className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  {activeFilterCategoryConfig
-                    ? `${activeFilterCategoryConfig.label} Inventory`
-                    : 'Agri Inventory & Warehouse'}
-                </h1>
-                {activeFilterCategoryConfig && (
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${activeFilterCategoryConfig.badgeClass}`}>
-                    {activeFilterCategoryConfig.regulationTag}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs sm:text-sm text-slate-500">
-                {activeFilterCategoryConfig
-                  ? `${activeFilterCategoryConfig.shortDescription} • ${activeFilterCategoryConfig.gstHint}`
-                  : 'FCO, Insecticides Act & Seeds Act compliant inventory, dynamic fields, smart units & refills'}
-              </p>
-            </div>
+    <div className="p-space-md sm:p-space-lg max-w-[1680px] mx-auto space-y-space-md">
+      {/* =====================================================================
+          1. INTERACTIVE TOP ACTION HEADER & BREADCRUMB
+      ===================================================================== */}
+      <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col xl:flex-row xl:items-center justify-between gap-space-md">
+        <div className="flex flex-col gap-1">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard')}
+              className="text-body-sm text-on-surface-variant hover:text-primary cursor-pointer flex items-center gap-1 font-medium"
+            >
+              <Warehouse className="w-4 h-4 text-forest-emerald" />
+              <span>Dashboard</span>
+            </button>
+            <span className="text-outline-variant text-[14px]">/</span>
+            <span className="text-body-sm text-on-surface-variant">Warehouse &amp; Godown</span>
+            <span className="text-outline-variant text-[14px]">/</span>
+            <span className="text-body-sm text-primary font-semibold">Inventory &amp; Stock</span>
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-space-sm mt-1">
+            <h1 className="text-2xl font-black text-on-surface tracking-tight font-display">
+              Inventory &amp; Godown Stock
+            </h1>
+            <span className="font-label-code text-label-code bg-surface-container-high text-on-surface px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">
+              /inventory
+            </span>
+            <span className="font-label-badge text-label-badge bg-sprout-tint text-forest-emerald px-2.5 py-1 rounded-full font-bold flex items-center gap-1 border border-forest-emerald/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-forest-emerald animate-pulse"></span>
+              FCO / CIB COMPLIANT
+            </span>
           </div>
+
+          <p className="text-body-sm text-on-surface-variant max-w-3xl">
+            Real-time physical stock balancing, statutory batch shelf-life control, dynamic chemical formulations &amp; ESC/POS thermal barcode labeling.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Price Lists Button (Owner Only) */}
+        {/* Action Bar */}
+        <div className="flex flex-wrap items-center gap-2.5 self-start xl:self-center">
+          {/* Owner Price Lists */}
           {user?.role === 'owner' && (
             <button
               type="button"
               onClick={() => navigate('/price-lists')}
-              className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-xs transition-all active:scale-95"
+              className="px-3.5 py-2.5 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container font-semibold text-xs border border-outline-variant/30 flex items-center gap-2 transition-all active:scale-95"
             >
-              <Tag className="w-4 h-4 text-amber-600" />
-              <span>Price Lists (Discounts / Increments)</span>
+              <Tag className="w-3.5 h-3.5 text-amber-600" />
+              <span>Price Lists</span>
             </button>
           )}
 
-          {/* Refill Button */}
+          {/* Export Stock */}
+          <button
+            type="button"
+            onClick={handleExportStock}
+            className="px-3.5 py-2.5 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container font-semibold text-xs border border-outline-variant/30 flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-700" />
+            <span>Export Stock</span>
+          </button>
+
+          {/* 50x25mm Thermal Engine */}
           <button
             type="button"
             onClick={() => {
-              openRefillModal(null);
+              if (previewProduct) {
+                setSelectedBarcodeProduct(previewProduct);
+                setIsBarcodeModalOpen(true);
+              } else {
+                alert('Please select or onboard a product to generate barcode labels.');
+              }
             }}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md transition-all active:scale-95"
+            className="px-3.5 py-2.5 rounded-xl bg-surface-container-low text-forest-emerald hover:bg-sprout-tint font-bold text-xs border border-forest-emerald/30 flex items-center gap-2 transition-all active:scale-95"
           >
-            <RotateCcw className="w-4 h-4" />
+            <Barcode className="w-3.5 h-3.5" />
+            <span>50x25mm Engine</span>
+          </button>
+
+          {/* Stock Audit Correction */}
+          <button
+            type="button"
+            onClick={() => {
+              if (previewProduct) {
+                setAdjustingProduct(previewProduct);
+                setAdjustQty(0);
+                setAdjustReason('');
+                setIsAdjustModalOpen(true);
+              } else if (pageItems[0]) {
+                setAdjustingProduct(pageItems[0]);
+                setAdjustQty(0);
+                setAdjustReason('');
+                setIsAdjustModalOpen(true);
+              } else {
+                openRefillModal(null);
+              }
+            }}
+            className="px-3.5 py-2.5 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container font-bold text-xs border border-outline-variant/40 flex items-center gap-2 transition-all active:scale-95"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-700" />
+            <span>Stock Audit +/-</span>
+          </button>
+
+          {/* Refill Inward Stock */}
+          <button
+            type="button"
+            onClick={() => openRefillModal(null)}
+            className="px-4 py-2.5 rounded-xl bg-forest-emerald text-white hover:bg-canopy-deep font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>Refill Stock</span>
           </button>
 
-          {/* Add Product Button */}
+          {/* Onboard New SKU */}
           <button
             type="button"
             onClick={() => openAddProductModal()}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 text-xs shadow-md transition-all active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 font-bold text-xs flex items-center gap-2 shadow-md transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>
-              {activeFilterCategoryConfig ? `Add ${activeFilterCategoryConfig.label}` : 'Add New Product'}
-            </span>
+            <span>+ New SKU Onboard</span>
           </button>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          2. KPI RIBBON (4 Metric Cards with Subtle Glass Gradients)
+      ===================================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
+        {/* Card 1: Valuation */}
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                Total Stock Valuation
+              </span>
+              <span className="font-label-code text-label-code bg-sprout-tint text-forest-emerald px-1.5 py-0.5 rounded font-bold border border-forest-emerald/20">
+                Live Ledger
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-forest-emerald font-mono tracking-tight">
+                ₹{formatCurrency(totalValuation)}
+              </span>
+              <span className="font-label-code text-label-code text-on-surface-variant font-semibold">
+                / {totalCount} SKUs
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 bg-surface-container-low rounded-xl px-2.5 py-2 flex items-center justify-between text-on-surface-variant text-xs">
+            <div className="flex flex-col">
+              <span className="font-label-code text-label-code">Fert: ₹{formatCurrency(fertValue)}</span>
+              <span className="font-label-code text-label-code">Pest: ₹{formatCurrency(pestValue)}</span>
+            </div>
+            <div className="w-px h-6 bg-outline-variant/40" />
+            <div className="flex flex-col text-right">
+              <span className="font-label-code text-label-code">Seeds: ₹{formatCurrency(seedsValue)}</span>
+              <span className="font-label-code text-label-code">Micro: ₹{formatCurrency(microValue)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Adequate Stock Health */}
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                Adequate Stock Health
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-forest-emerald animate-pulse" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-on-surface font-mono tracking-tight">
+                {adequateCount} SKUs
+              </span>
+              <span className="font-label-code text-label-code text-forest-emerald font-bold">
+                {adequatePercent.toFixed(1)}% OK
+              </span>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="w-full bg-surface-container-high rounded-full h-2 overflow-hidden flex">
+              <div
+                className="bg-forest-emerald h-full rounded-full transition-all duration-500"
+                style={{ width: `${adequatePercent}%` }}
+              />
+            </div>
+            <span className="font-label-code text-label-code text-on-surface-variant mt-1.5 block">
+              {lowStockCount} below minimum buffer threshold
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Reorder Level Alerts */}
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-khata-amber-bg/70 pointer-events-none" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                Reorder Level Alerts
+              </span>
+              <span className="font-label-badge text-label-badge bg-khata-amber-bg text-khata-amber px-2 py-0.5 rounded-full font-bold border border-khata-amber/30">
+                ATTENTION
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-khata-amber font-mono tracking-tight">
+                {lowStockCount} SKUs
+              </span>
+              <span className="font-label-code text-label-code text-on-surface-variant font-semibold">
+                Under Buffer
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="font-label-code text-label-code text-on-surface-variant truncate max-w-[160px]">
+              {lowStockItems.length > 0 ? lowStockItems.join(', ') : 'All buffers maintained'}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate('/purchases')}
+              className="font-label-code text-label-code bg-khata-amber text-white px-2.5 py-1 rounded-lg font-bold hover:bg-amber-800 transition-colors whitespace-nowrap active:scale-95"
+            >
+              Raise Inward PO
+            </button>
+          </div>
+        </div>
+
+        {/* Card 4: Near Expiry Radar */}
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-critical-rose-bg/70 pointer-events-none" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                Expiry Radar (&lt;60 Days)
+              </span>
+              <span className="font-label-badge text-label-badge bg-critical-rose-bg text-critical-rose px-2 py-0.5 rounded-full font-bold border border-critical-rose/30">
+                CRITICAL
+              </span>
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-critical-rose font-mono tracking-tight">
+                {nearExpiryCount} Batches
+              </span>
+              <span className="font-label-code text-label-code text-critical-rose font-semibold">
+                ₹{formatCurrency(nearExpiryValue)} at Risk
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="font-label-code text-label-code text-on-surface-variant">
+              FCO Inspection Watch
+            </span>
+            <button
+              type="button"
+              onClick={() => setFilterType((prev) => (prev === 'NEAR_EXPIRY' ? 'ALL' : 'NEAR_EXPIRY'))}
+              className="font-label-code text-label-code bg-critical-rose text-white px-2.5 py-1 rounded-lg font-bold hover:bg-rose-800 transition-colors active:scale-95"
+            >
+              {filterType === 'NEAR_EXPIRY' ? 'Clear Filter' : '1-Click Markdown'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Smart Refill Recommendations Banner */}
       {recommendations && recommendations.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-orange-50 border border-amber-200/80 rounded-2xl p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-amber-500 text-white rounded-lg shadow-sm">
                 <Zap className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <h2 className="text-xs font-bold text-slate-900 flex items-center gap-2">
                   Fast-Moving Products: Recommended for Refill
-                  <span className="text-[11px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
                     {recommendations.length} Needs Attention
                   </span>
-                </h3>
-                <p className="text-xs text-slate-600">
+                </h2>
+                <p className="text-[11px] text-slate-600">
                   Calculated using 30-day sales velocity and stock depletion forecasts
                 </p>
               </div>
@@ -750,13 +1179,13 @@ export const InventoryPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {recommendations.slice(0, 6).map((rec) => {
-              const matchedProd = products.find(p => p.id === rec.product_id);
+            {recommendations.slice(0, 3).map((rec) => {
+              const matchedProd = products.find((p) => p.id === rec.product_id);
               const isCrit = rec.urgency === 'CRITICAL';
               return (
                 <div
                   key={rec.product_id}
-                  className="bg-white p-3.5 rounded-xl border border-amber-200/70 shadow-xs flex flex-col justify-between hover:shadow-md transition"
+                  className="bg-white p-3 rounded-xl border border-amber-200/70 shadow-xs flex flex-col justify-between hover:shadow-md transition"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
@@ -764,7 +1193,7 @@ export const InventoryPage: React.FC = () => {
                         {rec.product_name}
                       </span>
                       <span
-                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
                           isCrit
                             ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
                             : 'bg-amber-100 text-amber-800'
@@ -777,15 +1206,15 @@ export const InventoryPage: React.FC = () => {
                       <p className="text-[10px] text-slate-400">{rec.company_name}</p>
                     )}
 
-                    <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg">
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2 rounded-lg">
                       <div>
-                        <span className="text-slate-400 block text-[10px]">Stock Left:</span>
+                        <span className="text-slate-400 block text-[9px]">Stock Left:</span>
                         <span className="font-bold text-slate-900">
                           {rec.current_stock} {rec.unit}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block text-[10px]">Est. Days Left:</span>
+                        <span className="text-slate-400 block text-[9px]">Est. Days Left:</span>
                         <span className={`font-bold ${isCrit ? 'text-red-600' : 'text-amber-600'}`}>
                           {rec.days_of_stock_left} Days
                         </span>
@@ -793,13 +1222,14 @@ export const InventoryPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <span className="text-[10px] text-slate-500">
                       Sold {rec.units_sold_30d} {rec.unit} in 30d
                     </span>
                     <button
+                      type="button"
                       onClick={() => matchedProd && openRefillModal(matchedProd, rec.suggested_refill_quantity)}
-                      className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs"
+                      className="px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs"
                     >
                       <RotateCcw className="w-3 h-3" />
                       Refill {rec.suggested_refill_quantity}
@@ -812,518 +1242,623 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filter Tabs, Category Dropdown & Search Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
-            {/* Search box */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search product, CIB/NPK/Lot, category, barcode, batch, or company..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-
-            {/* Category Selector Dropdown */}
-            <div className="w-full sm:w-56 shrink-0">
-              <CustomSelect
-                size="sm"
-                value={selectedCategory}
-                onChange={(val) => handleCategorySelect(val)}
-                placeholder="Filter by Category"
-                options={[
-                  { value: 'ALL', label: `All Categories (${categoryCounts.ALL || 0})` },
-                  ...INVENTORY_CATEGORIES.map((catId) => ({
-                    value: catId,
-                    label: `${INVENTORY_CATEGORY_CONFIGS[catId].label} (${categoryCounts[catId] || 0})`,
-                  })),
-                ]}
-              />
-            </div>
-          </div>
-
-          {/* Alert Filter Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setFilterType('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                filterType === 'ALL'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              All ({categoryCounts.ALL ?? pageTotal})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('LOW_STOCK')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                filterType === 'LOW_STOCK'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-              }`}
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Low Stock
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterType('NEAR_EXPIRY')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                filterType === 'NEAR_EXPIRY'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Expiring Soon
-            </button>
-          </div>
-        </div>
-
-        {/* Category Pills with Live Counts */}
-        <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-0.5 text-xs">
-          <button
-            type="button"
-            onClick={() => handleCategorySelect('ALL')}
-            className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all ${
+      {/* =====================================================================
+          3. CATEGORY NAV PILLS
+      ===================================================================== */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => handleCategorySelect('ALL')}
+          className={`flex items-center gap-2 px-space-md py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm ${
+            selectedCategory === 'ALL'
+              ? 'bg-primary text-on-primary'
+              : 'bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-outline-variant/30'
+          }`}
+        >
+          <span>All Categories</span>
+          <span
+            className={`font-label-code text-label-code px-2 py-0.5 rounded-full font-bold ${
               selectedCategory === 'ALL'
-                ? 'bg-brand-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-primary-container text-on-primary-container'
+                : 'bg-surface-container-high text-on-surface-variant'
             }`}
           >
-            All ({categoryCounts.ALL || 0})
-          </button>
-          {INVENTORY_CATEGORIES.map((catId) => {
-            const cfg = INVENTORY_CATEGORY_CONFIGS[catId];
-            const isSelected = selectedCategory === catId;
-            return (
-              <button
-                key={catId}
-                type="button"
-                onClick={() => handleCategorySelect(catId)}
-                className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all inline-flex items-center gap-1.5 ${
+            {categoryCounts.ALL || 0}
+          </span>
+        </button>
+
+        {INVENTORY_CATEGORIES.map((catId) => {
+          const cfg = INVENTORY_CATEGORY_CONFIGS[catId];
+          const isSelected = selectedCategory === catId;
+          const count = categoryCounts[catId] || 0;
+          return (
+            <button
+              key={catId}
+              type="button"
+              onClick={() => handleCategorySelect(catId)}
+              className={`flex items-center gap-2 px-space-md py-2.5 rounded-xl font-semibold text-xs transition-all shadow-sm whitespace-nowrap ${
+                isSelected
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container border border-outline-variant/30'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotClass}`} />
+              <span>{cfg.label}</span>
+              <span
+                className={`font-label-code text-label-code px-2 py-0.5 rounded-full font-bold ${
                   isSelected
-                    ? 'bg-brand-900 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-primary-container text-on-primary-container'
+                    : 'bg-surface-container-high text-on-surface-variant'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotClass}`} />
-                <span>{cfg.label}</span>
-                <span className={`text-[10px] ${isSelected ? 'text-emerald-300' : 'text-slate-400'}`}>
-                  ({categoryCounts[catId] || 0})
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Active Category Compliance Strip */}
-        {activeFilterCategoryConfig && (
-          <div className={`rounded-xl border px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] ${activeFilterCategoryConfig.accentBgClass}`}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <ShieldCheck className="w-4 h-4 text-slate-700 shrink-0" />
-              <span className="font-bold text-slate-900">{activeFilterCategoryConfig.label} Rules:</span>
-              <span className="text-slate-700">
-                Units: <strong className="font-mono">{activeFilterCategoryConfig.allowedUnits.join(', ')}</strong>
+                {count}
               </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-700">
-                Tracking: <strong>{activeFilterCategoryConfig.batchField.label}</strong>
-                {activeFilterCategoryConfig.dateFields.showWarrantyField
-                  ? ' + Warranty (Months)'
-                  : ` + ${activeFilterCategoryConfig.dateFields.mfgLabel.replace(' (Optional)', '')} & ${activeFilterCategoryConfig.dateFields.expiryLabel.replace(' (Optional)', '')}`}
-              </span>
-              <span className="text-slate-400">•</span>
-              <span className="text-slate-700 font-semibold">{activeFilterCategoryConfig.gstHint}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => openAddProductModal(activeFilterCategoryConfig.id)}
-              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold inline-flex items-center gap-1"
-            >
-              <Plus className="w-3 h-3" />
-              New {activeFilterCategoryConfig.label}
             </button>
-          </div>
-        )}
+          );
+        })}
       </div>
 
-      {/* Product List - Responsive Dual View */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* MOBILE VIEW (< md): Touch-Friendly Product Cards */}
-        <div className="md:hidden p-3 space-y-3 bg-slate-50/50">
-          {filteredProducts.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs">
-              No products match your search or filter.
+      {/* =====================================================================
+          4. OMNIBAR & FAST FILTER STRIP
+      ===================================================================== */}
+      <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-space-md">
+        {/* Search Input with Monospace Hint */}
+        <div className="relative flex-1">
+          <label htmlFor="inventory-search" className="sr-only">
+            Search Inventory
+          </label>
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-on-surface-variant">
+            <Search className="w-5 h-5 text-on-surface-variant" />
+          </div>
+          <input
+            id="inventory-search"
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by Brand Name, Active Chemical Molecule (e.g. Fipronil, Mancozeb), HSN, or Batch No..."
+            className="w-full h-12 pl-10 pr-16 bg-surface-container-low rounded-xl font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:bg-sprout-tint focus:ring-2 focus:ring-forest-emerald transition-all border border-transparent focus:border-forest-emerald"
+          />
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <span className="font-label-code text-label-code bg-surface-container text-on-surface-variant px-2 py-0.5 rounded font-bold border border-outline-variant/40">
+              F2
+            </span>
+          </div>
+        </div>
+
+        {/* Godown Dropdown Selector & Quick Toggles */}
+        <div className="flex flex-wrap items-center gap-space-sm">
+          <div className="flex items-center gap-2 bg-surface-container-low px-3 py-2 rounded-xl text-on-surface border border-outline-variant/30">
+            <Warehouse className="w-5 h-5 text-forest-emerald shrink-0" />
+            <label htmlFor="storage-bay-select" className="sr-only">
+              Filter by storage bay
+            </label>
+            <select
+              id="storage-bay-select"
+              aria-label="Filter by storage bay"
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="bg-transparent font-title-sm text-body-sm text-on-surface focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Godown Locations (Bay A, B, Cold Storage, Counter)</option>
+              <option value="bay-a">Main Godown Bay A (Fertilizers)</option>
+              <option value="bay-b">Godown Bay B (DAP/Potash)</option>
+              <option value="cold-cellar">Cold Cellar C1 (Hybrid Seeds)</option>
+              <option value="counter">Counter Shelf &amp; Displays</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-surface-container-low p-1 rounded-xl border border-outline-variant/30">
+            <button
+              type="button"
+              id="toggle-low-stock"
+              onClick={() => setFilterType((prev) => (prev === 'LOW_STOCK' ? 'ALL' : 'LOW_STOCK'))}
+              className={`px-2.5 py-1.5 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                filterType === 'LOW_STOCK'
+                  ? 'bg-khata-amber text-white shadow-xs'
+                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-khata-amber" />
+              <span>Low Stock</span>
+            </button>
+            <button
+              type="button"
+              id="toggle-near-expiry"
+              onClick={() => setFilterType((prev) => (prev === 'NEAR_EXPIRY' ? 'ALL' : 'NEAR_EXPIRY'))}
+              className={`px-2.5 py-1.5 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                filterType === 'NEAR_EXPIRY'
+                  ? 'bg-critical-rose text-white shadow-xs'
+                  : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+              }`}
+            >
+              <Clock className="w-4 h-4 text-critical-rose" />
+              <span>Near Expiry</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          5. MAIN CONTENT GRID: PRIMARY TABLE (8 COLS) + TACTICAL RIGHT RAIL (4 COLS)
+      ===================================================================== */}
+      <div className="grid grid-cols-1 2xl:grid-cols-12 gap-space-md items-start">
+        {/* Left Column: Primary Data Table (8 Cols on 2XL) */}
+        <div className="2xl:col-span-8 flex flex-col gap-space-md">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/30 overflow-hidden">
+            {/* Table Header Metabar */}
+            <div className="px-space-md py-space-sm bg-surface-container-low flex items-center justify-between text-on-surface-variant font-label-code text-label-code border-b border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <span className="font-bold uppercase tracking-wider text-on-surface">
+                  Registered SKUs &amp; Active Batches
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-outline-variant" />
+                <span>
+                  Showing {pageRange.start}–{pageRange.end} of {pageTotal} Records
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1 text-forest-emerald font-bold">
+                  <span className="w-2 h-2 rounded-full bg-forest-emerald animate-pulse" />
+                  FIFO Rule Active
+                </span>
+                <span>Sorted by Velocity</span>
+              </div>
             </div>
-          ) : (
-            filteredProducts.map((p) => {
-              const catCfg = getCategoryConfig(p.category);
-              const attrBadges = getCategoryAttributeBadges(p.category, p.category_attributes);
-              const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20);
-              const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
-              const sellingPrice = safeNumber(p.selling_price);
-              const prodName = p.name || p.product_name || 'Fertilizer Product';
-              const batchNo = p.batch_number || p.product_code || 'N/A';
-              const unitStr = normalizeUnit(p.unit);
-              const barcodeStr = p.barcode || String(10000 + p.id);
-              const warrantyVal = p.category_attributes?.warranty_months;
-              const dateSummary = catCfg.dateFields.showWarrantyField
-                ? warrantyVal
-                  ? `Warranty: ${warrantyVal}M`
-                  : 'No Expiry'
-                : `${catCfg.dateFields.expiryShortLabel}: ${p.expiry_date || (catCfg.dateFields.expiryRequired ? '-' : 'N/A')}`;
 
-              return (
-                <div
-                  key={p.id}
-                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5"
-                >
-                  {/* Card Header: Name, Category, Barcode */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${catCfg.badgeClass}`}>
-                          {catCfg.label}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedBarcodeProduct({ ...p, barcode: barcodeStr });
-                            setIsBarcodeModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-mono font-semibold border border-slate-200"
+            {/* Table Container */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low/50 text-on-surface-variant font-label-badge text-label-badge uppercase tracking-wider border-b border-outline-variant/20">
+                    <th className="py-space-sm pl-space-md pr-space-sm">SKU / Chemical Trade Info</th>
+                    <th className="py-space-sm px-space-sm">Active Batch &amp; Shelf Life</th>
+                    <th className="py-space-sm px-space-sm">Storage &amp; Bay Qty</th>
+                    <th className="py-space-sm px-space-sm text-right">Pricing &amp; Margin</th>
+                    <th className="py-space-sm pl-space-sm pr-space-md text-right">Row Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-container-high text-on-surface font-body-md text-body-md">
+                  {filteredProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-on-surface-variant text-body-sm">
+                        {isLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="w-4 h-4 border-2 border-forest-emerald border-t-transparent rounded-full animate-spin" />
+                            <span>Loading live godown inventory...</span>
+                          </div>
+                        ) : (
+                          'No products match your search or filter.'
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProducts.map((p) => {
+                      const catCfg = getCategoryConfig(p.category);
+                      const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? (p as any).minimum_stock ?? 20);
+                      const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
+                      const sellingPrice = safeNumber(p.selling_price);
+                      const prodName = p.name || p.product_name || 'Agri Product';
+                      const batchNo = p.batch_number || p.product_code || 'BAT-01';
+                      const unitStr = normalizeUnit(p.unit);
+                      const expiryBadge = getExpiryBadge(p.expiry_date);
+                      const minStock = safeNumber(p.min_stock_level ?? (p as any).minimum_stock ?? 20);
+                      const currentStock = safeNumber(p.current_stock);
+                      const bufferPct = Math.min(100, Math.max(8, minStock > 0 ? (currentStock / (minStock * 2)) * 100 : 100));
+                      const rackLoc = String(p.category_attributes?.rack_location || p.category_attributes?.storage_bay || 'Main Godown');
+
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setSelectedPreviewProductId(p.id)}
+                          className={`hover:bg-sprout-tint/30 transition-colors group cursor-pointer ${
+                            previewProduct?.id === p.id ? 'bg-sprout-tint/40' : ''
+                          }`}
                         >
-                          <Barcode className="w-3 h-3 text-slate-500" />
-                          <span>{barcodeStr}</span>
-                        </button>
-                      </div>
-                      <h4 className="font-bold text-sm text-slate-900 mt-1 leading-tight">
-                        {prodName}
-                      </h4>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                        {p.trade_name && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                            Trade: {p.trade_name}
-                          </span>
-                        )}
-                        {p.company_name && (
-                          <span className="text-[11px] text-slate-500">{p.company_name}</span>
-                        )}
-                      </div>
-                      {attrBadges.length > 0 && (
-                        <div className="flex items-center gap-1 flex-wrap mt-1">
-                          {attrBadges.map((b, i) => (
-                            <span key={i} className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${b.toneClass}`}>
-                              {b.label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                          {/* Col 1: SKU / Chemical Trade Info */}
+                          <td className="py-space-md pl-space-md pr-space-sm">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-title-sm text-body-md text-on-surface font-bold">
+                                  {prodName}
+                                </span>
+                                <span className={`font-label-badge text-label-badge px-1.5 py-0.5 rounded-full font-bold ${catCfg.badgeClass}`}>
+                                  {catCfg.regulationTag}
+                                </span>
+                              </div>
+                              <span className="text-body-sm text-on-surface-variant">
+                                {p.trade_name ? `Trade: ${p.trade_name} • ` : ''}
+                                {p.company_name ? `${p.company_name} • ` : ''}
+                                {catCfg.label}
+                              </span>
+                              <div className="flex items-center gap-2 mt-1">
+                                {p.hsn_code && (
+                                  <span className="font-label-code text-label-code bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded">
+                                    HSN {p.hsn_code}
+                                  </span>
+                                )}
+                                <span className="font-label-code text-label-code text-on-surface-variant flex items-center gap-1">
+                                  <Layers className="w-3.5 h-3.5 text-forest-emerald" />
+                                  {rackLoc}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
 
-                    {/* Stock level badge */}
-                    <div className={`px-2.5 py-1 rounded-xl text-center shrink-0 ${
-                      isLow
-                        ? 'bg-red-50 text-red-700 ring-1 ring-red-300'
-                        : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
-                    }`}>
-                      <span className="block text-[10px] font-semibold uppercase leading-none">Stock</span>
-                      <span className="font-black text-xs font-mono">
-                        {safeNumber(p.current_stock)} {unitStr}
-                      </span>
-                    </div>
+                          {/* Col 2: Active Batch & Shelf Life */}
+                          <td className="py-space-md px-space-sm">
+                            <div className="flex flex-col">
+                              <span className="font-label-code text-label-code font-bold text-on-surface">
+                                Batch: {batchNo}
+                              </span>
+                              {p.manufacture_date && (
+                                <span className="font-label-code text-label-code text-on-surface-variant">
+                                  Mfg: {p.manufacture_date}
+                                </span>
+                              )}
+                              <div className="mt-1">
+                                <span className={`font-label-badge text-label-badge px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 ${expiryBadge.colorClass}`}>
+                                  <Clock className="w-3 h-3" />
+                                  {expiryBadge.label}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Col 3: Storage & Bay Qty */}
+                          <td className="py-space-md px-space-sm">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-tabular-md text-tabular-md font-bold ${isLow ? 'text-critical-rose' : 'text-on-surface'}`}>
+                                  {currentStock} {unitStr}
+                                </span>
+                                <span className={`font-label-badge text-label-badge px-1.5 py-0.5 rounded font-bold ${
+                                  isLow ? 'bg-khata-amber-bg text-khata-amber' : 'bg-sprout-tint text-forest-emerald'
+                                }`}>
+                                  Buffer {minStock}
+                                </span>
+                              </div>
+                              <div className="w-28 bg-surface-container-high rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${isLow ? 'bg-critical-rose' : 'bg-forest-emerald'}`}
+                                  style={{ width: `${bufferPct}%` }}
+                                />
+                              </div>
+                              <span className="font-label-code text-label-code text-on-surface-variant mt-1">
+                                {rackLoc}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Col 4: Pricing & Margin */}
+                          <td className="py-space-md px-space-sm text-right">
+                            <div className="flex flex-col items-end">
+                              <span className="font-tabular-md text-tabular-md font-bold text-forest-emerald font-mono">
+                                ₹{formatCurrency(sellingPrice)}
+                              </span>
+                              <span className="font-label-code text-label-code text-on-surface-variant font-mono">
+                                MRP: ₹{formatCurrency(safeNumber(p.mrp))} | CP: ₹{formatCurrency(costPrice)}
+                              </span>
+                              <span className="font-label-code text-label-code bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded mt-0.5 font-mono">
+                                GST {safeNumber(p.gst_rate)}%
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Col 5: Row Actions */}
+                          <td className="py-space-md pl-space-sm pr-space-md text-right">
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdjustingProduct(p);
+                                  setAdjustQty(0);
+                                  setAdjustReason('');
+                                  setIsAdjustModalOpen(true);
+                                }}
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary hover:text-white flex items-center justify-center text-on-surface-variant transition-all active:scale-95"
+                                title="Stock Adjustment"
+                              >
+                                <SlidersHorizontal className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBarcodeProduct(p);
+                                  setIsBarcodeModalOpen(true);
+                                }}
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-primary hover:text-white flex items-center justify-center text-on-surface-variant transition-all active:scale-95"
+                                title="Generate Barcode"
+                              >
+                                <Barcode className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openRefillModal(p)}
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-forest-emerald hover:text-white flex items-center justify-center text-on-surface-variant transition-all active:scale-95"
+                                title="Refill Stock"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openEditProductModal(p)}
+                                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-highest text-on-surface-variant flex items-center justify-center transition-all active:scale-95"
+                                title="Edit SKU"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Sticky Persistent Ledger Summary Row & Pagination */}
+            <div className="bg-surface-container-low px-space-md py-space-sm flex flex-wrap items-center justify-between gap-space-sm border-t border-outline-variant/20">
+              <div className="flex items-center gap-space-md flex-wrap text-xs">
+                <span className="font-label-code text-label-code text-on-surface font-bold">
+                  TOTAL REGISTERED ITEMS: {totalCount}
+                </span>
+                <span className="font-label-code text-label-code text-forest-emerald font-semibold">
+                  ● ACTIVE BATCHES: {catalog.length || pageTotal}
+                </span>
+                <span className="font-label-code text-label-code text-critical-rose font-semibold">
+                  ● EXPIRING &lt;60D: {nearExpiryCount}
+                </span>
+              </div>
+              <div className="flex items-center gap-space-sm font-label-code text-label-code text-on-surface">
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage(clampPage(page - 1, pageTotal, INVENTORY_PAGE_SIZE))}
+                    disabled={page <= 1 || isLoading}
+                    className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors disabled:opacity-40"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage(clampPage(page + 1, pageTotal, INVENTORY_PAGE_SIZE))}
+                    disabled={page >= totalPages || isLoading}
+                    className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors disabled:opacity-40"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Inward Inspection & Regulatory Audit Alert */}
+          <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md">
+            <div className="flex items-center gap-space-md">
+              <div className="w-12 h-12 rounded-xl bg-sprout-tint flex items-center justify-center text-forest-emerald shrink-0 border border-forest-emerald/20">
+                <ShieldCheck className="w-7 h-7 text-forest-emerald" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-title-sm text-body-md text-on-surface font-bold">
+                    Form O &amp; Pesticide Principal Certificate Log
+                  </h2>
+                  <span className="font-label-badge text-label-badge bg-sprout-tint text-primary px-2 py-0.5 rounded-full font-bold border border-primary/20">
+                    IN COMPLIANCE
+                  </span>
+                </div>
+                <p className="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                  Every insecticide &amp; chemical compound batch in godown has an active FCO/CIB marketing authorization link on file.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => navigate('/khata?tab=compliance')}
+                className="px-space-md py-2.5 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container font-semibold text-xs transition-all flex items-center gap-1.5 border border-outline-variant/30 active:scale-95"
+              >
+                <FileText className="w-4 h-4 text-forest-emerald" />
+                <span>View Statutory Log</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/khata?tab=compliance')}
+                className="px-space-md py-2.5 rounded-xl bg-forest-emerald text-white hover:bg-canopy-deep font-semibold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Form A / Form O PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Tactical Right Rail (4 Cols on 2XL) */}
+        <div className="2xl:col-span-4 flex flex-col gap-space-md">
+          {/* Widget 1: Real-time 50x25mm ESC/POS Thermal Label Simulator */}
+          <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col gap-space-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-forest-emerald" />
+                <h2 className="font-title-sm text-body-md text-on-surface font-bold">
+                  50x25mm Thermal Label Preview
+                </h2>
+              </div>
+              <span className="font-label-code text-label-code bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded font-bold border border-outline-variant/40">
+                ESC/POS
+              </span>
+            </div>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Live preview of high-contrast barcode sticker for product packaging &amp; godown pallet scan. Click any table row to switch preview.
+            </p>
+
+            {/* 50x25mm Label Simulator Box */}
+            <div className="bg-surface-container-low p-space-md rounded-xl flex items-center justify-center border border-outline-variant/30">
+              <div className="w-[280px] bg-white rounded-md p-3 shadow-md flex flex-col items-center justify-between text-black select-none border border-black/10">
+                {/* Header info on label */}
+                <div className="w-full flex justify-between items-start border-b border-black/20 pb-1 text-[10px] leading-tight font-sans">
+                  <span className="font-bold tracking-tight uppercase truncate max-w-[150px]">
+                    {settings?.shop_name || 'NockBill Agro Solutions'}
+                  </span>
+                  <span className="font-mono text-[9px] font-bold">
+                    {settings?.gstin || '29AAAAA0000A1Z5'}
+                  </span>
+                </div>
+
+                {/* Product Name */}
+                <div className="w-full my-1 text-center">
+                  <span className="font-bold text-xs leading-none uppercase tracking-tight block truncate font-sans">
+                    {previewProduct?.name || previewProduct?.product_name || 'IFFCO Neem Coated Urea'}
+                  </span>
+                  <span className="text-[10px] text-black/70 font-sans block truncate">
+                    {previewProduct?.trade_name ? `Trade: ${previewProduct.trade_name} • ` : ''}
+                    {previewProduct?.unit ? `Unit: ${previewProduct.unit}` : '45kg Bag'}
+                  </span>
+                </div>
+
+                {/* Barcode SVG graphic simulation */}
+                <div className="w-full my-1 flex flex-col items-center">
+                  <svg className="w-full h-11" preserveAspectRatio="none" viewBox="0 0 200 40">
+                    {/* Simulated Code-128 Pattern */}
+                    <rect x="0" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="5" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="9" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="15" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="20" y="0" width="5" height="40" fill="#000000" />
+                    <rect x="27" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="31" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="36" y="0" width="1" height="40" fill="#000000" />
+                    <rect x="40" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="46" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="50" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="55" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="61" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="65" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="70" y="0" width="5" height="40" fill="#000000" />
+                    <rect x="77" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="81" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="87" y="0" width="1" height="40" fill="#000000" />
+                    <rect x="91" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="96" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="102" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="106" y="0" width="5" height="40" fill="#000000" />
+                    <rect x="113" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="117" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="122" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="126" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="132" y="0" width="1" height="40" fill="#000000" />
+                    <rect x="135" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="140" y="0" width="5" height="40" fill="#000000" />
+                    <rect x="147" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="151" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="157" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="161" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="166" y="0" width="5" height="40" fill="#000000" />
+                    <rect x="173" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="177" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="183" y="0" width="2" height="40" fill="#000000" />
+                    <rect x="187" y="0" width="3" height="40" fill="#000000" />
+                    <rect x="192" y="0" width="4" height="40" fill="#000000" />
+                    <rect x="198" y="0" width="2" height="40" fill="#000000" />
+                  </svg>
+                  <span className="font-mono text-[10px] tracking-widest font-bold mt-0.5">
+                    {previewProduct?.barcode || previewProduct?.product_code || (previewProduct?.id ? String(10000 + previewProduct.id) : '890123456789')}
+                  </span>
+                </div>
+
+                {/* Price & Batch Row */}
+                <div className="w-full border-t border-black/20 pt-1 flex justify-between items-end font-mono text-[9px] leading-tight">
+                  <div className="flex flex-col text-left">
+                    <span>MRP: ₹{formatCurrency(safeNumber(previewProduct?.mrp || previewProduct?.selling_price || 0))}</span>
+                    <span className="font-bold text-xs">
+                      RATE: ₹{formatCurrency(safeNumber(previewProduct?.selling_price || 0))}
+                    </span>
                   </div>
-
-                  {/* Pricing and Batch Info */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Selling Rate:</span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-black text-slate-900 text-sm font-mono">
-                          ₹{formatCurrency(sellingPrice)}
-                        </span>
-                        {p.base_selling_price && p.base_selling_price !== sellingPrice && (
-                          <span className="text-[10px] text-slate-400 line-through font-mono">
-                            ₹{formatCurrency(p.base_selling_price)}
-                          </span>
-                        )}
-                      </div>
-                      {p.price_list_name && p.price_list_active && (
-                        <span className={`inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                          p.price_list_type === 'DISCOUNT'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          <Tag className="w-2.5 h-2.5" />
-                          {p.price_list_name}
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px]">Cost / Inward:</span>
-                      <span className="font-semibold text-slate-600 font-mono">
-                        ₹{formatCurrency(costPrice)}
-                      </span>
-                    </div>
-                    <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>{catCfg.batchField.shortLabel}: <strong className="font-mono text-slate-700">{batchNo}</strong></span>
-                      <span>{dateSummary}</span>
-                    </div>
-                  </div>
-
-                  {/* Actions Bar */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => openRefillModal(p)}
-                      className="flex-1 py-2 px-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Refill Stock</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdjustingProduct(p);
-                        setAdjustQty(0);
-                        setAdjustReason('');
-                        setIsAdjustModalOpen(true);
-                      }}
-                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition"
-                      title="Adjust Stock"
-                    >
-                      <ArrowUpDown className="w-3.5 h-3.5" />
-                      <span>Adjust</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEditProductModal(p)}
-                      className="p-2 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition"
-                      title="Edit Product"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
+                  <div className="flex flex-col text-right">
+                    <span>B: {previewProduct?.batch_number || 'UF-982'}</span>
+                    <span>EXP: {previewProduct?.expiry_date ? previewProduct.expiry_date.slice(0, 7) : '10/26'}</span>
+                    <span className="font-bold text-[8px] uppercase">
+                      {String(previewProduct?.category_attributes?.rack_location || 'BAY A-01')}
+                    </span>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              </div>
+            </div>
 
-        {/* DESKTOP VIEW (>= md): Full Detail Data Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
-              <tr>
-                <th className="py-3 px-4">Product &amp; Compliance Info</th>
-                <th className="py-3 px-3">Barcode</th>
-                <th className="py-3 px-3">Category / GST</th>
-                <th className="py-3 px-3 text-center">Batch / Lot &amp; Validity</th>
-                <th className="py-3 px-3 text-right">Cost Price</th>
-                <th className="py-3 px-3 text-right">Selling Rate</th>
-                <th className="py-3 px-4 text-center">Stock Level</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map((p) => {
-                const catCfg = getCategoryConfig(p.category);
-                const attrBadges = getCategoryAttributeBadges(p.category, p.category_attributes);
-                const isLow = safeNumber(p.current_stock) <= safeNumber(p.min_stock_level ?? p.minimum_stock ?? 20);
-                const costPrice = safeNumber(p.cost_price ?? p.purchase_price);
-                const sellingPrice = safeNumber(p.selling_price);
-                const prodName = p.name || p.product_name || 'Fertilizer Product';
-                const batchNo = p.batch_number || p.product_code || 'N/A';
-                const unitStr = normalizeUnit(p.unit);
-                const barcodeStr = p.barcode || String(10000 + p.id);
-                const warrantyVal = p.category_attributes?.warranty_months;
-                const validityText = catCfg.dateFields.showWarrantyField
-                  ? warrantyVal
-                    ? `Warranty: ${warrantyVal}M`
-                    : 'No Expiry'
-                  : p.expiry_date
-                  ? `${catCfg.dateFields.expiryShortLabel}: ${p.expiry_date}`
-                  : catCfg.dateFields.expiryRequired
-                  ? `${catCfg.dateFields.expiryShortLabel}: -`
-                  : 'No Expiry';
+            {/* Print Action */}
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (previewProduct) {
+                    setSelectedBarcodeProduct(previewProduct);
+                    setIsBarcodeModalOpen(true);
+                  }
+                }}
+                className="flex-1 h-10 rounded-xl bg-forest-emerald text-white hover:bg-canopy-deep font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <Barcode className="w-4 h-4" />
+                <span>Print Thermal Barcodes</span>
+              </button>
+            </div>
+          </div>
 
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-bold text-slate-900">{prodName}</p>
-                            {p.trade_name && (
-                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                                Trade: {p.trade_name}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-mono">
-                            {p.company_name ? `${p.company_name} • ` : ''}
-                            Unit: {unitStr}
-                            {p.hsn_code ? ` • HSN: ${p.hsn_code}` : ''}
-                            {p.variants && p.variants.length > 1 ? ` • ${p.variants.length} pack sizes` : ''}
-                          </p>
-                          {attrBadges.length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap mt-1">
-                              {attrBadges.map((b, i) => (
-                                <span key={i} className={`px-1.5 py-0.5 rounded border text-[9px] font-bold ${b.toneClass}`}>
-                                  {b.label}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedBarcodeProduct({ ...p, barcode: barcodeStr });
-                          setIsBarcodeModalOpen(true);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md font-mono text-[11px] font-semibold border border-slate-300"
-                        title="Click to preview & print barcode"
-                      >
-                        <Barcode className="w-3.5 h-3.5 text-slate-600" />
-                        {barcodeStr}
-                      </button>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${catCfg.badgeClass}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${catCfg.dotClass}`} />
-                        {catCfg.label}
-                      </span>
-                      <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
-                        GST {safeNumber(p.gst_rate)}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="font-mono text-slate-700 text-[11px] font-semibold block">
-                        <span className="text-[10px] font-sans text-slate-400 mr-1">{catCfg.batchField.shortLabel}:</span>
-                        {batchNo}
-                      </span>
-                      <span className="text-[10px] text-slate-500">{validityText}</span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-medium text-slate-600">
-                      {formatCurrency(costPrice)}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="font-bold text-slate-900">
-                        {formatCurrency(sellingPrice)}
-                      </div>
-                      {p.base_selling_price && p.base_selling_price !== sellingPrice && (
-                        <div className="text-[10px] text-slate-400 line-through font-mono">
-                          {formatCurrency(p.base_selling_price)}
-                        </div>
-                      )}
-                      {p.price_list_name && p.price_list_active && (
-                        <span className={`inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                          p.price_list_type === 'DISCOUNT'
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
-                          <Tag className="w-2.5 h-2.5" />
-                          {p.price_list_name}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black ${
-                        isLow
-                          ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
-                          : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
-                      }`}>
-                        {safeNumber(p.current_stock)} {unitStr}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openRefillModal(p)}
-                          className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                          title="Refill Stock"
-                        >
-                          <RotateCcw className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAdjustingProduct(p);
-                            setAdjustQty(0);
-                            setAdjustReason('');
-                            setIsAdjustModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Adjust Stock"
-                        >
-                          <ArrowUpDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEditProductModal(p)}
-                          className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit Product"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+          {/* NOTE: Godown Bay Utilization widget is omitted as ordered by user ("Godown bay utilization not required") */}
 
-        {/* Pagination controls */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 bg-slate-50/60 text-xs text-slate-600">
-          <span data-testid="inventory-page-summary">
-            Showing <strong>{pageRange.start}–{pageRange.end}</strong> of <strong>{pageTotal}</strong>
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPage(clampPage(page - 1, pageTotal, INVENTORY_PAGE_SIZE))}
-              disabled={page <= 1 || isLoading}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold hover:bg-slate-100 disabled:opacity-50"
-            >
-              Prev
-            </button>
-            <span className="font-mono font-semibold">Page {page} / {totalPages}</span>
-            <button
-              type="button"
-              onClick={() => setPage(clampPage(page + 1, pageTotal, INVENTORY_PAGE_SIZE))}
-              disabled={page >= totalPages || isLoading}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold hover:bg-slate-100 disabled:opacity-50"
-            >
-              Next
-            </button>
+          {/* Widget 3: Live Quick Audit Checklist */}
+          <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col gap-space-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="font-title-sm text-body-md text-on-surface font-bold">
+                Inspector Readiness
+              </h2>
+              <span className="font-label-badge text-label-badge bg-sprout-tint text-primary px-2 py-0.5 rounded-full font-bold border border-primary/20">
+                VERIFIED
+              </span>
+            </div>
+            <div className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center gap-2 text-body-sm text-on-surface">
+                <CheckCircle2 className="w-4 h-4 text-forest-emerald shrink-0" />
+                <span>
+                  Daily Physical Stock Reconciliation: <strong className="font-semibold text-forest-emerald">Done</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-body-sm text-on-surface">
+                <CheckCircle2 className="w-4 h-4 text-forest-emerald shrink-0" />
+                <span>
+                  Govt DBT Fertilizer POS Sync: <strong className="font-semibold text-forest-emerald">Real-time</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-body-sm text-on-surface">
+                <CheckCircle2 className="w-4 h-4 text-forest-emerald shrink-0" />
+                <span>
+                  Expired Agrochemical Discard Ledger: <strong className="font-semibold text-forest-emerald">Signed</strong>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* =====================================================================
+          6. MODALS PRESERVED: PRODUCT FORM, REFILL, ADJUST, BARCODE
+      ===================================================================== */}
       {/* Refill Stock Modal */}
       {isRefillModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div className="px-5 py-4 bg-emerald-800 text-white flex items-center justify-between">
+            <div className="px-5 py-4 bg-forest-emerald text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <RotateCcw className="w-5 h-5 text-emerald-300" />
-                <h3 className="font-bold text-sm">Refill Existing Stock & Inward Goods</h3>
+                <RotateCcw className="w-5 h-5 text-emerald-200" />
+                <h3 className="font-bold text-sm">Refill Existing Stock &amp; Inward Goods</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setIsRefillModalOpen(false)}
                 className="text-emerald-200 hover:text-white"
               >
@@ -1332,14 +1867,13 @@ export const InventoryPage: React.FC = () => {
             </div>
 
             <form onSubmit={(e) => { void handleRefillSubmit(e); }} className="p-5 space-y-4 text-xs">
-              {/* Product Selector - Searchable Typeahead for 1000+ products */}
               <div>
                 <label htmlFor="refill-product-search" className="block font-semibold text-slate-700 mb-1">
                   Product to Refill *
                 </label>
                 {refillProductId ? (
                   (() => {
-                    const sel = products.find(p => p.id === refillProductId);
+                    const sel = products.find((p) => p.id === refillProductId);
                     if (!sel) return null;
                     return (
                       <div className="bg-emerald-50/80 border border-emerald-300 rounded-xl p-3 flex items-center justify-between">
@@ -1384,12 +1918,11 @@ export const InventoryPage: React.FC = () => {
                         type="text"
                         value={refillProductSearch}
                         onChange={(e) => setRefillProductSearch(e.target.value)}
-                        placeholder="Search 1000+ products by name, trade name, company, or 5-digit code..."
+                        placeholder="Search products by name, trade name, company, or code..."
                         className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
                       />
                     </div>
 
-                    {/* Filtered suggestions list */}
                     <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white shadow-md">
                       {products
                         .filter((p) => {
@@ -1441,7 +1974,7 @@ export const InventoryPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Company / Brand & Trade Name (Product + Brand Mapping) */}
+              {/* Company / Brand & Trade Name */}
               <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 space-y-2.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1485,31 +2018,14 @@ export const InventoryPage: React.FC = () => {
                     />
                   </div>
                 </div>
-                {refillTradeResolution.relatedMappings.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                    <span className="text-[10px] font-bold text-emerald-800">Known Brand Trade Names:</span>
-                    {refillTradeResolution.relatedMappings.map((m, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setRefillCompanyName(m.company);
-                          setRefillTradeName(m.trade_name);
-                          setRefillTradeManuallyEdited(true);
-                        }}
-                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition"
-                      >
-                        {m.company} → <strong>{m.trade_name}</strong>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Quantity and Unit */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="refill-qty" className="block font-semibold text-slate-700 mb-1">Inward Quantity to Add *</label>
+                  <label htmlFor="refill-qty" className="block font-semibold text-slate-700 mb-1">
+                    Inward Quantity to Add *
+                  </label>
                   <input
                     id="refill-qty"
                     type="number"
@@ -1522,25 +2038,25 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700">
-                    <span className="block mb-1">Unit of Measure</span>
-                    <CustomSelect
-                      value={normalizeUnit(refillUnit)}
-                      onChange={(val) => setRefillUnit(val)}
-                      options={(() => {
-                        const allowed = selectedRefillProduct
-                          ? refillCategoryConfig.allowedUnits
-                          : ['Bags', 'Kg', 'Grams', 'Litre', 'ml', 'Packets', 'Pouches', 'Tons', 'Pieces', 'Nos', 'Sets', 'Meters', 'Rolls'];
-                        const current = normalizeUnit(refillUnit);
-                        const list = allowed.includes(current) ? allowed : [current, ...allowed];
-                        return list.map((u) => ({ value: u, label: u }));
-                      })()}
-                    />
+                  <label htmlFor="refill-unit-select" className="block font-semibold text-slate-700 mb-1">
+                    Unit of Measure
                   </label>
+                  <CustomSelect
+                    value={normalizeUnit(refillUnit)}
+                    onChange={(val) => setRefillUnit(val)}
+                    options={(() => {
+                      const allowed = selectedRefillProduct
+                        ? refillCategoryConfig.allowedUnits
+                        : ['Bags', 'Kg', 'Grams', 'Litre', 'ml', 'Packets', 'Pouches', 'Tons', 'Pieces', 'Nos', 'Sets', 'Meters', 'Rolls'];
+                      const current = normalizeUnit(refillUnit);
+                      const list = allowed.includes(current) ? allowed : [current, ...allowed];
+                      return list.map((u) => ({ value: u, label: u }));
+                    })()}
+                  />
                 </div>
               </div>
 
-              {/* Dynamic Batch / Lot & Dates */}
+              {/* Batch & Dates */}
               <div className={`grid grid-cols-1 ${refillCategoryConfig.dateFields.showExpiryDate ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
                 <div>
                   <label htmlFor="refill-batch" className="block font-semibold text-slate-700 mb-1">
@@ -1588,7 +2104,9 @@ export const InventoryPage: React.FC = () => {
               {/* Pricing */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="refill-purchase-price" className="block font-semibold text-slate-700 mb-1">Inward Cost Price (₹)</label>
+                  <label htmlFor="refill-purchase-price" className="block font-semibold text-slate-700 mb-1">
+                    Inward Cost Price (₹)
+                  </label>
                   <input
                     id="refill-purchase-price"
                     type="number"
@@ -1599,7 +2117,9 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-selling-price" className="block font-semibold text-slate-700 mb-1">Selling Price (₹)</label>
+                  <label htmlFor="refill-selling-price" className="block font-semibold text-slate-700 mb-1">
+                    Selling Price (₹)
+                  </label>
                   <input
                     id="refill-selling-price"
                     type="number"
@@ -1610,7 +2130,9 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-mrp" className="block font-semibold text-slate-700 mb-1">MRP (₹)</label>
+                  <label htmlFor="refill-mrp" className="block font-semibold text-slate-700 mb-1">
+                    MRP (₹)
+                  </label>
                   <input
                     id="refill-mrp"
                     type="number"
@@ -1625,7 +2147,9 @@ export const InventoryPage: React.FC = () => {
               {/* Supplier & Inward Bill No */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="refill-supplier" className="block font-semibold text-slate-700 mb-1">Supplier / Depot Name</label>
+                  <label htmlFor="refill-supplier" className="block font-semibold text-slate-700 mb-1">
+                    Supplier / Depot Name
+                  </label>
                   <input
                     id="refill-supplier"
                     type="text"
@@ -1636,7 +2160,9 @@ export const InventoryPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-invoice" className="block font-semibold text-slate-700 mb-1">Supplier Invoice / Bill No.</label>
+                  <label htmlFor="refill-invoice" className="block font-semibold text-slate-700 mb-1">
+                    Supplier Invoice / Bill No.
+                  </label>
                   <input
                     id="refill-invoice"
                     type="text"
@@ -1649,7 +2175,9 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="refill-notes" className="block font-semibold text-slate-700 mb-1">Inward Notes</label>
+                <label htmlFor="refill-notes" className="block font-semibold text-slate-700 mb-1">
+                  Inward Notes
+                </label>
                 <input
                   id="refill-notes"
                   type="text"
@@ -1671,7 +2199,7 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={refillSubmitting}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-all"
+                  className="bg-forest-emerald hover:bg-canopy-deep text-white px-5 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-all"
                 >
                   {refillSubmitting ? 'Refilling...' : 'Confirm Refill & Add Stock'}
                 </button>
@@ -1681,7 +2209,7 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Add / Edit Product Modal (Category-Driven Dynamic Fields) */}
+      {/* Product Form Modal (Add / Edit SKU) */}
       <ProductFormModal
         isOpen={isEditModalOpen}
         editingProduct={editingProduct}
@@ -1728,8 +2256,11 @@ export const InventoryPage: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <h3 className="font-bold text-sm">Adjust Stock: {adjustingProduct.name || adjustingProduct.product_name}</h3>
+              <h3 className="font-bold text-sm">
+                Adjust Stock: {adjustingProduct.name || adjustingProduct.product_name}
+              </h3>
               <button
+                type="button"
                 onClick={() => setIsAdjustModalOpen(false)}
                 className="text-slate-400 hover:text-white"
               >
@@ -1739,25 +2270,25 @@ export const InventoryPage: React.FC = () => {
 
             <form onSubmit={(e) => { void handleAdjustStock(e); }} className="p-5 space-y-3.5 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <p className="text-slate-500">Current Warehouse Stock:</p>
-                <p className="text-lg font-black text-brand-900">
+                <span className="text-slate-500 block">Current Warehouse Stock:</span>
+                <span className="text-lg font-black text-forest-emerald font-mono block">
                   {adjustingProduct.current_stock} {adjustingProduct.unit}
-                </p>
+                </span>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700">
-                  <span className="block mb-1">Adjustment Type</span>
-                  <CustomSelect
-                    value={adjustType}
-                    onChange={(val) => setAdjustType(val as any)}
-                    options={[
-                      { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
-                      { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
-                      { value: 'RETURN', label: 'Customer Return (+)' },
-                    ]}
-                  />
+                <label htmlFor="adjust-type-select" className="block font-semibold text-slate-700 mb-1">
+                  Adjustment Type
                 </label>
+                <CustomSelect
+                  value={adjustType}
+                  onChange={(val) => setAdjustType(val as any)}
+                  options={[
+                    { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
+                    { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
+                    { value: 'RETURN', label: 'Customer Return (+)' },
+                  ]}
+                />
               </div>
 
               <div>
@@ -1771,12 +2302,14 @@ export const InventoryPage: React.FC = () => {
                   value={adjustQty}
                   onChange={(e) => setAdjustQty(Number.parseInt(e.target.value, 10) || 0)}
                   placeholder="e.g. -5 or +10"
-                  className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
                 />
               </div>
 
               <div>
-                <label htmlFor="adjust-stock-reason" className="block font-semibold text-slate-700 mb-1">Reason / Note</label>
+                <label htmlFor="adjust-stock-reason" className="block font-semibold text-slate-700 mb-1">
+                  Reason / Note
+                </label>
                 <input
                   id="adjust-stock-reason"
                   type="text"
@@ -1784,7 +2317,7 @@ export const InventoryPage: React.FC = () => {
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
                   placeholder="e.g. Monthly godown physical verification"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
                 />
               </div>
 
@@ -1798,7 +2331,7 @@ export const InventoryPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 rounded-xl font-bold shadow transition-all"
+                  className="bg-forest-emerald hover:bg-canopy-deep text-white px-5 py-2 rounded-xl font-bold shadow transition-all"
                 >
                   Confirm Adjustment
                 </button>

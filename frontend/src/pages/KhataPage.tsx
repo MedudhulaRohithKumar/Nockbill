@@ -4,8 +4,6 @@ import {
   BookOpen,
   Users,
   Truck,
-  Sparkles,
-  Clock,
   ShieldCheck,
   Search,
   IndianRupee,
@@ -13,23 +11,20 @@ import {
   CheckCircle2,
   AlertCircle,
   Printer,
-  Percent,
-  PackagePlus,
   X,
   ChevronDown,
   Check,
 } from 'lucide-react';
-import { khataApi, productsApi, getErrorMessage } from '../api';
+import { khataApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
-import { Product } from '../types';
 import {
   formatCurrency,
   safeNumber,
   buildWhatsAppKhataReminderUrl,
 } from '../utils/formatters';
 
-type KhataTab = 'farmers' | 'suppliers' | 'catalog' | 'handover' | 'compliance';
+type KhataTab = 'farmers' | 'suppliers' | 'compliance';
 
 interface KhataModuleOption {
   id: KhataTab;
@@ -43,7 +38,7 @@ interface KhataModuleOption {
 const KHATA_MODULE_OPTIONS: KhataModuleOption[] = [
   {
     id: 'farmers',
-    title: 'Farmer Credit Ledger (Khata)',
+    title: 'Farmer Credit Ledger',
     badge: 'Farmer Credit',
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     description: 'Track outstanding farmer credit, payment collections & send WhatsApp payment reminders with UPI QR',
@@ -51,27 +46,11 @@ const KHATA_MODULE_OPTIONS: KhataModuleOption[] = [
   },
   {
     id: 'suppliers',
-    title: 'Supplier Payables Ledger (Khata)',
+    title: 'Supplier Payables Ledger',
     badge: 'Distributor Dues',
     badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
     description: 'Inward purchase bills, pending supplier payables, payout history & ledger receipts',
     icon: Truck,
-  },
-  {
-    id: 'catalog',
-    title: '1-Click Agri Catalog & Expiry Clearance',
-    badge: 'Stock & Margin',
-    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
-    description: '100+ pre-curated fertilizers, seeds & pesticides with 1-click godown import and automated expiry markdown',
-    icon: Sparkles,
-  },
-  {
-    id: 'handover',
-    title: 'Cashier Shift Handover',
-    badge: 'Cash Drawer',
-    badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-    description: 'Daily cash drawer balancing, UPI/Card payment reconciliation & cashier shift handover receipts',
-    icon: Clock,
   },
   {
     id: 'compliance',
@@ -91,7 +70,7 @@ export const KhataPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as KhataTab) || 'farmers';
   const [activeTab, setActiveTab] = useState<KhataTab>(
-    ['farmers', 'suppliers', 'catalog', 'handover', 'compliance'].includes(initialTab)
+    ['farmers', 'suppliers', 'compliance'].includes(initialTab)
       ? initialTab
       : 'farmers'
   );
@@ -100,7 +79,7 @@ export const KhataPage: React.FC = () => {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as KhataTab | null;
-    if (tabParam && ['farmers', 'suppliers', 'catalog', 'handover', 'compliance'].includes(tabParam)) {
+    if (tabParam && ['farmers', 'suppliers', 'compliance'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -134,13 +113,13 @@ export const KhataPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // 1. Farmer Khata State
+  // 1. Farmer Credit State
   const [searchQuery, setSearchQuery] = useState('');
   const [onlyDue, setOnlyDue] = useState(false);
   const [totalOutstandingUdhar, setTotalOutstandingUdhar] = useState(0);
   const [customers, setCustomers] = useState<any[]>([]);
 
-  // 2. Supplier Khata State
+  // 2. Supplier Payables State
   const [totalPayable, setTotalPayable] = useState(0);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
@@ -156,20 +135,7 @@ export const KhataPage: React.FC = () => {
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'UPI' | 'BANK'>('CASH');
   const [paymentNotes, setPaymentNotes] = useState('');
 
-  // 3. Master Agri Catalog & Expiry Clearance State
-  const [catalogTemplates, setCatalogTemplates] = useState<any[]>([]);
-  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
-  const [expiringProducts, setExpiringProducts] = useState<Product[]>([]);
-  const [discountPercent, setDiscountPercent] = useState<number>(15);
-
-  // 4. Cashier Shift Handover State
-  const [shiftDate, setShiftDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [shiftData, setShiftData] = useState<{
-    total_net_cash_in_drawer: number;
-    cashiers: any[];
-  }>({ total_net_cash_in_drawer: 0, cashiers: [] });
-
-  // 5. Agri Inspector Compliance Register State
+  // 3. Agri Inspector Compliance Register State
   const [complianceData, setComplianceData] = useState<{
     shop_name: string;
     gstin?: string | null;
@@ -191,7 +157,7 @@ export const KhataPage: React.FC = () => {
       setCustomers(data.customers || []);
       setTotalOutstandingUdhar(safeNumber(data.total_outstanding_udhar, 0));
     } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to load Farmer Khata ledger.'));
+      setError(getErrorMessage(err, 'Failed to load Farmer Credit ledger.'));
     } finally {
       setLoading(false);
     }
@@ -205,50 +171,7 @@ export const KhataPage: React.FC = () => {
       setSuppliers(data.suppliers || []);
       setTotalPayable(safeNumber(data.total_outstanding_payable, 0));
     } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to load Supplier Khata ledger.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCatalogAndExpiring = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [tplRes, allProducts] = await Promise.all([
-        khataApi.getCatalogTemplates(),
-        productsApi.getAll().catch(() => []),
-      ]);
-      const tpls = tplRes.templates || [];
-      setCatalogTemplates(tpls);
-      setSelectedCodes(tpls.map((t: any) => t.code));
-
-      const now = Date.now();
-      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
-      const nearExp = (Array.isArray(allProducts) ? allProducts : []).filter((p) => {
-        if (!p.expiry_date || safeNumber(p.current_stock, 0) <= 0) return false;
-        const expTime = new Date(p.expiry_date).getTime();
-        return !Number.isNaN(expTime) && expTime - now <= ninetyDaysMs;
-      });
-      setExpiringProducts(nearExp);
-    } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to load catalog & expiry queue.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadShiftHandover = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await khataApi.getShiftHandover(shiftDate || undefined);
-      setShiftData({
-        total_net_cash_in_drawer: safeNumber(res.total_net_cash_in_drawer, 0),
-        cashiers: res.cashiers || [],
-      });
-    } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to load Cashier Shift Handover summary.'));
+      setError(getErrorMessage(err, 'Failed to load Supplier Payables ledger.'));
     } finally {
       setLoading(false);
     }
@@ -270,10 +193,8 @@ export const KhataPage: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'farmers') void loadCustomers();
     else if (activeTab === 'suppliers') void loadSuppliers();
-    else if (activeTab === 'catalog') void loadCatalogAndExpiring();
-    else if (activeTab === 'handover') void loadShiftHandover();
     else if (activeTab === 'compliance') void loadComplianceRegister();
-  }, [activeTab, onlyDue, shiftDate]);
+  }, [activeTab, onlyDue]);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,40 +226,7 @@ export const KhataPage: React.FC = () => {
       if (paymentModal.ledger_type === 'CUSTOMER') await loadCustomers();
       else await loadSuppliers();
     } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to record Khata payment.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleImportCatalog = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await khataApi.importCatalog(selectedCodes);
-      setSuccessMsg(
-        `Imported ${res.imported_count} Agri Products into your inventory (${res.skipped_count} already existed).`,
-      );
-      setTimeout(() => setSuccessMsg(null), 4000);
-    } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to import Master Agri Catalog.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApplyClearance = async (productId: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await khataApi.applyExpiryClearance(productId, discountPercent);
-      setSuccessMsg(
-        `Applied ${res.discount_percent}% clearance discount on ${res.product_name} → New Selling Price: ₹${formatCurrency(res.new_selling_price)}`,
-      );
-      setTimeout(() => setSuccessMsg(null), 4000);
-      await loadCatalogAndExpiring();
-    } catch (err: any) {
-      setError(getErrorMessage(err, 'Failed to apply clearance discount.'));
+      setError(getErrorMessage(err, 'Failed to record credit payment.'));
     } finally {
       setLoading(false);
     }
@@ -351,10 +239,10 @@ export const KhataPage: React.FC = () => {
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-brand-700" />
-            <span>Khata Ledger, Onboarding &amp; Compliance Hub</span>
+            <span>Credit Ledger &amp; Statutory Compliance</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Farmer credit recovery, WhatsApp payment reminders, 1-click product onboarding, shift handover &amp; Form O compliance
+            Farmer credit recovery, WhatsApp payment reminders, supplier payables &amp; Form O compliance
           </p>
         </div>
 
@@ -366,181 +254,169 @@ export const KhataPage: React.FC = () => {
         )}
       </div>
 
-      {/* Khata Module Dropdown Selector (Under Khata) */}
+      {/* Credit Module Dropdown Selector */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-brand-600 animate-pulse" />
             <label
-              htmlFor="khata-module-dropdown-btn"
+              htmlFor="credit-module-dropdown-btn"
               className="text-xs font-black uppercase tracking-wider text-slate-500"
             >
-              Select Khata Module:
+              Select Credit Module:
             </label>
           </div>
 
-          {/* Interactive Dropdown Button & Menu */}
-          {(() => {
-            const activeOption =
-              KHATA_MODULE_OPTIONS.find((opt) => opt.id === activeTab) ||
-              KHATA_MODULE_OPTIONS[0];
-            const ActiveIcon = activeOption.icon;
-            return (
-              <div className="relative w-full md:w-[480px]" ref={dropdownRef}>
+          {/* Unified Dropdown Controller */}
+          <div className="relative w-full md:w-96" ref={dropdownRef}>
+            {(() => {
+              const current =
+                KHATA_MODULE_OPTIONS.find((m) => m.id === activeTab) ||
+                KHATA_MODULE_OPTIONS[0];
+              const CurrentIcon = current.icon;
+              return (
                 <button
-                  id="khata-module-dropdown-btn"
+                  id="credit-module-dropdown-btn"
                   type="button"
                   aria-haspopup="listbox"
                   aria-expanded={isDropdownOpen}
+                  aria-label="Select Credit Module"
                   onClick={() => setIsDropdownOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-sm text-slate-800 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  className="w-full flex items-center justify-between gap-3 px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl transition text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
-                  <div className="flex items-center gap-3 truncate">
-                    <div className="w-8 h-8 rounded-lg bg-brand-800 text-white flex items-center justify-center shrink-0 shadow-sm">
-                      <ActiveIcon className="w-4 h-4" />
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-1.5 bg-brand-700 text-white rounded-lg shrink-0">
+                      <CurrentIcon className="w-4 h-4" />
                     </div>
-                    <div className="text-left truncate">
-                      <div className="text-xs font-black text-slate-900 truncate">
-                        {activeOption.title}
-                      </div>
-                      <div className="text-[11px] text-slate-500 truncate font-normal">
-                        {activeOption.description}
-                      </div>
+                    <div className="truncate">
+                      <p className="font-bold text-xs text-slate-900 truncate">
+                        {current.title}
+                      </p>
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {current.description}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${activeOption.badgeColor}`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${current.badgeColor}`}
                     >
-                      {activeOption.badge}
+                      {current.badge}
                     </span>
                     <ChevronDown
-                      className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
-                        isDropdownOpen ? 'rotate-180 text-brand-700' : ''
+                      className={`w-4 h-4 text-slate-500 transition-transform ${
+                        isDropdownOpen ? 'rotate-180' : ''
                       }`}
                     />
                   </div>
                 </button>
+              );
+            })()}
 
-                {/* Dropdown Menu Popup */}
-                {isDropdownOpen && (
-                  <div
-                    role="listbox"
-                    aria-label="Khata Modules"
-                    className="absolute right-0 left-0 md:left-auto md:w-[480px] mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden z-40 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-150"
-                  >
-                    <div className="px-4 py-2.5 bg-slate-50 flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        Switch Khata Section
-                      </span>
-                      <span className="text-[10px] text-brand-700 font-bold bg-brand-50 px-2 py-0.5 rounded-full border border-brand-200">
-                        5 Specialized Ledgers
-                      </span>
-                    </div>
-
-                    <div className="p-2 space-y-1">
-                      {KHATA_MODULE_OPTIONS.map((opt) => {
-                        const OptIcon = opt.icon;
-                        const isSelected = activeTab === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            role="option"
-                            aria-selected={isSelected}
-                            onClick={() => {
-                              handleTabChange(opt.id);
-                              setIsDropdownOpen(false);
-                            }}
-                            className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 cursor-pointer ${
-                              isSelected
-                                ? 'bg-brand-50 border border-brand-200 shadow-sm'
-                                : 'hover:bg-slate-50 border border-transparent'
-                            }`}
-                          >
-                            <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                                isSelected
-                                  ? 'bg-brand-800 text-white'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              <OptIcon className="w-4 h-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <span
-                                  className={`text-xs font-black truncate ${
-                                    isSelected
-                                      ? 'text-brand-900'
-                                      : 'text-slate-800'
-                                  }`}
-                                >
-                                  {opt.title}
-                                </span>
-                                <span
-                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 border ${opt.badgeColor}`}
-                                >
-                                  {opt.badge}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                                {opt.description}
-                              </p>
-                            </div>
-                            {isSelected && (
-                              <Check className="w-4 h-4 text-brand-700 shrink-0 mt-1" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+            {isDropdownOpen && (
+              <div
+                role="listbox"
+                aria-label="Credit Modules"
+                className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl p-2 z-30 space-y-1 animate-in fade-in slide-in-from-top-1"
+              >
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Switch Module
+                </div>
+                {KHATA_MODULE_OPTIONS.map((opt) => {
+                  const OptIcon = opt.icon;
+                  const isSelected = activeTab === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      role="option"
+                      aria-selected={isSelected}
+                      type="button"
+                      onClick={() => {
+                        handleTabChange(opt.id);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-left transition ${
+                        isSelected
+                          ? 'bg-brand-50 border border-brand-200 text-brand-900'
+                          : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`p-2 rounded-lg shrink-0 ${
+                            isSelected
+                              ? 'bg-brand-700 text-white'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          <OptIcon className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="font-bold text-xs">{opt.title}</p>
+                          <p className="text-[10px] text-slate-500 truncate">
+                            {opt.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${opt.badgeColor}`}
+                        >
+                          {opt.badge}
+                        </span>
+                        {isSelected && <Check className="w-4 h-4 text-brand-700 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })()}
+            )}
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-4 py-3 rounded-xl flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div
+          role="alert"
+          className="p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-xs flex items-center gap-2"
+        >
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* =====================================================================
-          TAB 1: FARMER KHATA (UDHAR / CREDIT LEDGER)
+          TAB 1: FARMER CREDIT LEDGER
       ===================================================================== */}
       {activeTab === 'farmers' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <span className="text-[11px] font-bold uppercase text-slate-400">Total Outstanding Farmer Credit</span>
-              <p className="text-2xl font-black text-amber-700 mt-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm md:col-span-1">
+              <span className="text-[11px] font-bold uppercase text-slate-400">
+                Total Outstanding Farmer Credit
+              </span>
+              <p className="text-2xl font-black text-rose-700 mt-1">
                 ₹{formatCurrency(totalOutstandingUdhar)}
               </p>
             </div>
-            <div className="sm:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm md:col-span-2 flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                 <input
-                  id="khata-farmer-search"
-                  aria-label="Search farmers by name, phone, or village"
                   type="text"
+                  placeholder="Search farmer name, mobile, or village..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void loadCustomers();
                   }}
-                  placeholder="Search farmer name, mobile, or village..."
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-500"
                 />
               </div>
-              <label htmlFor="khata-only-due" className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <label htmlFor="only-due-checkbox" className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold shrink-0 cursor-pointer">
                 <input
-                  id="khata-only-due"
+                  id="only-due-checkbox"
                   type="checkbox"
                   checked={onlyDue}
                   onChange={(e) => setOnlyDue(e.target.checked)}
@@ -551,9 +427,10 @@ export const KhataPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { void loadCustomers(); }}
-                className="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white rounded-xl text-xs font-bold"
+                disabled={loading}
+                className="w-full sm:w-auto px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white rounded-xl text-xs font-bold"
               >
-                Search
+                {loading ? 'Searching...' : 'Search'}
               </button>
             </div>
           </div>
@@ -573,11 +450,11 @@ export const KhataPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {customers.map((c) => {
-                  const due = safeNumber(c.outstanding_balance, 0);
+                  const pending = safeNumber(c.outstanding_balance, 0);
                   const waReminderUrl = buildWhatsAppKhataReminderUrl(
                     c.customer_phone,
                     c.customer_name,
-                    due,
+                    pending,
                     settings,
                   );
                   return (
@@ -585,57 +462,54 @@ export const KhataPage: React.FC = () => {
                       <td className="py-3 px-4 font-bold text-slate-900">
                         {c.customer_name}
                         <span className="block text-[10px] font-normal text-slate-400">
-                          {c.bill_count} bills
+                          {c.bill_count} invoices billed
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-600">
-                        <div className="font-mono font-semibold">{c.customer_phone || '-'}</div>
-                        {c.customer_address && (
-                          <div className="text-[11px] text-slate-400">{c.customer_address}</div>
-                        )}
+                      <td className="py-3 px-4 font-mono text-slate-600">
+                        <div>{c.customer_phone || '-'}</div>
+                        <div className="text-[10px] text-slate-400">{c.customer_address || '-'}</div>
                       </td>
                       <td className="py-3 px-4 text-right font-mono">
                         ₹{formatCurrency(c.total_billed)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-slate-700">
+                      <td className="py-3 px-4 text-right font-mono text-amber-700">
                         ₹{formatCurrency(c.total_credit_billed)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono text-emerald-700 font-semibold">
                         ₹{formatCurrency(c.total_repaid)}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-black">
-                        <span className={due > 0 ? 'text-amber-700' : 'text-emerald-700'}>
-                          ₹{formatCurrency(due)}
-                        </span>
+                      <td className="py-3 px-4 text-right font-mono font-black text-rose-700">
+                        ₹{formatCurrency(pending)}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPaymentModal({
-                                ledger_type: 'CUSTOMER',
-                                party_name: c.customer_name,
-                                party_phone: c.customer_phone || undefined,
-                                party_gstin: c.customer_gstin || undefined,
-                                suggested_amount: due,
-                              });
-                              setPaymentAmount(due > 0 ? String(due) : '');
-                            }}
-                            className="px-2.5 py-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg font-bold flex items-center gap-1"
-                          >
-                            <IndianRupee className="w-3.5 h-3.5" />
-                            <span>Collect</span>
-                          </button>
-                          {due > 0 && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {pending > 0 && isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentModal({
+                                  ledger_type: 'CUSTOMER',
+                                  party_name: c.customer_name,
+                                  party_phone: c.customer_phone || undefined,
+                                  suggested_amount: pending,
+                                });
+                                setPaymentAmount(String(pending));
+                              }}
+                              className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-bold text-[11px] inline-flex items-center gap-1"
+                            >
+                              <IndianRupee className="w-3 h-3" />
+                              <span>Collect</span>
+                            </button>
+                          )}
+                          {pending > 0 && c.customer_phone && (
                             <a
                               href={waReminderUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold inline-flex items-center gap-1"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg border border-emerald-200"
+                              title="Send WhatsApp payment reminder with UPI QR"
                             >
                               <Share2 className="w-3.5 h-3.5" />
-                              <span>WhatsApp Reminder</span>
                             </a>
                           )}
                         </div>
@@ -646,7 +520,7 @@ export const KhataPage: React.FC = () => {
                 {!loading && customers.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-400">
-                      No customer Khata records found.
+                      No customer credit records found.
                     </td>
                   </tr>
                 )}
@@ -657,7 +531,7 @@ export const KhataPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          TAB 2: SUPPLIER KHATA (ACCOUNTS PAYABLE)
+          TAB 2: SUPPLIER PAYABLES (ACCOUNTS PAYABLE)
       ===================================================================== */}
       {activeTab === 'suppliers' && (
         <div className="space-y-4">
@@ -746,207 +620,7 @@ export const KhataPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          TAB 3: 1-CLICK AGRI CATALOG ONBOARDING & EXPIRY CLEARANCE
-      ===================================================================== */}
-      {activeTab === 'catalog' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-xs">
-          {/* Left: 1-Click Master Agri Catalog Import */}
-          <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <PackagePlus className="w-4 h-4 text-brand-700" />
-                  <span>1-Click Master Agri Catalog Onboarding ({catalogTemplates.length} SKUs)</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Pre-loaded top Indian Fertilizers, Pesticides, Seeds &amp; Micronutrients with HSN codes &amp; GST rates.
-                </p>
-              </div>
-              {isOwner && (
-                <button
-                  type="button"
-                  disabled={loading || selectedCodes.length === 0}
-                  onClick={() => { void handleImportCatalog(); }}
-                  className="px-4 py-2.5 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-xl shadow-sm shrink-0"
-                >
-                  Import Selected ({selectedCodes.length})
-                </button>
-              )}
-            </div>
-
-            <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
-              {catalogTemplates.map((tpl) => {
-                const checked = selectedCodes.includes(tpl.code);
-                const inputId = `tpl-check-${tpl.code}`;
-                return (
-                  <label
-                    key={tpl.code}
-                    htmlFor={inputId}
-                    className="py-2.5 px-2 flex items-center justify-between gap-3 hover:bg-slate-50 rounded-lg cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        id={inputId}
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedCodes((prev) => [...prev, tpl.code]);
-                          } else {
-                            setSelectedCodes((prev) => prev.filter((c) => c !== tpl.code));
-                          }
-                        }}
-                        className="rounded text-brand-700"
-                      />
-                      <div>
-                        <p className="font-bold text-slate-900">{tpl.product_name}</p>
-                        <p className="text-[11px] text-slate-500">
-                          {tpl.company_name} • {tpl.category} • HSN: {tpl.hsn_code} • GST {tpl.gst_rate}%
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right font-mono shrink-0">
-                      <span className="font-bold text-slate-900">₹{tpl.selling_price}</span>
-                      <span className="block text-[10px] text-slate-400">
-                        {tpl.initial_stock} {tpl.unit}
-                      </span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right: Expiry Liquidation & Clearance Discount Center */}
-          <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Percent className="w-4 h-4 text-amber-600" />
-                <span>90-Day Expiry Clearance Action Center</span>
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Apply a 1-click clearance discount to fast-liquidate near-expiry stock at POS before it expires.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 bg-amber-50 p-3 rounded-xl border border-amber-200">
-              <label htmlFor="clearance-discount-pct" className="font-bold text-amber-900">
-                Clearance Discount (%):
-              </label>
-              <input
-                id="clearance-discount-pct"
-                type="number"
-                min={5}
-                max={75}
-                value={discountPercent}
-                onChange={(e) => setDiscountPercent(Number.parseInt(e.target.value, 10) || 10)}
-                className="w-20 px-2.5 py-1.5 border border-amber-300 rounded-lg font-mono font-bold text-right bg-white"
-              />
-            </div>
-
-            <div className="divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
-              {expiringProducts.map((p) => (
-                <div key={p.id} className="py-3 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-bold text-slate-900">{p.product_name || p.name}</p>
-                    <p className="text-[11px] text-slate-500 font-mono">
-                      Exp: <strong className="text-red-600">{p.expiry_date}</strong> • Stock: {p.current_stock} {p.unit}
-                    </p>
-                    <p className="text-[11px] text-slate-600">
-                      Current Price: <strong>₹{formatCurrency(p.selling_price)}</strong>
-                    </p>
-                  </div>
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => { void handleApplyClearance(p.id); }}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[11px] shrink-0"
-                    >
-                      Apply -{discountPercent}%
-                    </button>
-                  )}
-                </div>
-              ))}
-              {expiringProducts.length === 0 && (
-                <p className="py-8 text-center text-slate-400">
-                  No products expiring within the next 90 days.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================
-          TAB 4: CASHIER SHIFT HANDOVER SUMMARY
-      ===================================================================== */}
-      {activeTab === 'handover' && (
-        <div className="space-y-4">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <span className="text-[11px] font-bold uppercase text-slate-400">
-                Total Net Cash Expected in Drawer (Sales Cash + Khata Cash Collected)
-              </span>
-              <p className="text-2xl font-black text-emerald-700 mt-1">
-                ₹{formatCurrency(shiftData.total_net_cash_in_drawer)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="shift-handover-date" className="text-xs font-bold text-slate-700">
-                Shift Date:
-              </label>
-              <input
-                id="shift-handover-date"
-                type="date"
-                value={shiftDate}
-                onChange={(e) => setShiftDate(e.target.value)}
-                className="px-3 py-1.5 text-xs border border-slate-300 rounded-xl"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">IAM User / Cashier</th>
-                  <th className="py-3 px-4 text-center">Bills</th>
-                  <th className="py-3 px-4 text-right">Cash Sales</th>
-                  <th className="py-3 px-4 text-right">UPI Sales</th>
-                  <th className="py-3 px-4 text-right">Credit Issued</th>
-                  <th className="py-3 px-4 text-right">Khata Cash In</th>
-                  <th className="py-3 px-4 text-right">Net Drawer Cash</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {shiftData.cashiers.map((c) => (
-                  <tr key={c.user_id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 font-bold text-slate-900">
-                      {c.name}
-                      <span className="ml-2 font-mono text-[11px] text-brand-700">({c.username})</span>
-                    </td>
-                    <td className="py-3 px-4 text-center font-bold">{c.bills_count}</td>
-                    <td className="py-3 px-4 text-right font-mono">₹{formatCurrency(c.cash_sales)}</td>
-                    <td className="py-3 px-4 text-right font-mono">₹{formatCurrency(c.upi_sales)}</td>
-                    <td className="py-3 px-4 text-right font-mono text-amber-700">
-                      ₹{formatCurrency(c.credit_sales_issued)}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono text-emerald-700">
-                      ₹{formatCurrency(c.khata_cash_collected)}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-black text-emerald-800">
-                      ₹{formatCurrency(c.net_cash_in_drawer)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================
-          TAB 5: AGRICULTURE INSPECTOR COMPLIANCE REGISTER (FORM O)
+          TAB 3: AGRICULTURE INSPECTOR COMPLIANCE REGISTER (FORM O)
       ===================================================================== */}
       {activeTab === 'compliance' && complianceData && (
         <div className="space-y-6">
@@ -1053,7 +727,7 @@ export const KhataPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          MODAL: RECORD KHATA REPAYMENT / SUPPLIER PAYOUT
+          MODAL: RECORD CREDIT REPAYMENT / SUPPLIER PAYOUT
       ===================================================================== */}
       {paymentModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
