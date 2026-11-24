@@ -75,6 +75,34 @@
 .dark .text-slate-500 {
   color: #94a3b8; /* slate-400 */
 }
+/* High-Contrast Design Token Adjustments for Dark Mode */
+.dark .text-primary {
+  color: #34d399 !important; /* emerald-400 */
+}
+.dark .text-forest-emerald {
+  color: #34d399 !important; /* emerald-400 */
+}
+.dark .bg-sprout-tint {
+  background-color: rgba(6, 78, 59, 0.45) !important;
+}
+.dark .text-khata-amber {
+  color: #fbbf24 !important; /* amber-400 */
+}
+.dark .text-regulatory-sky {
+  color: #38bdf8 !important; /* sky-400 */
+}
+.dark .text-critical-rose {
+  color: #fb7185 !important; /* rose-400 */
+}
+.dark .bg-khata-amber-bg {
+  background-color: rgba(69, 26, 3, 0.5) !important;
+}
+.dark .bg-regulatory-sky-bg {
+  background-color: rgba(8, 47, 73, 0.5) !important;
+}
+.dark .bg-critical-rose-bg {
+  background-color: rgba(76, 5, 25, 0.5) !important;
+}
 .dark input:not([type="checkbox"]):not([type="radio"]):not([data-keep-light="true"]),
 .dark select:not([data-keep-light="true"]),
 .dark textarea:not([data-keep-light="true"]) {

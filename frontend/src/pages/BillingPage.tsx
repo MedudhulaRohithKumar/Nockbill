@@ -688,7 +688,7 @@ export const BillingPage: React.FC = () => {
           {/* TOP COMMAND & HOTKEY STRIP */}
           <div className="w-full bg-surface-container-lowest/80 backdrop-blur-xl rounded-2xl p-4 shadow-xs border border-surface-container flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5 bg-sprout-tint text-primary px-3 py-1.5 rounded-xl text-[10px] font-bold tracking-wider uppercase">
+              <div className="flex items-center gap-1.5 bg-sprout-tint dark:bg-emerald-950/60 text-primary dark:text-emerald-300 border border-primary/20 dark:border-emerald-800/60 px-3 py-1.5 rounded-xl text-[10px] font-bold tracking-wider uppercase">
                 <span className="w-2 h-2 rounded-full bg-forest-emerald animate-pulse" />
                 LIVE COUNTER #01
               </div>
@@ -699,7 +699,7 @@ export const BillingPage: React.FC = () => {
                   Active Terminal • {userName}
                 </span>
                 <span className="text-outline-variant font-mono">·</span>
-                <span className="text-xs text-primary font-semibold">{shopName}</span>
+                <span className="text-xs text-primary dark:text-emerald-400 font-semibold">{shopName}</span>
               </div>
             </div>
 
@@ -708,7 +708,7 @@ export const BillingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAgriDoctorOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-sprout-tint text-primary hover:bg-secondary-container text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-sprout-tint dark:bg-emerald-950/60 text-primary dark:text-emerald-300 hover:bg-secondary-container dark:hover:bg-emerald-900 border border-primary/20 dark:border-emerald-800/60 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Sprout className="w-3.5 h-3.5" />
                 <span>Agri Doctor</span>
@@ -716,7 +716,7 @@ export const BillingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/returns')}
-                className="px-3 py-1.5 rounded-xl bg-surface-container text-on-surface hover:bg-surface-container-high text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-surface-container dark:bg-slate-800 text-on-surface dark:text-slate-200 hover:bg-surface-container-high dark:hover:bg-slate-700 border border-surface-container dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Return</span>
@@ -1083,11 +1083,11 @@ export const BillingPage: React.FC = () => {
                 <div className="flex items-center justify-between pb-2 border-b border-surface-container">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-on-surface">Staged Billing Items</span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-sprout-tint text-primary">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-sprout-tint dark:bg-emerald-950/60 text-primary dark:text-emerald-300 border border-primary/20 dark:border-emerald-800/60">
                       {cart.length} {cart.length === 1 ? 'ITEM' : 'ITEMS'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-forest-emerald font-semibold">
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-forest-emerald dark:text-emerald-400 font-semibold">
                     <span className="material-symbols-outlined text-[14px]">bolt</span>
                     <span>FEFO Batch Allocation Active</span>
                     <MetricInfoTooltip
@@ -1349,9 +1349,9 @@ export const BillingPage: React.FC = () => {
                 </div>
 
                 {/* NET PAYABLE GRAND TOTAL */}
-                <div className="p-4 rounded-xl bg-sprout-tint/60 border border-primary/20 flex flex-col gap-1">
+                <div className="p-4 rounded-xl bg-sprout-tint/60 dark:bg-emerald-950/60 border border-primary/20 dark:border-emerald-800/60 flex flex-col gap-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary dark:text-emerald-300">
                       NET PAYABLE TOTAL
                     </span>
                     <MetricInfoTooltip
@@ -1363,10 +1363,10 @@ export const BillingPage: React.FC = () => {
                     />
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <span className="font-mono text-2xl sm:text-3xl font-black text-forest-emerald">
+                    <span className="font-mono text-2xl sm:text-3xl font-black text-forest-emerald dark:text-emerald-400">
                       ₹{formatCurrency(roundedGrandTotal)}
                     </span>
-                    <span className="text-[10px] font-mono font-bold text-primary">
+                    <span className="text-[10px] font-mono font-bold text-primary dark:text-emerald-300">
                       INC. ALL TAXES
                     </span>
                   </div>

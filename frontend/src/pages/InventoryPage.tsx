@@ -1022,7 +1022,7 @@ export const InventoryPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
         {/* Card 1: Valuation */}
         <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
+          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 dark:bg-emerald-900/20 pointer-events-none" />
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1035,12 +1035,12 @@ export const InventoryPage: React.FC = () => {
                   formula="Sum(Current Stock × Selling Price)"
                 />
               </div>
-              <span className="font-label-code text-label-code bg-sprout-tint text-forest-emerald px-1.5 py-0.5 rounded font-bold border border-forest-emerald/20">
+              <span className="font-label-code text-label-code bg-sprout-tint dark:bg-emerald-950/70 text-forest-emerald dark:text-emerald-300 px-1.5 py-0.5 rounded font-bold border border-forest-emerald/20 dark:border-emerald-800/60">
                 Live Ledger
               </span>
             </div>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-2xl font-black text-forest-emerald font-mono tracking-tight">
+              <span className="text-2xl font-black text-forest-emerald dark:text-emerald-400 font-mono tracking-tight">
                 ₹{formatCurrency(totalValuation)}
               </span>
               <span className="font-label-code text-label-code text-on-surface-variant font-semibold">
@@ -1048,15 +1048,15 @@ export const InventoryPage: React.FC = () => {
               </span>
             </div>
           </div>
-          <div className="mt-3 pt-2.5 bg-surface-container-low rounded-xl px-2.5 py-2 flex items-center justify-between text-on-surface-variant text-xs">
+          <div className="mt-3 pt-2.5 bg-surface-container-low dark:bg-slate-800/80 rounded-xl px-2.5 py-2 flex items-center justify-between text-on-surface-variant dark:text-slate-200 text-xs">
             <div className="flex flex-col">
-              <span className="font-label-code text-label-code">Fert: ₹{formatCurrency(fertValue)}</span>
-              <span className="font-label-code text-label-code">Pest: ₹{formatCurrency(pestValue)}</span>
+              <span className="font-label-code text-label-code text-slate-700 dark:text-slate-200 font-medium">Fert: ₹{formatCurrency(fertValue)}</span>
+              <span className="font-label-code text-label-code text-slate-700 dark:text-slate-200 font-medium">Pest: ₹{formatCurrency(pestValue)}</span>
             </div>
-            <div className="w-px h-6 bg-outline-variant/40" />
+            <div className="w-px h-6 bg-outline-variant/40 dark:bg-slate-700" />
             <div className="flex flex-col text-right">
-              <span className="font-label-code text-label-code">Seeds: ₹{formatCurrency(seedsValue)}</span>
-              <span className="font-label-code text-label-code">Micro: ₹{formatCurrency(microValue)}</span>
+              <span className="font-label-code text-label-code text-slate-700 dark:text-slate-200 font-medium">Seeds: ₹{formatCurrency(seedsValue)}</span>
+              <span className="font-label-code text-label-code text-slate-700 dark:text-slate-200 font-medium">Micro: ₹{formatCurrency(microValue)}</span>
             </div>
           </div>
         </div>
@@ -1732,7 +1732,7 @@ export const InventoryPage: React.FC = () => {
 
             {/* 50x25mm Label Simulator Box */}
             <div className="bg-surface-container-low p-space-md rounded-xl flex items-center justify-center border border-outline-variant/30">
-              <div className="w-[280px] bg-white rounded-md p-3 shadow-md flex flex-col items-center justify-between text-black select-none border border-black/10">
+              <div data-keep-light="true" className="w-[280px] bg-white rounded-md p-3 shadow-md flex flex-col items-center justify-between text-black select-none border border-black/10">
                 {/* Header info on label */}
                 <div className="w-full flex justify-between items-start border-b border-black/20 pb-1 text-[10px] leading-tight font-sans">
                   <span className="font-bold tracking-tight uppercase truncate max-w-[150px]">

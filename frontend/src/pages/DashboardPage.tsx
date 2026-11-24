@@ -856,7 +856,7 @@ export const DashboardPage: React.FC = () => {
             {/* Staged Items List */}
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
-                <span>STAGED ITEMS {selectedCustomerName ? `FOR ${selectedCustomerName.toUpperCase()}` : ''} ({stagedItems.length} ITEMS)</span>
+                <span>STAGED ITEMS {selectedCustomerName ? `FOR ${String(selectedCustomerName).toUpperCase()}` : ''} ({stagedItems.length} ITEMS)</span>
                 <div className="flex items-center gap-1 font-mono text-slate-700 dark:text-slate-300">
                   <span>PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
                   <MetricInfoTooltip

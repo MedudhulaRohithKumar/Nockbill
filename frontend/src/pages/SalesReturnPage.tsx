@@ -610,27 +610,27 @@ export const SalesReturnPage: React.FC = () => {
               </div>
 
               {/* Card 3: Quality Inspection & Return Settlement Details */}
-              <div className="rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-emerald-700" />
-                    <h3 className="text-sm font-black text-slate-900">Return Reason &amp; QC Verification</h3>
+                    <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Return Reason &amp; QC Verification</h3>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider">
+                  <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
                     Mandatory Compliance Log
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="return-classification-select" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="return-classification-select" className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
                       Return Classification
                     </label>
                     <select
                       id="return-classification-select"
                       value={returnReason}
                       onChange={(e) => setReturnReason(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50/70 text-xs font-semibold text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-emerald-600 focus:outline-none"
                     >
                       <option value="Unused seasonal excess / Crop switch">Unused seasonal excess / Crop switch</option>
                       <option value="Damaged bag packaging">Damaged bag packaging</option>
@@ -640,7 +640,7 @@ export const SalesReturnPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="qc-remarks-input" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="qc-remarks-input" className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
                       Store QC Inspection Remark
                     </label>
                     <input
@@ -649,14 +649,14 @@ export const SalesReturnPage: React.FC = () => {
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="e.g. Unopened sealed packet, intact batch stamp verified by store cashier."
-                      className="w-full h-11 px-3 rounded-xl border border-slate-300 bg-slate-50/70 text-xs text-slate-800 focus:bg-white focus:border-emerald-600 focus:outline-none"
+                      className="w-full h-11 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-emerald-600 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 {/* Settlement Channel Options */}
                 <div className="space-y-2 pt-2">
-                  <span className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                     Refund Settlement Mode
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -666,25 +666,25 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('Khata')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'Khata'
-                          ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20 shadow-sm'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 ring-2 ring-emerald-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <User className="h-4 w-4 text-emerald-700" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           Farmer Credit
                         </span>
-                        <span className="rounded-full bg-emerald-600 px-1.5 py-0.2 text-[9px] font-black text-white uppercase">
+                        <span className="rounded-full bg-emerald-600 dark:bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white uppercase">
                           Recommended
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500">Adjust ledger balance</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Adjust ledger balance</p>
                       {customerOutstandingCredit !== null && (
-                        <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between font-mono text-[11px] font-bold">
-                          <span className="text-slate-500">₹{formatCurrency(customerOutstandingCredit, 0)}</span>
-                          <ArrowRight className="h-3 w-3 text-slate-400" />
-                          <span className="text-emerald-800">
+                        <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between font-mono text-[11px] font-bold">
+                          <span className="text-slate-500 dark:text-slate-400">₹{formatCurrency(customerOutstandingCredit, 0)}</span>
+                          <ArrowRight className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                          <span className="text-emerald-800 dark:text-emerald-300">
                             ₹{formatCurrency(Math.max(0, customerOutstandingCredit - calculations.calculatedTotalRefund), 0)}
                           </span>
                         </div>
@@ -697,23 +697,23 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('Cash')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'Cash'
-                          ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20 shadow-sm'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 ring-2 ring-emerald-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <IndianRupee className="h-4 w-4 text-slate-700" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <IndianRupee className="h-4 w-4 text-slate-700 dark:text-slate-300" />
                           Cash Drawer
                         </span>
-                        <span className="rounded-full bg-slate-200 px-1.5 py-0.2 text-[9px] font-bold text-slate-700">
+                        <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[9px] font-bold text-slate-700 dark:text-slate-200">
                           TILL #01
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500">Direct cash payout from counter</p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Direct cash payout from counter</p>
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400">
                         <span>Till Status:</span>
-                        <span className="font-bold text-slate-900">Ready</span>
+                        <span className="font-bold text-slate-900 dark:text-white">Ready</span>
                       </div>
                     </button>
 
@@ -723,21 +723,21 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('UPI')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'UPI'
-                          ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-500/20 shadow-sm'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                          ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/70 ring-2 ring-blue-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <QrCode className="h-4 w-4 text-blue-600" />
+                        <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <QrCode className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           UPI Reversal
                         </span>
-                        <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-800">
+                        <span className="rounded-full bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 text-[9px] font-bold text-blue-800 dark:text-blue-200">
                           NPCI AUTO
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500">Instant bank reversal via VPA</p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] font-mono text-slate-500 truncate">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Instant bank reversal via VPA</p>
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
                         <span className="truncate">{lookupData?.customer_phone ? `+91 ${lookupData.customer_phone}` : 'Bank VPA'}</span>
                       </div>
                     </button>
@@ -749,26 +749,26 @@ export const SalesReturnPage: React.FC = () => {
             {/* RIGHT OPERATIONS SUMMARY & HISTORICAL PREVIEWS (4 COLS ON XL) */}
             <div className="xl:col-span-4 space-y-6">
               {/* Card 1: Credit Note Summary Box */}
-              <div className="rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
-                    <IndianRupee className="h-4 w-4 text-emerald-700" />
-                    <h3 className="text-sm font-black text-slate-900">Credit Note Summary</h3>
+                    <IndianRupee className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Credit Note Summary</h3>
                   </div>
-                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 text-[10px] font-bold">
                     GST REVERSED
                   </span>
                 </div>
 
                 <div className="space-y-2.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <span>Total Items to Return</span>
-                    <strong className="text-slate-900">
+                    <strong className="text-slate-900 dark:text-white">
                       {calculations.itemsToReturnCount} Item(s) ({calculations.totalUnitsToReturn} Units)
                     </strong>
                   </div>
 
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-1.5">
                       <span>Gross Return Value</span>
                       <MetricInfoTooltip
@@ -777,13 +777,13 @@ export const SalesReturnPage: React.FC = () => {
                         formula="Sum(Returned Qty × Taxable Rate)"
                       />
                     </div>
-                    <span className="font-mono font-bold text-slate-900">
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
                       ₹{formatCurrency(calculations.calculatedTaxableRefund)}
                     </span>
                   </div>
 
-                  <div className="space-y-1 pt-1 border-t border-slate-100">
-                    <div className="flex justify-between text-slate-600">
+                  <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex justify-between text-slate-600 dark:text-slate-300">
                       <div className="flex items-center gap-1.5">
                         <span>GST Reversal Total</span>
                         <MetricInfoTooltip
@@ -792,23 +792,23 @@ export const SalesReturnPage: React.FC = () => {
                           formula="CGST + SGST (or IGST) of returned items"
                         />
                       </div>
-                      <span className="font-mono font-bold text-blue-700">
+                      <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
                         ₹{formatCurrency(calculations.calculatedGstRefund)}
                       </span>
                     </div>
-                    <div className="flex justify-between text-[11px] text-slate-400 pl-3">
+                    <div className="flex justify-between text-[11px] text-slate-400 dark:text-slate-400 pl-3">
                       <span>• CGST Reversal</span>
-                      <span className="font-mono">₹{formatCurrency(calculations.cgstAmount)}</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-200">₹{formatCurrency(calculations.cgstAmount)}</span>
                     </div>
-                    <div className="flex justify-between text-[11px] text-slate-400 pl-3">
+                    <div className="flex justify-between text-[11px] text-slate-400 dark:text-slate-400 pl-3">
                       <span>• SGST Reversal</span>
-                      <span className="font-mono">₹{formatCurrency(calculations.sgstAmount)}</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-200">₹{formatCurrency(calculations.sgstAmount)}</span>
                     </div>
                   </div>
 
-                  <div className="rounded-2xl bg-slate-50 border border-slate-200/70 p-3.5 flex items-center justify-between">
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/70 dark:border-slate-700 p-3.5 flex items-center justify-between">
                     <div>
-                      <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-slate-400 dark:text-slate-400 tracking-wider">
                         <span>Net Refund Value</span>
                         <MetricInfoTooltip
                           title="Net Refund Value"
@@ -817,11 +817,11 @@ export const SalesReturnPage: React.FC = () => {
                           align="right"
                         />
                       </div>
-                      <div className="font-mono text-2xl font-black text-emerald-900">
+                      <div className="font-mono text-2xl font-black text-emerald-900 dark:text-emerald-300">
                         ₹{formatCurrency(calculations.calculatedTotalRefund)}
                       </div>
                     </div>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black text-emerald-800 uppercase">
+                    <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-1 text-[10px] font-black uppercase">
                       {refundPaymentMethod === 'Khata' ? 'Credit Offset' : refundPaymentMethod === 'Cash' ? 'Cash Drawer' : 'UPI Refund'}
                     </span>
                   </div>

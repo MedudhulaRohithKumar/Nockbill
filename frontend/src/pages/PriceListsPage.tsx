@@ -207,33 +207,33 @@ export const PriceListsPage: React.FC = () => {
 
   // Selected sample SKUs for live simulator
   const samplePesticide = useMemo(() => {
-    return (
-      allProducts.find((p) => p.category === 'Pesticide') ||
-      allProducts[0] || {
-        id: 1,
-        name: 'Bayer Regent 0.3G (Fipronil 1kg)',
-        batch_number: 'BYR-8849-24',
-        hsn_code: '38089190',
-        mrp: 298.0,
-        cost_price: 242.0,
-        selling_price: 280.0,
-      }
-    );
+    const found = allProducts.find((p) => (p.category || '').toLowerCase().includes('pesticide')) || allProducts[0];
+    return {
+      id: found?.id ?? 1,
+      name: found?.name || found?.product_name || 'Bayer Regent 0.3G (Fipronil 1kg)',
+      product_name: found?.product_name || found?.name || 'Bayer Regent 0.3G (Fipronil 1kg)',
+      category: found?.category || 'Pesticide',
+      batch_number: found?.batch_number || 'BYR-8849-24',
+      hsn_code: found?.hsn_code || '38089190',
+      mrp: found?.mrp || 298.0,
+      cost_price: found?.cost_price ?? (found as any)?.purchase_price ?? 242.0,
+      selling_price: found?.selling_price || 280.0,
+    };
   }, [allProducts]);
 
   const sampleFertilizer = useMemo(() => {
-    return (
-      allProducts.find((p) => p.category === 'Fertilizer') ||
-      allProducts[1] || {
-        id: 2,
-        name: 'IFFCO Neem Coated Urea (45kg Bag)',
-        batch_number: 'IFF-UREA-45',
-        hsn_code: '31021000',
-        mrp: 266.5,
-        cost_price: 231.1,
-        selling_price: 266.5,
-      }
-    );
+    const found = allProducts.find((p) => (p.category || '').toLowerCase().includes('fertilizer')) || allProducts[1] || allProducts[0];
+    return {
+      id: found?.id ?? 2,
+      name: found?.name || found?.product_name || 'IFFCO Neem Coated Urea (45kg Bag)',
+      product_name: found?.product_name || found?.name || 'IFFCO Neem Coated Urea (45kg Bag)',
+      category: found?.category || 'Fertilizer',
+      batch_number: found?.batch_number || 'IFF-UREA-45',
+      hsn_code: found?.hsn_code || '31021000',
+      mrp: found?.mrp || 266.5,
+      cost_price: found?.cost_price ?? (found as any)?.purchase_price ?? 231.1,
+      selling_price: found?.selling_price || 266.5,
+    };
   }, [allProducts]);
 
   // Toggle category in Quick Rule Builder
@@ -282,7 +282,7 @@ export const PriceListsPage: React.FC = () => {
     try {
       await priceListsApi.create({
         name: qbTitle.trim(),
-        description: `Target: ${qbTargetTier.toUpperCase()} • MOQ: ${qbMoqTrigger} • Validity: ${qbStartDate} to ${qbEndDate}`,
+        description: `Target: ${(qbTargetTier || 'RETAIL').toUpperCase()} • MOQ: ${qbMoqTrigger} • Validity: ${qbStartDate} to ${qbEndDate}`,
         adjustment_type: adjType,
         calculation_mode: calcMode,
         adjustment_value: val,
@@ -1337,7 +1337,7 @@ export const PriceListsPage: React.FC = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="font-label-badge text-label-badge bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-bold uppercase">
-                        {samplePesticide.category.toUpperCase()}
+                        {(samplePesticide.category || 'Pesticide').toUpperCase()}
                       </span>
                       <h3 className="font-title-sm text-body-md text-on-surface font-bold mt-1">
                         {samplePesticide.name || samplePesticide.product_name}
