@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, ShoppingBag, Truck, Check, X, FileText, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, ShoppingBag, Truck, Check, X, FileText, AlertCircle, Receipt, Landmark } from 'lucide-react';
 import { purchasesApi, productsApi, getErrorMessage } from '../api';
 import { Purchase, Product, PurchaseItem } from '../types';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   safeNumber,
   formatCurrency,
@@ -65,6 +66,20 @@ export const PurchasesPage: React.FC = () => {
   };
 
   useEffect(() => { void loadData(); }, []);
+
+  const purchaseMetrics = useMemo(() => {
+    let totalGross = 0;
+    let totalTax = 0;
+    for (const p of purchases as any[]) {
+      totalGross += safeNumber(p.total_amount ?? p.grand_total);
+      totalTax += safeNumber(p.total_tax ?? p.gst_amount);
+    }
+    return {
+      totalGross,
+      totalTax,
+      count: purchases.length,
+    };
+  }, [purchases]);
 
   const handleAddItemRow = () => {
     const firstProd = products[0];
@@ -168,6 +183,78 @@ export const PurchasesPage: React.FC = () => {
           <span>{errorMsg}</span>
         </div>
       )}
+
+      {/* 3 KPI Cards for Inward Purchases */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Inward Value</span>
+              <MetricInfoTooltip
+                title="Total Inward Purchases"
+                description="Aggregated gross purchase value of all stock inwarded from seed companies and chemical distributors."
+                formula="Sum(Supplier Invoiced Total Amounts)"
+                tip="Matched against physical Godown intake to ensure accurate inventory valuation."
+              />
+            </div>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+              <ShoppingBag className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            ₹{formatCurrency(purchaseMetrics.totalGross, 2)}
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            {purchaseMetrics.count} supplier consignments
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Eligible ITC (GST)</span>
+              <MetricInfoTooltip
+                title="Input Tax Credit (ITC)"
+                description="Total CGST, SGST, and IGST paid on inbound goods eligible for tax offset against retail outward sales GST liability."
+                formula="ITC = Sum(Supplier CGST + SGST + IGST)"
+                tip="Reconcile with GSTR-2B monthly to ensure no vendor fails to upload invoices."
+              />
+            </div>
+            <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+              <Landmark className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            ₹{formatCurrency(purchaseMetrics.totalTax, 2)}
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Eligible GSTR-2B offset
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Recorded Bills</span>
+              <MetricInfoTooltip
+                title="Recorded Supplier Invoices"
+                description="Total count of verified supplier tax invoices and delivery challans logged into the system."
+                formula="Count(Inward Bills)"
+                align="right"
+              />
+            </div>
+            <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+              <Receipt className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            {purchaseMetrics.count} Bills
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            All batches updated to stock
+          </div>
+        </div>
+      </div>
 
       {/* Inward Invoices */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

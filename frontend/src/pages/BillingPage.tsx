@@ -40,6 +40,7 @@ import { useAuth } from '../context/AuthContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
 import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   safeNumber,
   safeString,
@@ -702,70 +703,6 @@ export const BillingPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Hotkey Keyboard Badges */}
-            <div className="hidden 2xl:flex items-center gap-2 overflow-x-auto py-0.5">
-              <button
-                type="button"
-                onClick={() => omnibarInputRef.current?.focus()}
-                className="flex items-center gap-1.5 bg-surface-container-low hover:bg-surface-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-surface-container-highest text-primary font-bold px-1.5 py-0.5 rounded">
-                  F1
-                </span>
-                <span className="text-xs text-on-surface-variant">Scan / Search</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsFarmerEditing((prev) => !prev)}
-                className="flex items-center gap-1.5 bg-surface-container-low hover:bg-surface-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-surface-container-highest text-primary font-bold px-1.5 py-0.5 rounded">
-                  F3
-                </span>
-                <span className="text-xs text-on-surface-variant">Farmer Info</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectTender('UPI')}
-                className="flex items-center gap-1.5 bg-surface-container-low hover:bg-surface-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-surface-container-highest text-primary font-bold px-1.5 py-0.5 rounded">
-                  F4
-                </span>
-                <span className="text-xs text-on-surface-variant">UPI QR</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectTender('Cash')}
-                className="flex items-center gap-1.5 bg-surface-container-low hover:bg-surface-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-surface-container-highest text-primary font-bold px-1.5 py-0.5 rounded">
-                  F5
-                </span>
-                <span className="text-xs text-on-surface-variant">Cash</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSelectTender('Credit')}
-                className="flex items-center gap-1.5 bg-surface-container-low hover:bg-surface-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-khata-amber-bg text-khata-amber font-bold px-1.5 py-0.5 rounded">
-                  F6
-                </span>
-                <span className="text-xs text-on-surface-variant">Khata Credit</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSaveAndPrint()}
-                className="flex items-center gap-1.5 bg-sprout-tint hover:bg-secondary-container px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <span className="font-mono text-xs bg-forest-emerald text-on-primary font-bold px-1.5 py-0.5 rounded">
-                  ↵ Enter
-                </span>
-                <span className="text-xs text-primary font-semibold">Settle &amp; Print</span>
-              </button>
-            </div>
-
             {/* Quick Action Buttons */}
             <div className="flex items-center gap-2 ml-auto xl:ml-0">
               <button
@@ -857,9 +794,6 @@ export const BillingPage: React.FC = () => {
                       <span className="material-symbols-outlined text-[14px]">sensors</span>
                       <span>AUTO-SCAN ON</span>
                     </button>
-                    <kbd className="font-mono text-xs bg-surface-container-high text-on-surface-variant px-2 py-1 rounded font-bold">
-                      F1
-                    </kbd>
                   </div>
                 </div>
 
@@ -982,7 +916,7 @@ export const BillingPage: React.FC = () => {
                       type="button"
                       onClick={() => setIsFarmerEditing((prev) => !prev)}
                       className="text-xs px-3 py-2 rounded-xl font-bold bg-surface-container-low hover:bg-surface-container text-on-surface-variant border border-surface-container transition-colors cursor-pointer flex items-center gap-1"
-                      title="Edit Farmer Details (F3)"
+                      title="Edit Farmer Details"
                     >
                       <span className="material-symbols-outlined text-[16px]">edit</span>
                       <span>{isFarmerEditing ? 'Close' : 'Details'}</span>
@@ -1153,10 +1087,16 @@ export const BillingPage: React.FC = () => {
                       {cart.length} {cart.length === 1 ? 'ITEM' : 'ITEMS'}
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-forest-emerald font-semibold flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono text-forest-emerald font-semibold">
                     <span className="material-symbols-outlined text-[14px]">bolt</span>
-                    FEFO Batch Allocation Active
-                  </span>
+                    <span>FEFO Batch Allocation Active</span>
+                    <MetricInfoTooltip
+                      title="FEFO Batch Allocation Active"
+                      description="First-Expiry-First-Out (FEFO) automated rule automatically allocates stock from batches with the closest expiry date to minimize store wastage."
+                      tip="Guarantees older chemical and seed stocks are dispensed before newer shipments."
+                      align="right"
+                    />
+                  </div>
                 </div>
 
                 {/* Cart Items List */}
@@ -1314,7 +1254,15 @@ export const BillingPage: React.FC = () => {
                 {/* Subtotal Breakdowns */}
                 <div className="flex flex-col gap-2 text-xs">
                   <div className="flex items-center justify-between text-on-surface-variant">
-                    <span>Subtotal (Items Gross Value)</span>
+                    <div className="flex items-center gap-1.5">
+                      <span>Subtotal (Items Gross Value)</span>
+                      <MetricInfoTooltip
+                        title="Subtotal (Items Gross Value)"
+                        description="Total pre-tax value of all items in the staged cart calculated from unit selling prices before discounts."
+                        formula="Sum(Item Quantity × Unit Selling Price)"
+                        align="right"
+                      />
+                    </div>
                     <span className="font-mono font-semibold text-on-surface">
                       ₹{formatCurrency(grossSubtotal)}
                     </span>
@@ -1322,7 +1270,15 @@ export const BillingPage: React.FC = () => {
 
                   {totalClearanceDiscount > 0 && (
                     <div className="flex items-center justify-between text-critical-rose font-medium">
-                      <span>Clearance Discount</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>Clearance Discount</span>
+                        <MetricInfoTooltip
+                          title="Clearance Discount"
+                          description="Automatic price markdown applied to near-expiry chemical batches to accelerate inventory liquidation."
+                          formula="Item Selling Price × Clearance Markdown %"
+                          align="right"
+                        />
+                      </div>
                       <span className="font-mono font-bold">
                         -₹{formatCurrency(totalClearanceDiscount)}
                       </span>
@@ -1330,7 +1286,15 @@ export const BillingPage: React.FC = () => {
                   )}
 
                   <div className="flex items-center justify-between text-on-surface-variant">
-                    <span>Taxable Value</span>
+                    <div className="flex items-center gap-1.5">
+                      <span>Taxable Value</span>
+                      <MetricInfoTooltip
+                        title="Taxable Value"
+                        description="The net value of goods subject to statutory GST after deducting all item-level trade discounts."
+                        formula="Taxable Value = Subtotal - Total Discounts"
+                        align="right"
+                      />
+                    </div>
                     <span className="font-mono text-on-surface">
                       ₹{formatCurrency(totalTaxable)}
                     </span>
@@ -1338,14 +1302,30 @@ export const BillingPage: React.FC = () => {
 
                   {isInterstate ? (
                     <div className="flex items-center justify-between text-on-surface-variant">
-                      <span>IGST (Integrated Tax)</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>IGST (Integrated Tax)</span>
+                        <MetricInfoTooltip
+                          title="IGST (Integrated GST)"
+                          description="Integrated Goods & Services Tax applied when goods are sold across state borders to interstate farmers or businesses."
+                          formula="Taxable Value × Statutory IGST Rate"
+                          align="right"
+                        />
+                      </div>
                       <span className="font-mono text-on-surface">
                         ₹{formatCurrency(totalIgst)}
                       </span>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between text-on-surface-variant">
-                      <span>GST (CGST ₹{formatCurrency(totalCgst)} + SGST ₹{formatCurrency(totalSgst)})</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>GST (CGST ₹{formatCurrency(totalCgst)} + SGST ₹{formatCurrency(totalSgst)})</span>
+                        <MetricInfoTooltip
+                          title="GST (CGST + SGST)"
+                          description="Statutory Goods and Services Tax split equally into Central GST and State GST based on product HSN classification (e.g. 5% fertilizer, 18% pesticide)."
+                          formula="CGST = Taxable × Rate/2 | SGST = Taxable × Rate/2"
+                          align="right"
+                        />
+                      </div>
                       <span className="font-mono text-on-surface">
                         ₹{formatCurrency(totalCgst + totalSgst)}
                       </span>
@@ -1353,7 +1333,15 @@ export const BillingPage: React.FC = () => {
                   )}
 
                   <div className="flex items-center justify-between text-on-surface-variant">
-                    <span>Auto Round-off (50-Paisa Rule)</span>
+                    <div className="flex items-center gap-1.5">
+                      <span>Auto Round-off (50-Paisa Rule)</span>
+                      <MetricInfoTooltip
+                        title="Auto Round-off (50-Paisa Rule)"
+                        description="Statutory cash rounding under Indian GST law to the nearest whole rupee (+/- 50 paise) for clean counter cash & digital settlement."
+                        formula="Round-off = Math.round(Invoice Total) - Invoice Total"
+                        align="right"
+                      />
+                    </div>
                     <span className="font-mono text-on-surface">
                       {roundOff >= 0 ? `+₹${roundOff.toFixed(2)}` : `-₹${Math.abs(roundOff).toFixed(2)}`}
                     </span>
@@ -1362,9 +1350,18 @@ export const BillingPage: React.FC = () => {
 
                 {/* NET PAYABLE GRAND TOTAL */}
                 <div className="p-4 rounded-xl bg-sprout-tint/60 border border-primary/20 flex flex-col gap-1">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary">
-                    NET PAYABLE TOTAL
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-primary">
+                      NET PAYABLE TOTAL
+                    </span>
+                    <MetricInfoTooltip
+                      title="Net Payable Total"
+                      description="The final settlement amount due from the farmer after all statutory taxes, trade discounts, and 50-paisa rounding."
+                      formula="Net Payable = Taxable Value + CGST + SGST ± Round-off"
+                      tip="Farmer receipt and thermal print slip will reflect this exact settlement figure."
+                      align="right"
+                    />
+                  </div>
                   <div className="flex items-baseline justify-between">
                     <span className="font-mono text-2xl sm:text-3xl font-black text-forest-emerald">
                       ₹{formatCurrency(roundedGrandTotal)}
@@ -1391,7 +1388,7 @@ export const BillingPage: React.FC = () => {
                       }`}
                     >
                       <QrCode className="w-4 h-4" />
-                      <span>UPI QR [F4]</span>
+                      <span>UPI QR</span>
                     </button>
                     <button
                       type="button"
@@ -1403,7 +1400,7 @@ export const BillingPage: React.FC = () => {
                       }`}
                     >
                       <IndianRupee className="w-4 h-4" />
-                      <span>Cash [F5]</span>
+                      <span>Cash</span>
                     </button>
                     <button
                       type="button"
@@ -1415,7 +1412,7 @@ export const BillingPage: React.FC = () => {
                       }`}
                     >
                       <Layers className="w-4 h-4" />
-                      <span>Khata [F6]</span>
+                      <span>Khata</span>
                     </button>
                   </div>
                 </div>
@@ -1424,7 +1421,7 @@ export const BillingPage: React.FC = () => {
                 {selectedTender === 'UPI' && (
                   <div className="p-4 rounded-xl bg-surface-container-low border border-surface-container flex flex-col items-center text-center gap-2">
                     {posUpiQrSvg ? (
-                      <div className="w-44 h-44 bg-white p-2 rounded-xl shadow-xs flex items-center justify-center">
+                      <div data-keep-light="true" className="w-44 h-44 bg-white p-2 rounded-xl shadow-xs flex items-center justify-center">
                         <img
                           src={posUpiQrSvg}
                           alt="Dynamic UPI QR Code"
@@ -1432,7 +1429,7 @@ export const BillingPage: React.FC = () => {
                         />
                       </div>
                     ) : (
-                      <div className="w-44 h-44 bg-white p-2 rounded-xl shadow-xs flex flex-col items-center justify-center text-on-surface-variant">
+                      <div data-keep-light="true" className="w-44 h-44 bg-white p-2 rounded-xl shadow-xs flex flex-col items-center justify-center text-on-surface-variant">
                         <QrCode className="w-10 h-10 text-primary mb-1" />
                         <span className="text-[11px] font-bold">UPI ID: {upiId}</span>
                         <span className="text-[10px] text-outline mt-0.5">Scan with GPay / PhonePe</span>
@@ -1504,7 +1501,7 @@ export const BillingPage: React.FC = () => {
                   ) : (
                     <>
                       <Printer className="w-4 h-4" />
-                      <span>Complete Bill &amp; Print ESC/POS [Enter]</span>
+                      <span>Complete Bill &amp; Print ESC/POS</span>
                     </>
                   )}
                 </button>

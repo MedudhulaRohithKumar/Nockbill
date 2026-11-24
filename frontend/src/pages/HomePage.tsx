@@ -715,7 +715,7 @@ export const HomePage: React.FC = () => {
               </div>
               <div className="p-4 bg-slate-900/95 border-t border-white/10">
                 <span className="font-mono text-[10px] text-emerald-400 uppercase tracking-wider font-bold block">
-                  Fast Counter POS [F1]
+                  Fast Counter POS
                 </span>
                 <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-emerald-300 transition-colors mt-0.5">
                   3-Second Rapid Billing &amp; 80mm ESC/POS
@@ -1323,7 +1323,7 @@ export const HomePage: React.FC = () => {
             <div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Core Modules</h4>
               <ul className="space-y-2 text-xs text-white/80">
-                <li><Link to="/billing" className="hover:text-white transition-colors">Fast Counter POS [F1]</Link></li>
+                <li><Link to="/billing" className="hover:text-white transition-colors">Fast Counter POS</Link></li>
                 <li><Link to="/khata?tab=compliance" className="hover:text-white transition-colors">Fertilizer Form O Records</Link></li>
                 <li><Link to="/khata" className="hover:text-white transition-colors">Farmer Credit Khata</Link></li>
                 <li><a href="#agri-doctor-section" className="hover:text-white transition-colors">Agri Doctor Disease AI</a></li>

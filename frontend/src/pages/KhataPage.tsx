@@ -18,6 +18,7 @@ import {
 import { khataApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   formatCurrency,
   safeNumber,
@@ -392,9 +393,17 @@ export const KhataPage: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm md:col-span-1">
-              <span className="text-[11px] font-bold uppercase text-slate-400">
-                Total Outstanding Farmer Credit
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase text-slate-400">
+                  Total Outstanding Farmer Credit
+                </span>
+                <MetricInfoTooltip
+                  title="Total Outstanding Farmer Credit"
+                  description="Aggregate sum of all unpaid credit balances across all active farmers in your khata register."
+                  formula="Sum(Farmer Credit Udhar Balances)"
+                  tip="Send 1-click WhatsApp payment reminders with UPI QR to collect debts faster."
+                />
+              </div>
               <p className="text-2xl font-black text-rose-700 mt-1">
                 ₹{formatCurrency(totalOutstandingUdhar)}
               </p>
@@ -537,9 +546,17 @@ export const KhataPage: React.FC = () => {
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-bold uppercase text-slate-400">
-                Total Distributor / Supplier Payable
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase text-slate-400">
+                  Total Distributor / Supplier Payable
+                </span>
+                <MetricInfoTooltip
+                  title="Total Supplier Payable"
+                  description="Total pending accounts payable owed to fertilizer manufacturers, pesticide distributors, and seed suppliers for inward stock deliveries."
+                  formula="Sum(Supplier Purchase Inward Invoices - Payments Made)"
+                  tip="Settle distributor invoices within the cash discount credit window (e.g. 15-30 days) to earn manufacturer rebates."
+                />
+              </div>
               <p className="text-2xl font-black text-rose-700 mt-1">
                 ₹{formatCurrency(totalPayable)}
               </p>

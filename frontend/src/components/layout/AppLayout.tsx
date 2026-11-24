@@ -38,7 +38,6 @@ import { formatCurrency } from '../../utils/formatters';
 interface NavFlyoutItem {
   to: string;
   label: string;
-  shortcut?: string;
   badge?: string;
 }
 
@@ -46,7 +45,6 @@ interface NavItemDef {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  shortcut: string;
   badge?: string;
   flyoutTitle: string;
   flyoutBadge: string;
@@ -64,11 +62,13 @@ export const AppLayout: React.FC = () => {
   const [showNotificationToast, setShowNotificationToast] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof document !== 'undefined') {
+      const isLightCookie = document.cookie.includes('theme=light');
+      if (isLightCookie) return false;
       const isDarkCookie = document.cookie.includes('theme=dark');
-      const isSystemDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      return isDarkCookie || document.documentElement.classList.contains('dark') || Boolean(isSystemDark);
+      if (isDarkCookie) return true;
+      return true;
     }
-    return false;
+    return true;
   });
 
   useEffect(() => {
@@ -161,12 +161,11 @@ export const AppLayout: React.FC = () => {
       to: '/dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
-      shortcut: 'F0',
       badge: 'LIVE',
       flyoutTitle: 'Modern Fluid ERP Dashboard',
       flyoutBadge: 'OVERVIEW',
       flyoutItems: [
-        { to: '/dashboard', label: '🌾 Today’s Gross & Kharif Cycle', shortcut: 'LIVE' },
+        { to: '/dashboard', label: '🌾 Today’s Gross & Kharif Cycle' },
         { to: '/dashboard', label: '⚡ Counter Till & Fast-Till Radar' },
         { to: '/dashboard', label: '⚠️ FIFO Expiry Radar (<30 Days)' },
         { to: '/khata?tab=compliance', label: '📜 Form O Allocated Quotas' },
@@ -176,13 +175,12 @@ export const AppLayout: React.FC = () => {
       to: '/pos',
       label: 'POS Billing',
       icon: Receipt,
-      shortcut: 'F1',
       badge: 'Quick',
       flyoutTitle: 'POS Quick Billing Terminal',
       flyoutBadge: 'ACTIVE TILL',
       flyoutItems: [
-        { to: '/pos', label: '⚡ New Fertilizer Bill', shortcut: '[F1]' },
-        { to: '/pos', label: '⚡ Fast Counter Bill', shortcut: 'Fast' },
+        { to: '/pos', label: '⚡ New Fertilizer Bill' },
+        { to: '/pos', label: '⚡ Fast Counter Bill' },
         { to: '/pos?mode=invoices', label: '📜 Recent Invoices & 80mm Slips' },
         { to: '/pos', label: '🔍 Instant Farmer Mobile Lookup' },
       ],
@@ -191,11 +189,10 @@ export const AppLayout: React.FC = () => {
       to: '/returns',
       label: 'Sales Returns',
       icon: RotateCcw,
-      shortcut: 'F7',
       flyoutTitle: 'Sales Returns & Credit Notes',
       flyoutBadge: 'REFUNDS',
       flyoutItems: [
-        { to: '/returns', label: '🔄 Reverse Bill Search', shortcut: '[F7]' },
+        { to: '/returns', label: '🔄 Reverse Bill Search' },
         { to: '/returns?mode=credit-note', label: '🧾 Issue GST Credit Note' },
         { to: '/returns?mode=defect', label: '📦 Batch Defect & Quarantine' },
       ],
@@ -204,12 +201,11 @@ export const AppLayout: React.FC = () => {
       to: '/khata',
       label: 'Khata & Compliance',
       icon: BookOpen,
-      shortcut: 'F6',
       badge: 'Credit',
       flyoutTitle: 'Farmer Khata & Form O Compliance',
       flyoutBadge: 'LEDGER',
       flyoutItems: [
-        { to: '/khata?tab=farmers', label: '👥 Farmer Credit Ledger (Khata)', shortcut: '[F6]' },
+        { to: '/khata?tab=farmers', label: '👥 Farmer Credit Ledger (Khata)' },
         { to: '/khata?tab=suppliers', label: '🚚 Supplier Payables Ledger' },
         { to: '/khata?tab=compliance', label: '🛡️ Form O Statutory Audit Register' },
         { to: '/khata?tab=farmers', label: '💬 WhatsApp 1-Click Payment Chaser' },
@@ -219,12 +215,11 @@ export const AppLayout: React.FC = () => {
       to: '/campaigns',
       label: 'WhatsApp Broadcast',
       icon: Send,
-      shortcut: 'F8',
       badge: 'Marketing',
       flyoutTitle: 'WhatsApp Broadcast & Crop Campaigns',
       flyoutBadge: 'META CLOUD',
       flyoutItems: [
-        { to: '/campaigns', label: '📢 Seasonal Kharif/Rabi Outbreak Alert', shortcut: '[F8]' },
+        { to: '/campaigns', label: '📢 Seasonal Kharif/Rabi Outbreak Alert' },
         { to: '/campaigns', label: '💬 Meta Cloud API Dispatcher' },
         { to: '/campaigns', label: '📱 Live Smartphone Chat Simulator' },
         { to: '/campaigns', label: '🏷️ Audience Cluster Matcher' },
@@ -234,11 +229,10 @@ export const AppLayout: React.FC = () => {
       to: '/inventory',
       label: 'Inventory & Stock',
       icon: Package,
-      shortcut: 'F2',
       flyoutTitle: 'Inventory & Godown Stock Management',
       flyoutBadge: 'STOCK',
       flyoutItems: [
-        { to: '/inventory', label: '📦 SKU Master & FIFO Batches', shortcut: '[F2]' },
+        { to: '/inventory', label: '📦 SKU Master & FIFO Batches' },
         { to: '/inventory', label: '🏷️ 50x25mm Barcode Label Simulator' },
         { to: '/inventory', label: '⚠️ Near-Expiry Alerts (<45 Days)' },
         { to: '/inventory', label: '📍 Godown Bay Allocation (Bays A-D)' },
@@ -250,12 +244,11 @@ export const AppLayout: React.FC = () => {
             to: '/price-lists',
             label: 'Price Lists',
             icon: Tag,
-            shortcut: 'F3',
             badge: 'Owner',
             flyoutTitle: 'Price Lists & Tier Pricing',
             flyoutBadge: 'MARGINS',
             flyoutItems: [
-              { to: '/price-lists', label: '🏷️ 4-Tier Price Matrix', shortcut: '[F3]' },
+              { to: '/price-lists', label: '🏷️ 4-Tier Price Matrix' },
               { to: '/price-lists', label: '📊 Automated Margin Guardrails' },
               { to: '/price-lists', label: '📜 Form O APMC Price Board PDF' },
             ],
@@ -266,11 +259,10 @@ export const AppLayout: React.FC = () => {
       to: '/purchases',
       label: 'Inward Purchases',
       icon: ShoppingBag,
-      shortcut: 'F4',
       flyoutTitle: 'Inward / Godown Purchases',
       flyoutBadge: 'GRN',
       flyoutItems: [
-        { to: '/purchases', label: '🚚 Inward Delivery Challan Entry', shortcut: '[F4]' },
+        { to: '/purchases', label: '🚚 Inward Delivery Challan Entry' },
         { to: '/purchases?mode=new', label: '📑 Supplier GST Tax Inward' },
         { to: '/purchases', label: '📦 Godown Bay Intake Reconciliation' },
       ],
@@ -279,11 +271,10 @@ export const AppLayout: React.FC = () => {
       to: '/reports',
       label: 'GST & Reports',
       icon: BarChart3,
-      shortcut: 'F5',
       flyoutTitle: 'GST & Statutory Reports',
       flyoutBadge: 'AUDIT',
       flyoutItems: [
-        { to: '/reports', label: '📊 GSTR-1 & B2C Daily Registers', shortcut: '[F5]' },
+        { to: '/reports', label: '📊 GSTR-1 & B2C Daily Registers' },
         { to: '/reports?type=form-o', label: '🌾 Form O State APMC Filings' },
         { to: '/reports?type=hsn', label: '📑 HSN-wise Fertilizer & Pesticide Tax' },
       ],
@@ -292,12 +283,11 @@ export const AppLayout: React.FC = () => {
       to: '/analytics',
       label: 'Analytics',
       icon: TrendingUp,
-      shortcut: 'F10',
       badge: 'Live',
       flyoutTitle: 'Business Analytics & Insights',
       flyoutBadge: 'METRICS',
       flyoutItems: [
-        { to: '/analytics', label: '📈 Seasonal Margin Velocity Curve', shortcut: '[F10]' },
+        { to: '/analytics', label: '📈 Seasonal Margin Velocity Curve' },
         { to: '/analytics', label: '🍩 Category Profit Mix (FCO vs CIB vs Seeds)' },
         { to: '/analytics', label: '⏳ Credit Aging Risk Brackets' },
         { to: '/analytics', label: '🤖 Agri Doctor Restocking Radar' },
@@ -307,11 +297,10 @@ export const AppLayout: React.FC = () => {
       to: '/settings',
       label: 'Settings & Config',
       icon: Settings,
-      shortcut: 'F12',
       flyoutTitle: 'Store Settings & Hardware Config',
       flyoutBadge: 'ADMIN',
       flyoutItems: [
-        { to: '/settings', label: '🏪 Dealership & APMC Profile', shortcut: '[F12]' },
+        { to: '/settings', label: '🏪 Dealership & APMC Profile' },
         { to: '/settings', label: '🖨️ ESC/POS 80mm Thermal Hardware' },
         { to: '/settings', label: '💳 Canara Bank Merchant Dynamic UPI QR' },
         { to: '/settings', label: '👥 Cashier & RBAC Terminal PINs' },
@@ -386,11 +375,6 @@ export const AppLayout: React.FC = () => {
                     }`}
                   >
                     <Icon className="w-5 h-5 stroke-[2.2]" />
-
-                    {/* Keyboard shortcut tiny tag */}
-                    <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-mono font-bold bg-surface-container-high/90 dark:bg-slate-800 text-primary dark:text-emerald-400 px-1 py-0.2 rounded-xs shadow-2xs">
-                      {item.shortcut}
-                    </span>
                   </NavLink>
 
                   {/* Smart Floating Sub-Category Box */}
@@ -414,12 +398,7 @@ export const AppLayout: React.FC = () => {
                           to={sub.to}
                           className="flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant dark:text-slate-300 hover:text-primary dark:hover:text-emerald-400 hover:bg-primary-container/15 dark:hover:bg-slate-800 rounded-lg transition-colors font-medium"
                         >
-                          <span className="truncate pr-1">{sub.label}</span>
-                          {sub.shortcut && (
-                            <span className="text-[9px] font-mono font-bold text-outline-variant dark:text-slate-500 shrink-0">
-                              {sub.shortcut}
-                            </span>
-                          )}
+                          <span className="truncate">{sub.label}</span>
                         </Link>
                       ))}
                     </div>
@@ -677,7 +656,6 @@ export const AppLayout: React.FC = () => {
                         <Icon className="w-4 h-4 text-emerald-700" />
                         <span>{item.label}</span>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400">{item.shortcut}</span>
                     </NavLink>
                   );
                 })}

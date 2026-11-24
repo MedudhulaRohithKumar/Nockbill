@@ -37,6 +37,7 @@ import { priceListsApi, productsApi, khataApi } from '../api';
 import { PriceList, Product } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
 
 const CATEGORIES = [
@@ -749,9 +750,6 @@ export const PriceListsPage: React.FC = () => {
             >
               <FileDown className="w-4 h-4 text-regulatory-sky" />
               <span>Export Rate Card</span>
-              <span className="font-label-code text-label-code bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface-variant font-bold border border-outline-variant/30">
-                F4
-              </span>
             </button>
             <button
               type="button"
@@ -803,6 +801,11 @@ export const PriceListsPage: React.FC = () => {
               <span className="font-label-code text-label-code uppercase text-on-surface-variant font-bold">
                 Active Price Rules
               </span>
+              <MetricInfoTooltip
+                title="Active Commercial Price Rules"
+                description="Active dynamic pricing tiers applied to products across retail counters, credit farmers, and wholesale buyers."
+                formula="Active Rules = Count(Active Price Lists) & Coverage % of Catalog"
+              />
             </div>
             <span className="font-label-badge text-label-badge bg-sprout-tint text-primary px-2 py-0.5 rounded-full font-bold flex items-center gap-1 border border-primary/20">
               <span className="w-1.5 h-1.5 rounded-full bg-forest-emerald animate-pulse" />
@@ -833,6 +836,12 @@ export const PriceListsPage: React.FC = () => {
               <span className="font-label-code text-label-code uppercase text-on-surface-variant font-bold">
                 Walk-in Retail Base
               </span>
+              <MetricInfoTooltip
+                title="Walk-in Retail Base Price"
+                description="Baseline statutory Maximum Retail Price (MRP) applied to walk-in cash and immediate UPI customers with zero trade discount."
+                formula="Rate = Standard Package MRP"
+                tip="Guarantees maximum gross margins on non-member counter sales."
+              />
             </div>
             <span className="font-label-code text-label-code bg-surface-container px-2 py-0.5 rounded text-on-surface-variant font-semibold border border-outline-variant/30">
               DEFAULT
@@ -863,6 +872,12 @@ export const PriceListsPage: React.FC = () => {
               <span className="font-label-code text-label-code uppercase text-on-surface-variant font-bold">
                 Credit Farmer Shield
               </span>
+              <MetricInfoTooltip
+                title="Credit Farmer Shield (Khata Tier)"
+                description="Preferential seasonal discount extended to registered khata farmers paying post-harvest."
+                formula="Net Rate = MRP - Tier Discount %"
+                tip="Tied to farmer credit score to maintain cash recovery rate."
+              />
             </div>
             <span className="font-label-badge text-label-badge bg-khata-amber-bg text-khata-amber px-2 py-0.5 rounded-full font-bold border border-khata-amber/30">
               KHATA PREFERRED
@@ -894,6 +909,13 @@ export const PriceListsPage: React.FC = () => {
               <span className="font-label-code text-label-code uppercase text-on-surface-variant font-bold">
                 Sub-Dealer &amp; Bulk Margin
               </span>
+              <MetricInfoTooltip
+                title="Sub-Dealer Wholesale Margin"
+                description="B2B wholesale pricing tier applied to bulk buyers, sub-dealers, and agricultural cooperative societies purchasing full case-lots."
+                formula="Wholesale Rate = Distributor Cost + Agreed Margin %"
+                tip="Enforces 14-day credit limit and statutory B2B GST tax invoice generation."
+                align="right"
+              />
             </div>
             <span className="font-label-badge text-label-badge bg-regulatory-sky-bg text-regulatory-sky px-2 py-0.5 rounded-full font-bold border border-regulatory-sky/30">
               WHOLESALE SLAB

@@ -17,6 +17,7 @@ import {
 import { reportsApi, salesApi, purchasesApi } from '../api';
 import { Sale, Purchase } from '../types';
 import { safeNumber, safeString, formatCurrency, formatINR } from '../utils/formatters';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 
 const toLocalDateStr = (d: Date = new Date()) => {
   const year = d.getFullYear();
@@ -511,19 +512,48 @@ export const ReportsPage: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Taxable Turnover</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Taxable Turnover</p>
+                <MetricInfoTooltip
+                  title="Taxable Turnover"
+                  description="Aggregate value of goods sold excluding GST, upon which tax liabilities are calculated."
+                  formula="Sum(Item Gross Amount - Discounts)"
+                />
+              </div>
               <p className="text-base sm:text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_taxable ?? gstData.taxable_amount)}</p>
             </div>
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Central (CGST)</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Central (CGST)</p>
+                <MetricInfoTooltip
+                  title="Central GST (CGST)"
+                  description="Central government's 50% share of statutory Goods & Services Tax collected on intrastate agricultural sales."
+                  formula="Taxable Turnover × (GST Rate / 2)"
+                />
+              </div>
               <p className="text-base sm:text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_cgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
             </div>
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">State (SGST)</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">State (SGST)</p>
+                <MetricInfoTooltip
+                  title="State GST (SGST)"
+                  description="State government's 50% share of statutory Goods & Services Tax collected on intrastate agricultural sales."
+                  formula="Taxable Turnover × (GST Rate / 2)"
+                />
+              </div>
               <p className="text-base sm:text-xl font-black text-brand-700 mt-1">₹{formatCurrency(gstData.total_sgst ?? (gstData.total_gst ? gstData.total_gst / 2 : 0))}</p>
             </div>
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Total GST Output</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">Total GST Output</p>
+                <MetricInfoTooltip
+                  title="Total GST Output Liability"
+                  description="Combined CGST and SGST liability generated from sales that must be filed in statutory monthly GSTR-1 returns."
+                  formula="CGST Output + SGST Output"
+                  align="right"
+                />
+              </div>
               <p className="text-base sm:text-xl font-black text-slate-900 mt-1">₹{formatCurrency(gstData.total_tax ?? gstData.total_gst)}</p>
             </div>
           </div>
@@ -566,17 +596,39 @@ export const ReportsPage: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-500 uppercase">Total Warehouse Cost Value</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-slate-500 uppercase">Total Warehouse Cost Value</p>
+                <MetricInfoTooltip
+                  title="Warehouse Cost Valuation"
+                  description="Total acquisition cost of current physical inventory at distributor purchase rate."
+                  formula="Sum(Current Stock × Purchase Cost Rate)"
+                />
+              </div>
               <p className="text-2xl font-black text-slate-900 mt-1">₹{formatINR(stockData.total_cost_value)}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Asset purchase value</p>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-500 uppercase">Total Retail Selling Value</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-slate-500 uppercase">Total Retail Selling Value</p>
+                <MetricInfoTooltip
+                  title="Retail Selling Value"
+                  description="Projected revenue realizable if all current warehouse stocks are sold at current retail selling rates."
+                  formula="Sum(Current Stock × Selling Price)"
+                />
+              </div>
               <p className="text-2xl font-black text-brand-800 mt-1">₹{formatINR(stockData.total_retail_value)}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">At current selling rate</p>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-500 uppercase">Unrealized Gross Margin</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-slate-500 uppercase">Unrealized Gross Margin</p>
+                <MetricInfoTooltip
+                  title="Unrealized Gross Margin"
+                  description="Estimated total profit margin locked in current godown stock when fully liquidated at retail prices."
+                  formula="Retail Selling Value - Warehouse Cost Value"
+                  align="right"
+                />
+              </div>
               <p className="text-2xl font-black text-emerald-600 mt-1">₹{formatINR(stockData.estimated_margin)}</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Expected profit in stock</p>
             </div>

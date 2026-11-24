@@ -53,6 +53,7 @@ import { useShop } from '../context/ShopContext';
 import { CameraScannerModal } from '../components/ocr/CameraScannerModal';
 import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   formatCurrency,
   formatCompactINR,
@@ -500,9 +501,6 @@ export const DashboardPage: React.FC = () => {
                 >
                   <ShoppingCart className="h-4 w-4 text-emerald-700" />
                   <span>+ New POS Bill</span>
-                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 font-mono">
-                    [F1]
-                  </span>
                 </button>
                 <button
                   type="button"
@@ -534,7 +532,15 @@ export const DashboardPage: React.FC = () => {
             {/* Bottom: 4 Live Telemetry Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-emerald-700/60 pt-4 text-xs">
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Today's Gross</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-emerald-300">
+                  <span>Today's Gross</span>
+                  <MetricInfoTooltip
+                    title="Today's Gross"
+                    description="Total monetary value of all fertilizer, seed, and chemical retail sales billed today across cash, UPI, and khata (credit)."
+                    formula="Today's Gross = Sum(Today's Invoices)"
+                    tip="Reflects real-time gross revenue before deductions."
+                  />
+                </div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
                   ₹{formatCurrency(summary?.today_sales || 0, 0)}
                 </div>
@@ -544,7 +550,14 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Monthly Sales</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-emerald-300">
+                  <span>Monthly Sales</span>
+                  <MetricInfoTooltip
+                    title="Monthly Sales"
+                    description="Cumulative sales turnover achieved in the current calendar month across all categories."
+                    formula="Monthly Sales = Sum(Current Month Invoices)"
+                  />
+                </div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
                   ₹{formatCurrency(summary?.month_sales || 0, 0)}
                 </div>
@@ -554,7 +567,15 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Stock Valuation</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-emerald-300">
+                  <span>Stock Valuation</span>
+                  <MetricInfoTooltip
+                    title="Stock Valuation"
+                    description="Total financial value of all physical inventory stored in the retail outlet and godowns, computed at selling price / MRP."
+                    formula="Stock Valuation = Sum(Current Stock × Selling Price)"
+                    tip="Keep valuation balanced to prevent capital lockup in slow-moving chemical batches."
+                  />
+                </div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
                   ₹{formatCurrency(summary?.total_inventory_value || 0, 0)}
                 </div>
@@ -564,7 +585,16 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Khata Exposure</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-emerald-300">
+                  <span>Khata Exposure</span>
+                  <MetricInfoTooltip
+                    title="Khata Exposure"
+                    description="Total unpaid credit balance currently owed by farmers. Represents your store's total working capital at risk across credit sales."
+                    formula="Khata Exposure = Sum(Farmer Outstanding Balances)"
+                    tip="Monitor growers with high exposure before approving new seasonal credit for fertilizers or seeds."
+                    align="right"
+                  />
+                </div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
                   ₹{formatCurrency(khataSummary?.total_outstanding_udhar || 0, 0)}
                 </div>
@@ -583,7 +613,15 @@ export const DashboardPage: React.FC = () => {
           {/* Card 1: Counter Velocity */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Counter Velocity</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Counter Velocity</span>
+                <MetricInfoTooltip
+                  title="Counter Velocity"
+                  description="Real-time transaction frequency, sales volume, and average basket size at the retail billing till today, split across digital UPI, cash, and khata credit."
+                  formula="Average Basket = Today's Gross / Total Bills"
+                  tip="Fast-bill customers with UPI QR or cash to maintain high till throughput."
+                />
+              </div>
               <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/60 p-2 text-emerald-700 dark:text-emerald-300">
                 <TrendingUp className="h-4 w-4" />
               </div>
@@ -620,7 +658,15 @@ export const DashboardPage: React.FC = () => {
           {/* Card 2: FIFO Expiry Radar */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">FIFO Expiry Radar</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">FIFO Expiry Radar</span>
+                <MetricInfoTooltip
+                  title="FIFO Expiry Radar"
+                  description="Automated First-In-First-Out radar tracking near-expiry chemical batches (<30 days & <60 days) to prevent dead stock loss."
+                  formula="Active batches where (Expiry Date - Today) <= 30 Days"
+                  tip="Apply 'Clearance 20%' or push to counter stage to sell older batches first."
+                />
+              </div>
               <div className="rounded-xl bg-red-50 dark:bg-red-950/60 p-2 text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-4 w-4" />
               </div>
@@ -651,7 +697,15 @@ export const DashboardPage: React.FC = () => {
           {/* Card 3: Farmer Credit Ledger */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Farmer Credit Ledger</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Farmer Credit Ledger</span>
+                <MetricInfoTooltip
+                  title="Farmer Credit Ledger"
+                  description="Live tally of all active farmer khata accounts, tracking total outstanding debts owed to the store and today's cash recoveries."
+                  formula="Sum(Farmer Credit Balances) & Daily Cash Inward"
+                  tip="Dispatch automated 1-click WhatsApp payment reminders to speed up cash recovery."
+                />
+              </div>
               <div className="rounded-xl bg-amber-50 dark:bg-amber-950/60 p-2 text-amber-700 dark:text-amber-400">
                 <BookOpen className="h-4 w-4" />
               </div>
@@ -676,7 +730,16 @@ export const DashboardPage: React.FC = () => {
           {/* Card 4: Store Inventory */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Store Inventory</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Store Inventory</span>
+                <MetricInfoTooltip
+                  title="Store Inventory Status"
+                  description="Total distinct Stock Keeping Units (SKUs), in-stock items, and physical units held across retail counter and godown bays."
+                  formula="Total SKUs = Count(Active Products) | In Stock = Count(Stock > 0)"
+                  tip="Maintain reorder thresholds to prevent stockouts during peak Kharif/Rabi sowing periods."
+                  align="right"
+                />
+              </div>
               <div className="rounded-xl bg-blue-50 dark:bg-blue-950/60 p-2 text-blue-700 dark:text-blue-300">
                 <Package className="h-4 w-4" />
               </div>
@@ -794,7 +857,15 @@ export const DashboardPage: React.FC = () => {
             <div className="mt-4">
               <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
                 <span>STAGED ITEMS {selectedCustomerName ? `FOR ${selectedCustomerName.toUpperCase()}` : ''} ({stagedItems.length} ITEMS)</span>
-                <span className="font-mono text-slate-700 dark:text-slate-300">PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
+                <div className="flex items-center gap-1 font-mono text-slate-700 dark:text-slate-300">
+                  <span>PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
+                  <MetricInfoTooltip
+                    title="Pre-GST Staged Total"
+                    description="Aggregate raw product value before applying statutory GST slabs."
+                    formula="Sum(Item Quantity × Item Price)"
+                    align="right"
+                  />
+                </div>
               </div>
 
               {stagedItems.length > 0 ? (
@@ -899,7 +970,7 @@ export const DashboardPage: React.FC = () => {
                       : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
-                  UPI QR [F4]
+                  UPI QR
                 </button>
                 <button
                   type="button"
@@ -910,7 +981,7 @@ export const DashboardPage: React.FC = () => {
                       : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
-                  Cash [F5]
+                  Cash
                 </button>
                 <button
                   type="button"
@@ -921,13 +992,21 @@ export const DashboardPage: React.FC = () => {
                       : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
-                  Add to Khata [F6]
+                  Add to Khata
                 </button>
               </div>
 
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Payable Total</div>
+                  <div className="flex items-center justify-end gap-1 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    <span>Payable Total</span>
+                    <MetricInfoTooltip
+                      title="Payable Total"
+                      description="Final invoice amount due from the customer including statutory GST, discounts, and rounding."
+                      formula="Payable = Pre-GST + Taxes - Discounts ± Round-off"
+                      align="right"
+                    />
+                  </div>
                   <div className="font-mono text-xl font-black text-slate-900 dark:text-white">
                     ₹{formatCurrency(fastTillTotals.payableTotal, 2)}
                   </div>
@@ -939,7 +1018,7 @@ export const DashboardPage: React.FC = () => {
                   className="flex items-center gap-2 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white px-5 py-3 text-xs sm:text-sm font-black shadow-lg shadow-emerald-700/20 active:scale-95 transition-all"
                 >
                   <Printer className="h-4 w-4" />
-                  <span>Print Bill [Enter]</span>
+                  <span>Print Bill</span>
                 </button>
               </div>
             </div>
@@ -955,6 +1034,12 @@ export const DashboardPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white">Agri Doctor AI Lens</h3>
+                    <MetricInfoTooltip
+                      title="Agri Doctor AI Lens"
+                      description="AI crop pathology engine diagnosing crop diseases and nutritional deficiencies from leaf photos and recommending CIB-approved molecules."
+                      formula="Multi-modal leaf symptom matching + FCO / CIB formulation database"
+                      tip="Prescribe molecules already in stock to speed up farmer checkout."
+                    />
                     <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                       v3.2
                     </span>
@@ -1178,7 +1263,15 @@ export const DashboardPage: React.FC = () => {
             {/* Card 1: Fertilizer Form O */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <h4 className="font-bold text-slate-900 dark:text-white">Fertilizer Form O (MFMS &amp; FCO 1985)</h4>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white">Fertilizer Form O (MFMS &amp; FCO 1985)</h4>
+                  <MetricInfoTooltip
+                    title="Fertilizer Form O"
+                    description="Statutory Certificate of Source under Clause 8 of Fertilizer (Control) Order 1985. Matches retail sales logs against Central MFMS quota tolerances."
+                    formula="Matched within 0.02% of DBT retail quota"
+                    align="right"
+                  />
+                </div>
                 <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                   100% Audited
                 </span>
@@ -1202,7 +1295,15 @@ export const DashboardPage: React.FC = () => {
             {/* Card 2: Pesticide Form M */}
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 p-4 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
-                <h4 className="font-bold text-slate-900 dark:text-white">Pesticide Form M &amp; CIB</h4>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="font-bold text-slate-900 dark:text-white">Pesticide Form M &amp; CIB</h4>
+                  <MetricInfoTooltip
+                    title="Pesticide Form M & CIB"
+                    description="Mandatory insecticide monthly stock and retail sales register under Insecticides Act 1968, verified against Central Insecticides Board approval guidelines."
+                    formula="100% Active CIB-RC Registration Numbers"
+                    align="right"
+                  />
+                </div>
                 <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
                   100% CIB-RC
                 </span>
@@ -1343,7 +1444,7 @@ export const DashboardPage: React.FC = () => {
                 })
               ) : (
                 <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-6 text-center text-xs text-slate-400 dark:text-slate-500">
-                  No counter sales recorded yet today. Use Fast-Till or New Bill [F1] to issue invoices.
+                  No counter sales recorded yet today. Use Fast-Till or New Bill to issue invoices.
                 </div>
               )}
             </div>
@@ -1428,7 +1529,7 @@ export const DashboardPage: React.FC = () => {
           <div className="text-left text-xs">
             <div className="font-bold text-white">Counter #01 Idle &amp; Ready</div>
             <div className="text-[10px] text-emerald-200">
-              Tap [F1] for instant bill or press Barcode Gun
+              Tap New Bill for instant bill or press Barcode Gun
             </div>
           </div>
           <button

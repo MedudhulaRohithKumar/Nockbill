@@ -2,11 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-surface: 250 248 255;
+  --color-surface-container-lowest: 255 255 255;
+  --color-surface-container-low: 242 243 255;
+  --color-surface-container: 234 237 255;
+  --color-surface-container-high: 226 231 255;
+  --color-surface-container-highest: 218 226 253;
+  --color-surface-variant: 218 226 253;
+  --color-on-surface: 19 27 46;
+  --color-on-surface-variant: 63 73 63;
+  --color-outline-variant: 190 202 188;
+  --color-outline: 111 122 110;
+  --color-background: 250 248 255;
+  --color-on-background: 19 27 46;
+  --color-inverse-surface: 40 48 68;
+  --color-inverse-on-surface: 238 240 255;
+  --color-sprout-tint: 236 253 245;
+}
+
+.dark {
+  --color-surface: 11 17 32; /* slate-950 #0b1120 */
+  --color-surface-container-lowest: 15 23 42; /* slate-900 #0f172a */
+  --color-surface-container-low: 30 41 59; /* slate-800 #1e293b */
+  --color-surface-container: 30 41 59; /* slate-800 #1e293b */
+  --color-surface-container-high: 51 65 85; /* slate-700 #334155 */
+  --color-surface-container-highest: 71 85 105; /* slate-600 #475569 */
+  --color-surface-variant: 30 41 59; /* slate-800 */
+  --color-on-surface: 248 250 252; /* slate-50 #f8fafc */
+  --color-on-surface-variant: 203 213 225; /* slate-300 #cbd5e1 */
+  --color-outline-variant: 51 65 85; /* slate-700 #334155 */
+  --color-outline: 100 116 139; /* slate-500 #64748b */
+  --color-background: 11 17 32; /* slate-950 */
+  --color-on-background: 248 250 252; /* slate-50 */
+  --color-inverse-surface: 248 250 252; /* slate-50 */
+  --color-inverse-on-surface: 15 23 42; /* slate-900 */
+  --color-sprout-tint: 6 78 59; /* emerald-900/950 */
+}
+
 @layer base {
   body {
     @apply text-slate-800 bg-slate-50 dark:bg-slate-950 dark:text-slate-100 min-h-screen overflow-x-hidden transition-colors;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
+}
+
+/* Universal Dark Mode Systemic Rules across all pages */
+.dark .bg-white:not([data-keep-light="true"]) {
+  background-color: #0f172a; /* slate-900 */
+}
+.dark .bg-slate-50:not([data-keep-light="true"]) {
+  background-color: #0b1120; /* slate-950 */
+}
+.dark .bg-slate-100:not([data-keep-light="true"]) {
+  background-color: #1e293b; /* slate-800 */
+}
+.dark .border-slate-100,
+.dark .border-slate-200 {
+  border-color: #1e293b; /* slate-800 */
+}
+.dark .border-slate-300 {
+  border-color: #334155; /* slate-700 */
+}
+.dark .text-slate-900,
+.dark .text-slate-800 {
+  color: #f8fafc; /* slate-50 */
+}
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: #cbd5e1; /* slate-300 */
+}
+.dark .text-slate-500 {
+  color: #94a3b8; /* slate-400 */
+}
+.dark input:not([type="checkbox"]):not([type="radio"]):not([data-keep-light="true"]),
+.dark select:not([data-keep-light="true"]),
+.dark textarea:not([data-keep-light="true"]) {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b;
+}
+.dark table thead {
+  background-color: #1e293b;
+  color: #cbd5e1;
+}
+.dark table thead th {
+  color: #94a3b8;
+  border-color: #334155;
+}
+.dark table tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.5);
+}
+.dark ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }
 
 .material-symbols-outlined {

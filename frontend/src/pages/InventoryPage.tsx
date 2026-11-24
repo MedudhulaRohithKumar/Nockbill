@@ -43,6 +43,7 @@ import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import { BarcodePrintModal } from '../components/inventory/BarcodePrintModal';
 import { ProductFormModal } from '../components/inventory/ProductFormModal';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   INVENTORY_CATEGORIES,
   INVENTORY_CATEGORY_CONFIGS,
@@ -1024,9 +1025,16 @@ export const InventoryPage: React.FC = () => {
           <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
-                Total Stock Valuation
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                  Total Stock Valuation
+                </span>
+                <MetricInfoTooltip
+                  title="Total Stock Valuation"
+                  description="Real-time financial valuation of all products currently stocked across retail counter and warehouse godown bays."
+                  formula="Sum(Current Stock × Selling Price)"
+                />
+              </div>
               <span className="font-label-code text-label-code bg-sprout-tint text-forest-emerald px-1.5 py-0.5 rounded font-bold border border-forest-emerald/20">
                 Live Ledger
               </span>
@@ -1058,9 +1066,16 @@ export const InventoryPage: React.FC = () => {
           <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
-                Adequate Stock Health
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                  Adequate Stock Health
+                </span>
+                <MetricInfoTooltip
+                  title="Adequate Stock Health"
+                  description="Percentage of catalog SKUs currently stocked comfortably above their minimum reorder buffer levels."
+                  formula="(Adequate SKUs / Total SKUs) × 100"
+                />
+              </div>
               <span className="w-2.5 h-2.5 rounded-full bg-forest-emerald animate-pulse" />
             </div>
             <div className="mt-2 flex items-baseline gap-2">
@@ -1090,9 +1105,17 @@ export const InventoryPage: React.FC = () => {
           <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-khata-amber-bg/70 pointer-events-none" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
-                Reorder Level Alerts
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                  Reorder Level Alerts
+                </span>
+                <MetricInfoTooltip
+                  title="Reorder Level Alerts"
+                  description="Items that have fallen below their configured minimum buffer threshold and need inward purchase orders."
+                  formula="Active SKUs where Current Stock <= Minimum Buffer Stock"
+                  tip="Raise purchase orders with distributors to replenish stock before peak customer demand."
+                />
+              </div>
               <span className="font-label-badge text-label-badge bg-khata-amber-bg text-khata-amber px-2 py-0.5 rounded-full font-bold border border-khata-amber/30">
                 ATTENTION
               </span>
@@ -1125,9 +1148,18 @@ export const InventoryPage: React.FC = () => {
           <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-critical-rose-bg/70 pointer-events-none" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
-                Expiry Radar (&lt;60 Days)
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-label-badge text-label-badge text-on-surface-variant uppercase tracking-wider font-bold">
+                  Expiry Radar (&lt;60 Days)
+                </span>
+                <MetricInfoTooltip
+                  title="Expiry Radar (<60 Days)"
+                  description="Batches expiring within 60 days that must be sold under FIFO priority or returned to distributors under FCO rules."
+                  formula="Active Batches where (Expiry Date - Today) <= 60 Days"
+                  tip="Prioritize these batches during billing or apply clearance discounts to prevent stock write-offs."
+                  align="right"
+                />
+              </div>
               <span className="font-label-badge text-label-badge bg-critical-rose-bg text-critical-rose px-2 py-0.5 rounded-full font-bold border border-critical-rose/30">
                 CRITICAL
               </span>

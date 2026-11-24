@@ -30,6 +30,7 @@ import { InvoiceReturnLookup, SalesReturn, ReturnEligibleItem } from '../types';
 import { safeNumber, formatCurrency } from '../utils/formatters';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 
 export const SalesReturnPage: React.FC = () => {
   const { settings } = useShop();
@@ -768,7 +769,14 @@ export const SalesReturnPage: React.FC = () => {
                   </div>
 
                   <div className="flex justify-between text-slate-600">
-                    <span>Gross Return Value</span>
+                    <div className="flex items-center gap-1.5">
+                      <span>Gross Return Value</span>
+                      <MetricInfoTooltip
+                        title="Gross Return Value"
+                        description="Taxable base value of products returned by the farmer before GST reversal."
+                        formula="Sum(Returned Qty × Taxable Rate)"
+                      />
+                    </div>
                     <span className="font-mono font-bold text-slate-900">
                       ₹{formatCurrency(calculations.calculatedTaxableRefund)}
                     </span>
@@ -776,7 +784,14 @@ export const SalesReturnPage: React.FC = () => {
 
                   <div className="space-y-1 pt-1 border-t border-slate-100">
                     <div className="flex justify-between text-slate-600">
-                      <span>GST Reversal Total</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>GST Reversal Total</span>
+                        <MetricInfoTooltip
+                          title="GST Reversal Total"
+                          description="Statutory input GST credit reversal for returned fertilizer/seed/chemical batches under GSTR-1 credit notes."
+                          formula="CGST + SGST (or IGST) of returned items"
+                        />
+                      </div>
                       <span className="font-mono font-bold text-blue-700">
                         ₹{formatCurrency(calculations.calculatedGstRefund)}
                       </span>
@@ -793,7 +808,15 @@ export const SalesReturnPage: React.FC = () => {
 
                   <div className="rounded-2xl bg-slate-50 border border-slate-200/70 p-3.5 flex items-center justify-between">
                     <div>
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Net Refund Value</div>
+                      <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        <span>Net Refund Value</span>
+                        <MetricInfoTooltip
+                          title="Net Refund Value"
+                          description="Final payable refund to the grower or credited back against their Khata ledger."
+                          formula="Net Refund = Gross Return Value + GST Reversal"
+                          align="right"
+                        />
+                      </div>
                       <div className="font-mono text-2xl font-black text-emerald-900">
                         ₹{formatCurrency(calculations.calculatedTotalRefund)}
                       </div>
@@ -830,7 +853,6 @@ export const SalesReturnPage: React.FC = () => {
                       <>
                         <Bolt className="h-4 w-4 text-emerald-300" />
                         <span>Issue Credit Note &amp; Print Receipt</span>
-                        <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono font-bold">[Enter]</span>
                       </>
                     )}
                   </button>

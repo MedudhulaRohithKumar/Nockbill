@@ -42,6 +42,7 @@ import { reportsApi, khataApi, inventoryApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
 import { AnalyticsData, CategoryAnalyticsItem, Product, DashboardSummary } from '../types';
 import { formatCurrency } from '../utils/formatters';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 
 interface KhataCustomerItem {
   customer_key: string;
@@ -711,7 +712,14 @@ export const AnalyticsPage: React.FC = () => {
           <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-50 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gross Revenue MTD</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Gross Revenue MTD</span>
+                <MetricInfoTooltip
+                  title="Gross Revenue Month-to-Date"
+                  description="Cumulative sales revenue recorded from the first day of the current calendar month to today across all retail billing."
+                  formula="Sum(Month Invoices Grand Total)"
+                />
+              </div>
               <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-0.5">
                 <TrendingUp className="w-3 h-3" /> +18.4%
               </span>
@@ -737,7 +745,14 @@ export const AnalyticsPage: React.FC = () => {
           <div className="absolute -right-4 -top-4 w-24 h-24 bg-sky-50 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Counter Velocity</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Counter Velocity</span>
+                <MetricInfoTooltip
+                  title="Counter Velocity"
+                  description="Average daily retail revenue throughput and total number of transactions processed at the checkout desk."
+                  formula="Total Revenue MTD / Elapsed Days in Month"
+                />
+              </div>
               <span className="text-[10px] font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
                 {totalInvoices} INVOICES
               </span>
@@ -764,7 +779,14 @@ export const AnalyticsPage: React.FC = () => {
           <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-50 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Aggregated Dispatch</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Aggregated Dispatch</span>
+                <MetricInfoTooltip
+                  title="Aggregated Season Dispatch"
+                  description="Total volume of physical agricultural inputs disbursed to farmers during the active season across fertilizers, crop protection, and certified seeds."
+                  formula="Sum(Units Dispatched across all categories)"
+                />
+              </div>
               <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
                 KHARIF DISPATCH
               </span>
@@ -794,7 +816,15 @@ export const AnalyticsPage: React.FC = () => {
           <div className="absolute -right-4 -top-4 w-24 h-24 bg-purple-50 rounded-full blur-xl pointer-events-none"></div>
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Credit &amp; Working Capital</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Credit &amp; Working Capital</span>
+                <MetricInfoTooltip
+                  title="Credit & Working Capital"
+                  description="Working capital health ratio comparing outstanding farmer khata credit against active godown inventory assets."
+                  formula="Total Khata Receivables vs Inward Inventory Valuation"
+                  align="right"
+                />
+              </div>
               <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
                 91.2% HEALTHY
               </span>
