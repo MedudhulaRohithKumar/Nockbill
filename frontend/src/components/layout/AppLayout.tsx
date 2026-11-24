@@ -62,8 +62,37 @@ export const AppLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [drawerCash, setDrawerCash] = useState<number>(42850);
   const [isRefreshingTelemetry, setIsRefreshingTelemetry] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof document !== 'undefined') {
+      const isDarkCookie = document.cookie.includes('theme=dark');
+      const isSystemDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return isDarkCookie || document.documentElement.classList.contains('dark') || Boolean(isSystemDark);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.classList.add('dark');
+        document.cookie = 'theme=dark;path=/;max-age=31536000';
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.cookie = 'theme=light;path=/;max-age=31536000';
+      }
+      return next;
+    });
+  };
 
   const isOwner = (user?.role || '').toLowerCase() === 'owner';
 
@@ -157,7 +186,7 @@ export const AppLayout: React.FC = () => {
       flyoutBadge: 'ACTIVE TILL',
       flyoutItems: [
         { to: '/pos', label: '⚡ New Fertilizer Bill', shortcut: '[F1]' },
-        { to: '/pos?mode=dbt', label: '🌾 DBT Aadhaar Sale (Govt)', shortcut: 'Govt' },
+        { to: '/pos', label: '⚡ Fast Counter Bill', shortcut: 'Fast' },
         { to: '/pos?mode=invoices', label: '📜 Recent Invoices & 80mm Slips' },
         { to: '/pos', label: '🔍 Instant Farmer Mobile Lookup' },
       ],
@@ -319,13 +348,13 @@ export const AppLayout: React.FC = () => {
   const gstinDisplay = settings.gstin ? settings.gstin.slice(0, 10) : 'KA-BLR-2023';
 
   return (
-    <div className="min-h-screen bg-surface font-sans text-on-surface antialiased flex flex-col">
+    <div className="min-h-screen bg-surface dark:bg-slate-950 font-sans text-on-surface dark:text-slate-100 antialiased flex flex-col transition-colors">
       {/* =========================================================================
           1. COMPACT VERTICAL ICON RAIL (w-20 / 80px)
       ========================================================================= */}
       <aside
         aria-label="Sidebar Navigation"
-        className="hidden md:flex fixed left-0 top-0 bottom-0 w-20 z-40 bg-surface-container-low border-r border-outline-variant/30 flex-col justify-between py-3.5 select-none"
+        className="hidden md:flex fixed left-0 top-0 bottom-0 w-20 z-40 bg-surface-container-low dark:bg-slate-900 border-r border-outline-variant/30 dark:border-slate-800 flex-col justify-between py-3.5 select-none transition-colors"
       >
         {/* Top: Sprout Branding Emblem with gentle pulse */}
         <div className="flex flex-col items-center gap-3">
@@ -357,27 +386,27 @@ export const AppLayout: React.FC = () => {
                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 relative ${
                       isActive
                         ? 'bg-primary text-on-primary shadow-sm font-bold'
-                        : 'text-on-surface-variant hover:text-primary hover:bg-primary-container/20'
+                        : 'text-on-surface-variant dark:text-slate-400 hover:text-primary dark:hover:text-emerald-400 hover:bg-primary-container/20 dark:hover:bg-slate-800'
                     }`}
                   >
                     <Icon className="w-5 h-5 stroke-[2.2]" />
 
                     {/* Keyboard shortcut tiny tag */}
-                    <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-mono font-bold bg-surface-container-high/90 text-primary px-1 py-0.2 rounded-xs shadow-2xs">
+                    <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-mono font-bold bg-surface-container-high/90 dark:bg-slate-800 text-primary dark:text-emerald-400 px-1 py-0.2 rounded-xs shadow-2xs">
                       {item.shortcut}
                     </span>
                   </NavLink>
 
                   {/* Smart Floating Sub-Category Box */}
-                  <div className="absolute left-20 ml-2 top-0 invisible opacity-0 translate-x-2 group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 w-64 bg-surface-container-lowest/95 backdrop-blur-md rounded-2xl shadow-xl border border-outline-variant/30 p-3 pointer-events-auto">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-surface-container-high">
+                  <div className="absolute left-20 ml-2 top-0 invisible opacity-0 translate-x-2 group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 w-64 bg-surface-container-lowest/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-outline-variant/30 dark:border-slate-800 p-3 pointer-events-auto">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-surface-container-high dark:border-slate-800">
                       <div className="flex items-center gap-1.5">
                         <Icon className="w-4 h-4 text-primary" />
-                        <span className="font-bold text-xs text-on-surface truncate max-w-[140px]">
+                        <span className="font-bold text-xs text-on-surface dark:text-white truncate max-w-[140px]">
                           {item.label}
                         </span>
                       </div>
-                      <span className="text-[9px] font-mono font-bold text-primary bg-primary-container/20 px-1.5 py-0.5 rounded-full uppercase">
+                      <span className="text-[9px] font-mono font-bold text-primary dark:text-emerald-400 bg-primary-container/20 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full uppercase">
                         {item.flyoutBadge}
                       </span>
                     </div>
@@ -387,11 +416,11 @@ export const AppLayout: React.FC = () => {
                         <Link
                           key={sIdx}
                           to={sub.to}
-                          className="flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant hover:text-primary hover:bg-primary-container/15 rounded-lg transition-colors font-medium"
+                          className="flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant dark:text-slate-300 hover:text-primary dark:hover:text-emerald-400 hover:bg-primary-container/15 dark:hover:bg-slate-800 rounded-lg transition-colors font-medium"
                         >
                           <span className="truncate pr-1">{sub.label}</span>
                           {sub.shortcut && (
-                            <span className="text-[9px] font-mono font-bold text-outline-variant shrink-0">
+                            <span className="text-[9px] font-mono font-bold text-outline-variant dark:text-slate-500 shrink-0">
                               {sub.shortcut}
                             </span>
                           )}
@@ -406,30 +435,30 @@ export const AppLayout: React.FC = () => {
         </div>
 
         {/* Bottom Profile Trigger with Admin Flyout */}
-        <div className="flex flex-col items-center gap-2 pt-2 border-t border-outline-variant/20 w-full px-2">
+        <div className="flex flex-col items-center gap-2 pt-2 border-t border-outline-variant/20 dark:border-slate-800 w-full px-2">
           <div className="relative group flex items-center justify-center w-full">
             <button
               type="button"
               aria-label="User Profile and Session Options"
-              className="w-11 h-11 rounded-full bg-forest-emerald text-on-primary font-black text-xs flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95 ring-2 ring-emerald-200"
+              className="w-11 h-11 rounded-full bg-forest-emerald text-on-primary font-black text-xs flex items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95 ring-2 ring-emerald-200 dark:ring-emerald-800"
             >
               {userInitials}
             </button>
 
             {/* Operator Details & PIN Switcher Flyout */}
-            <div className="absolute left-20 ml-2 bottom-0 invisible opacity-0 translate-x-2 group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 w-64 bg-surface-container-lowest/95 backdrop-blur-md rounded-2xl shadow-xl border border-outline-variant/30 p-3.5 pointer-events-auto">
-              <div className="flex items-center gap-2.5 pb-2.5 mb-2.5 border-b border-surface-container-high">
+            <div className="absolute left-20 ml-2 bottom-0 invisible opacity-0 translate-x-2 group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 w-64 bg-surface-container-lowest/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-outline-variant/30 dark:border-slate-800 p-3.5 pointer-events-auto">
+              <div className="flex items-center gap-2.5 pb-2.5 mb-2.5 border-b border-surface-container-high dark:border-slate-800">
                 <div className="w-10 h-10 rounded-full bg-emerald-800 text-white font-bold text-xs flex items-center justify-center shrink-0">
                   {userInitials}
                 </div>
                 <div className="overflow-hidden">
-                  <div className="font-bold text-xs text-on-surface truncate">
+                  <div className="font-bold text-xs text-on-surface dark:text-white truncate">
                     {user?.full_name || user?.username || 'Store Operator'}
                   </div>
-                  <div className="text-[10px] font-mono text-outline-variant truncate">
+                  <div className="text-[10px] font-mono text-outline-variant dark:text-slate-400 truncate">
                     @{user?.username || 'operator'}
                   </div>
-                  <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 uppercase">
+                  <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 uppercase">
                     {isOwner ? 'ADMINISTRATOR' : 'CASHIER POS'}
                   </span>
                 </div>
@@ -438,19 +467,19 @@ export const AppLayout: React.FC = () => {
               <div className="space-y-1">
                 <Link
                   to="/settings"
-                  className="flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant hover:text-primary hover:bg-primary-container/15 rounded-lg transition-colors"
+                  className="flex items-center justify-between px-2.5 py-1.5 text-xs text-on-surface-variant dark:text-slate-300 hover:text-primary dark:hover:text-emerald-400 hover:bg-primary-container/15 dark:hover:bg-slate-800 rounded-lg transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <KeyRound className="w-3.5 h-3.5 text-outline" />
+                    <KeyRound className="w-3.5 h-3.5 text-outline dark:text-slate-400" />
                     <span>Terminal PIN & Roster</span>
                   </span>
-                  <ChevronRight className="w-3.5 h-3.5 text-outline-variant" />
+                  <ChevronRight className="w-3.5 h-3.5 text-outline-variant dark:text-slate-500" />
                 </Link>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-critical-rose hover:bg-critical-rose-bg/60 rounded-lg transition-colors font-semibold"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-critical-rose hover:bg-critical-rose-bg/60 dark:hover:bg-rose-950/40 rounded-lg transition-colors font-semibold"
                 >
                   <span className="flex items-center gap-2">
                     <LogOut className="w-3.5 h-3.5" />
@@ -469,7 +498,7 @@ export const AppLayout: React.FC = () => {
       ========================================================================= */}
       <header
         role="banner"
-        className="fixed top-0 left-0 md:left-20 right-0 h-16 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant/30 px-4 sm:px-6 flex items-center justify-between gap-4"
+        className="fixed top-0 left-0 md:left-20 right-0 h-16 z-30 bg-surface/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-4 transition-colors"
       >
         {/* Left: Mobile Toggle & Store Credentials */}
         <div className="flex items-center gap-3">
@@ -478,7 +507,7 @@ export const AppLayout: React.FC = () => {
             type="button"
             aria-label="Toggle Mobile Menu"
             onClick={() => setMobileMenuOpen(prev => !prev)}
-            className="md:hidden p-2 text-on-surface-variant hover:text-primary rounded-xl"
+            className="md:hidden p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary rounded-xl"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -490,24 +519,24 @@ export const AppLayout: React.FC = () => {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-forest-emerald" />
               </span>
-              <span className="text-xs sm:text-sm font-black text-on-surface tracking-tight truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs sm:text-sm font-black text-on-surface dark:text-white tracking-tight truncate max-w-[200px] sm:max-w-xs">
                 {shopNameDisplay}
               </span>
-              <span className="hidden sm:inline-block rounded-md bg-surface-container-high px-1.5 py-0.5 text-[10px] font-mono font-bold text-on-surface-variant">
+              <span className="hidden sm:inline-block rounded-md bg-surface-container-high dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono font-bold text-on-surface-variant dark:text-slate-300">
                 #{gstinDisplay}
               </span>
             </div>
 
             {/* Statutory Agricultural Badges */}
             <div className="hidden lg:flex items-center gap-1.5 text-[9px] font-bold mt-0.5">
-              <span className="text-outline uppercase tracking-wider text-[8px]">LICENSES:</span>
-              <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <span className="text-outline dark:text-slate-400 uppercase tracking-wider text-[8px]">LICENSES:</span>
+              <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                 FERT: {settings.fertilizer_license_no || 'FERT-OK'}
               </span>
-              <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+              <span className="px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                 PEST: {settings.pesticide_license_no || 'PEST-2026'}
               </span>
-              <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-800 border border-sky-200">
+              <span className="px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
                 SEED: {settings.seed_license_no || 'SEED-REG'}
               </span>
             </div>
@@ -516,27 +545,38 @@ export const AppLayout: React.FC = () => {
 
         {/* Right: Live Telemetry Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Real-time Till Active Drawer Balance */}
-          <div className="flex items-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-2.5 sm:px-3 py-1.5 shadow-2xs">
+          {/* Real-time Till / Drawer Cash Balance */}
+          <div className="flex items-center gap-2 rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 px-2.5 sm:px-3 py-1.5 shadow-2xs">
             <Banknote className="h-4 w-4 text-forest-emerald shrink-0" />
             <div className="text-left">
-              <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-outline">
-                Till Active
+              <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-outline dark:text-slate-400">
+                Drawer Cash
               </div>
-              <div className="font-mono text-xs sm:text-sm font-black text-on-surface">
+              <div className="font-mono text-xs sm:text-sm font-black text-on-surface dark:text-white">
                 ₹{formatCurrency(drawerCash, 0)}
               </div>
             </div>
           </div>
 
-          {/* Central Govt DBT Aadhaar Gateway Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/80 px-2.5 py-1.5 text-xs font-semibold text-emerald-800">
+          {/* Central Govt Cloud Sync Indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/40 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
             <ShieldCheck className="h-4 w-4 text-forest-emerald" />
-            <span className="text-[11px] font-bold">DBT Aadhaar</span>
-            <span className="rounded bg-emerald-200/80 px-1 py-0.2 text-[9px] font-mono font-bold text-emerald-900">
+            <span className="text-[11px] font-bold">Cloud Sync</span>
+            <span className="rounded bg-emerald-200/80 dark:bg-emerald-900/80 px-1 py-0.2 text-[9px] font-mono font-bold text-emerald-900 dark:text-emerald-200">
               ONLINE
             </span>
           </div>
+
+          {/* Dark / Light Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-amber-400 hover:text-primary transition-all active:scale-95"
+          >
+            {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
+          </button>
 
           {/* Refresh Telemetry Action */}
           <button
@@ -544,7 +584,7 @@ export const AppLayout: React.FC = () => {
             onClick={() => void fetchTelemetry()}
             disabled={isRefreshingTelemetry}
             aria-label="Refresh Counter Telemetry"
-            className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-2 text-on-surface-variant hover:text-primary transition-all active:scale-95 disabled:opacity-50"
+            className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all active:scale-95 disabled:opacity-50"
             title="Refresh Live Telemetry"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshingTelemetry ? 'animate-spin text-primary' : ''}`} />
@@ -556,22 +596,22 @@ export const AppLayout: React.FC = () => {
               type="button"
               aria-label="Notifications"
               onClick={() => setShowNotificationToast(prev => !prev)}
-              className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-2 text-on-surface-variant hover:text-primary transition-all relative"
+              className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all relative"
             >
               <Bell className="h-4 w-4" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-critical-rose" />
             </button>
 
             {showNotificationToast && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-3 z-50 text-xs">
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 font-bold text-slate-800">
+              <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 text-xs">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-100">
                   <span>Store Notifications</span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">1 NEW</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded font-mono">1 NEW</span>
                 </div>
                 <div className="space-y-2">
-                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <p className="font-semibold text-slate-900">Kharif Cycle Active</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Central DBT Fertilizer allocation refreshed for Neem Coated Urea.</p>
+                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                    <p className="font-semibold text-slate-900 dark:text-white">Kharif Cycle Active</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Kharif seasonal catalog and fertilizer quota limits updated.</p>
                   </div>
                 </div>
               </div>
@@ -579,12 +619,12 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* User Profile Pill */}
-          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-outline-variant/30">
+          <div className="hidden md:flex items-center gap-2 pl-2 border-l border-outline-variant/30 dark:border-slate-800">
             <div className="text-right">
-              <div className="text-xs font-bold text-on-surface truncate max-w-[120px]">
+              <div className="text-xs font-bold text-on-surface dark:text-white truncate max-w-[120px]">
                 {user?.full_name || user?.username || 'Store Owner'}
               </div>
-              <div className="text-[9px] font-bold tracking-wider text-purple-700 uppercase">
+              <div className="text-[9px] font-bold tracking-wider text-purple-700 dark:text-purple-400 uppercase">
                 {isOwner ? 'Authorized Licensee' : 'Counter Operator'}
               </div>
             </div>
@@ -598,7 +638,7 @@ export const AppLayout: React.FC = () => {
       {/* =========================================================================
           3. RECLAIMED CANVAS WORKSTATION
       ========================================================================= */}
-      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface flex-1 overflow-x-hidden pt-16">
+      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface dark:bg-slate-950 text-on-surface dark:text-slate-100 flex-1 overflow-x-hidden pt-16 transition-colors">
         <Outlet />
       </main>
 

@@ -1018,7 +1018,7 @@ export const BillingPage: React.FC = () => {
                           </span>
                           {customerLookup?.found ? (
                             <span className="text-[10px] font-bold bg-sprout-tint text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[12px]">verified</span> DBT REGISTERED
+                              <span className="material-symbols-outlined text-[12px]">verified</span> REGISTERED FARMER
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
@@ -1128,7 +1128,7 @@ export const BillingPage: React.FC = () => {
                     </div>
                     <div>
                       <label htmlFor="farmer-aadhar-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
-                        Aadhaar Number (DBT Subsidy)
+                        Aadhaar / Farmer UID (Optional)
                       </label>
                       <input
                         id="farmer-aadhar-field"

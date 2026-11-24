@@ -498,7 +498,7 @@ export const DashboardPage: React.FC = () => {
                   {timeGreeting}, {user?.full_name || 'Dealer'}!
                 </h2>
                 <p className="mt-1 max-w-2xl text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
-                  Counter #01 is live, synced with State Agriculture Registry &amp; Central DBT Fertilizer DB. No pending sync collisions.
+                  Counter #01 is live, synced with State Agriculture Registry. Fast billing and real-time inventory active.
                 </p>
               </div>
 
@@ -555,20 +555,22 @@ export const DashboardPage: React.FC = () => {
               </div>
 
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Active DBT Claim</div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Monthly Sales</div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
-                  ₹{formatCurrency(summary?.month_net_profit || 24800, 0)}
+                  ₹{formatCurrency(summary?.month_sales || 0, 0)}
                 </div>
-                <div className="text-[11px] text-emerald-200">Auto-credit pipeline</div>
+                <div className="text-[11px] text-emerald-200">
+                  Current month turnover
+                </div>
               </div>
 
               <div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Form O Allocated</div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Stock Valuation</div>
                 <div className="mt-0.5 text-lg sm:text-xl font-black text-white font-mono">
-                  {fertilizerMetrics.metricTons.toFixed(1)} MT
+                  ₹{formatCurrency(summary?.total_inventory_value || 0, 0)}
                 </div>
                 <div className="text-[11px] text-emerald-200">
-                  {fertilizerMetrics.quotaPercent}% Statutory Quota
+                  {summary?.low_stock_count || 0} items low on stock
                 </div>
               </div>
 
@@ -712,7 +714,7 @@ export const DashboardPage: React.FC = () => {
             4. FAST-TILL COUNTER & AGRI DOCTOR AI LENS (SCREENSHOT 2)
         ======================================================================= */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left: Counter Fast-Till & DBT Terminal (8 Cols) */}
+          {/* Left: Counter Fast-Till POS Terminal (8 Cols) */}
           <div className="lg:col-span-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -722,7 +724,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900 tracking-tight">
-                    Counter Fast-Till &amp; DBT Terminal
+                    Counter Fast-Till POS Terminal
                   </h3>
                   <p className="text-xs text-slate-500">Live Session • Cash Drawer #01 Connected</p>
                 </div>
@@ -733,7 +735,7 @@ export const DashboardPage: React.FC = () => {
                 <BadgeCheck className="h-4 w-4 text-emerald-600" />
                 <div className="text-left text-xs">
                   <span className="font-bold text-slate-900">{selectedCustomerName}</span>
-                  <div className="text-[10px] text-emerald-700 font-semibold">Aadhaar Verified DBT Eligible</div>
+                  <div className="text-[10px] text-emerald-700 font-semibold">Registered Farmer • Active Credit</div>
                 </div>
               </div>
             </div>
@@ -813,7 +815,7 @@ export const DashboardPage: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.product_name}</h4>
                               <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-800">
-                                {item.category.includes('Fertilizer') ? 'DBT Govt Subsidized' : item.category}
+                                {item.category}
                               </span>
                             </div>
                             <div className="mt-0.5 text-[10px] text-slate-500">
