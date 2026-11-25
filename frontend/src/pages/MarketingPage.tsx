@@ -1331,21 +1331,22 @@ export const MarketingPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider border-y border-slate-200 dark:border-slate-800">
-                  <th className="py-3 px-4">Campaign Name &amp; ID</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Sent Timestamp</th>
-                  <th className="py-3 px-4 text-right">Audience</th>
-                  <th className="py-3 px-4 text-right">Delivered</th>
-                  <th className="py-3 px-4 text-right">Read Rate</th>
-                  <th className="py-3 px-4 text-right">Sales / Recovered</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
-                {savedCampaigns.map((camp) => {
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider border-y border-slate-200 dark:border-slate-800">
+                    <th className="py-3 px-4">Campaign Name &amp; ID</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Sent Timestamp</th>
+                    <th className="py-3 px-4 text-right">Audience</th>
+                    <th className="py-3 px-4 text-right">Delivered</th>
+                    <th className="py-3 px-4 text-right">Read Rate</th>
+                    <th className="py-3 px-4 text-right">Sales / Recovered</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
+                  {savedCampaigns.map((camp) => {
                   let categoryBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
                   let catLabel = 'Agronomy';
                   if (camp.season === 'KHARIF' && camp.target_crop?.toLowerCase().includes('paddy')) {
@@ -1440,6 +1441,7 @@ export const MarketingPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
           )}
         </div>
 

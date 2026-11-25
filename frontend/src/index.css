@@ -522,6 +522,28 @@ input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):user-valid
   outline: none;
 }
 
+/* Payment License Activation Styles */
+.glow-card {
+  box-shadow: 0 0 50px -12px rgba(16, 185, 129, 0.18), 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+}
+
+.payment-modal-glow {
+  box-shadow: 0 0 60px -10px rgba(52, 211, 153, 0.22), 0 25px 40px -5px rgba(0, 0, 0, 0.75);
+}
+
+.active-plan-ring {
+  box-shadow: 0 0 0 2px #10b981, 0 10px 25px -5px rgba(16, 185, 129, 0.25);
+}
+
+.license-atmosphere {
+  background-color: #040908;
+  background-image: 
+    radial-gradient(circle at 18% 18%, rgba(5, 150, 105, 0.16) 0%, transparent 45%),
+    radial-gradient(circle at 82% 70%, rgba(16, 185, 129, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 50% 10%, rgba(4, 120, 87, 0.08) 0%, transparent 60%);
+  background-attachment: fixed;
+}
+
 
 
 

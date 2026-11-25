@@ -600,7 +600,7 @@ export const AppLayout: React.FC = () => {
       {/* =========================================================================
           3. RECLAIMED CANVAS WORKSTATION
       ========================================================================= */}
-      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface dark:bg-slate-950 text-on-surface dark:text-slate-100 flex-1 overflow-x-hidden pt-16 transition-colors">
+      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface dark:bg-slate-950 text-on-surface dark:text-slate-100 flex-1 overflow-x-hidden pt-16 pb-20 md:pb-6 transition-colors">
         <Outlet />
       </main>
 
@@ -611,28 +611,28 @@ export const AppLayout: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="md:hidden fixed inset-0 z-50 flex bg-black/40 backdrop-blur-xs"
+          className="md:hidden fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm"
         >
           <aside
             aria-label="Mobile Menu"
-            className="w-72 bg-white h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            className="w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto border-r border-slate-200 dark:border-slate-800"
           >
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-xl bg-primary text-on-primary flex items-center justify-center">
                     <Sprout className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-xs text-slate-900 truncate max-w-[150px]">{shopNameDisplay}</h2>
-                    <p className="text-[10px] text-emerald-700 font-semibold">NockBill Agro ERP</p>
+                    <h2 className="font-bold text-xs text-slate-900 dark:text-white truncate max-w-[150px]">{shopNameDisplay}</h2>
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">NockBill Agro ERP</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   aria-label="Close Mobile Navigation"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-800 rounded-lg"
+                  className="p-1.5 text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -649,11 +649,13 @@ export const AppLayout: React.FC = () => {
                       to={item.to}
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold ${
-                        isActive ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'
+                        isActive
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Icon className="w-4 h-4 text-emerald-700" />
+                        <Icon className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                         <span>{item.label}</span>
                       </div>
                     </NavLink>
@@ -665,7 +667,7 @@ export const AppLayout: React.FC = () => {
             <button
               type="button"
               onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-bold text-critical-rose hover:bg-rose-50 border-t border-slate-100 mt-4"
+              className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl text-xs font-bold text-critical-rose hover:bg-rose-50 dark:hover:bg-rose-950/40 border-t border-slate-100 dark:border-slate-800 mt-4"
             >
               <LogOut className="w-4 h-4" />
               <span>Lock Counter & Logout</span>
@@ -680,7 +682,7 @@ export const AppLayout: React.FC = () => {
       ========================================================================= */}
       <nav
         aria-label="Mobile Quick Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 py-1.5 px-2 flex items-center justify-around z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 flex items-center justify-around z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] pb-[max(0.375rem,env(safe-area-inset-bottom))]"
       >
         {bottomNavItems.map((item) => {
           const Icon = item.icon;
@@ -696,12 +698,12 @@ export const AppLayout: React.FC = () => {
               >
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
                   isActive
-                    ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-emerald-700/30'
-                    : 'bg-emerald-800 text-emerald-100 ring-4 ring-white shadow-emerald-900/20'
+                    ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 dark:ring-emerald-900 shadow-emerald-700/30'
+                    : 'bg-emerald-800 text-emerald-100 ring-4 ring-white dark:ring-slate-900 shadow-emerald-900/20'
                 }`}>
                   <Icon className="w-6 h-6 stroke-[2.2]" />
                 </div>
-                <span className={`text-[10px] font-bold mt-1 ${isActive ? 'text-emerald-700' : 'text-slate-600'}`}>
+                <span className={`text-[10px] font-bold mt-1 ${isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400'}`}>
                   {item.label}
                 </span>
               </NavLink>
@@ -713,10 +715,10 @@ export const AppLayout: React.FC = () => {
               key={item.to}
               to={item.to}
               className={`flex flex-col items-center py-1 px-2.5 rounded-xl text-[11px] font-medium transition-colors ${
-                isActive ? 'text-emerald-800 font-bold' : 'text-slate-500 hover:text-slate-800'
+                isActive ? 'text-emerald-800 dark:text-emerald-300 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-emerald-700 stroke-[2.5]' : 'text-slate-400'}`} />
+              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-emerald-700 dark:text-emerald-400 stroke-[2.5]' : 'text-slate-400 dark:text-slate-500'}`} />
               <span>{item.label}</span>
             </NavLink>
           );
@@ -727,13 +729,13 @@ export const AppLayout: React.FC = () => {
           type="button"
           onClick={() => setMobileMenuOpen(prev => !prev)}
           className={`flex flex-col items-center py-1 px-2.5 rounded-xl text-[11px] font-medium transition-colors ${
-            mobileMenuOpen ? 'text-emerald-800 font-bold' : 'text-slate-500 hover:text-slate-800'
+            mobileMenuOpen ? 'text-emerald-800 dark:text-emerald-300 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           {mobileMenuOpen ? (
-            <X className="w-5 h-5 mb-0.5 text-emerald-800 stroke-[2.5]" />
+            <X className="w-5 h-5 mb-0.5 text-emerald-800 dark:text-emerald-300 stroke-[2.5]" />
           ) : (
-            <Menu className="w-5 h-5 mb-0.5 text-slate-400" />
+            <Menu className="w-5 h-5 mb-0.5 text-slate-400 dark:text-slate-500" />
           )}
           <span>More</span>
         </button>
