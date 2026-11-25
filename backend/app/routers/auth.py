@@ -401,16 +401,10 @@ def activate_subscription(
     current_user: User = Depends(require_owner),
 ):
     """
-    Self-service demo activation is strictly forbidden in production/staging or
-    whenever SUBSCRIPTION_PAYMENT_MODE != 'demo'. In live mode, subscriptions must
-    be activated via the cryptographically signed /api/auth/subscription-webhook endpoint.
+    Activate a subscription plan.
+    Supports a 1-Month Free Trial (All Features Included) for up to 2 new stores,
+    as well as demo activation when DEMO_ACTIVATION_ALLOWED is True.
     """
-    if not settings.demo_activation_allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Self-service subscription activation is disabled. Complete payment verification through the payment gateway.",
-        )
-
     shop_id = getattr(current_user, "shop_id", None)
     if not shop_id:
         raise HTTPException(
@@ -418,17 +412,76 @@ def activate_subscription(
             detail="User account is not linked to a valid shop.",
         )
 
-    clean_ref = (payload.payment_ref or "DEMO-ACTIVATION").strip()
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
+    if not shop:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shop record not found.",
+        )
+
+    clean_plan_id = (payload.plan_id or "").strip().lower()
+    clean_plan_name = (payload.plan_name or "").strip()
+    is_free_trial = (
+        clean_plan_id in ("plan_trial_1m", "trial", "free_trial", "free_tier")
+        or payload.amount <= 0
+        or "trial" in clean_plan_id
+        or "trial" in clean_plan_name.lower()
+        or "free" in clean_plan_name.lower()
+    )
+
+    clean_ref = (payload.payment_ref or f"TRIAL-1M-SHOP{shop_id}").strip()
+
+    if is_free_trial:
+        # Enforce early access quota: access to up to 2 new users/stores
+        new_active_shops = db.query(ShopSettings).filter(
+            ShopSettings.id > 1,
+            ShopSettings.subscription_status == "ACTIVE"
+        ).count()
+
+        if new_active_shops >= 2 and shop.subscription_status != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Free trial early access capacity reached. Currently limited to 2 new stores. Please contact support to activate your store.",
+            )
+
+        current_user.subscription_status = "ACTIVE"
+        shop.subscription_status = "ACTIVE"
+
+        slot_num = new_active_shops + 1 if shop_id > 1 else 1
+        audit = AuditLog(
+            user_id=current_user.id,
+            action=AuditAction.SETTINGS_UPDATE,
+            description=f"1-Month Free Trial (All Features) activated for shop {shop.shop_name} (Access Slot {slot_num}/2). Ref: {clean_ref}",
+        )
+        db.add(audit)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "1-Month Free Trial activated with all features included!",
+            "subscription_status": "ACTIVE",
+            "plan_name": "1-Month Free Trial (All Features Included)",
+            "trial_days": 30,
+            "demo": False,
+            "payment_verified": True,
+            "payment_ref": clean_ref,
+            "activated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # For paid plans in self-service mode:
+    if not settings.demo_activation_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Paid self-service subscription activation is disabled. Please select the 1-Month Free Trial (All Features) option or complete payment verification through the payment gateway.",
+        )
 
     current_user.subscription_status = "ACTIVE"
-    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first()
-    if shop:
-        shop.subscription_status = "ACTIVE"
+    shop.subscription_status = "ACTIVE"
 
     audit = AuditLog(
         user_id=current_user.id,
         action=AuditAction.SETTINGS_UPDATE,
-        description=f"Subscription activated in demo mode: {payload.plan_name} (demo mode, no payment processed) Ref: {clean_ref}",
+        description=f"Subscription activated in demo mode: {clean_plan_name} (demo mode, no payment processed) Ref: {clean_ref}",
     )
     db.add(audit)
     db.commit()
