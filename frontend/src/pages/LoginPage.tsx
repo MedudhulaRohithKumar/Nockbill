@@ -125,9 +125,17 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // Initialize Google Identity Services (GIS) on mount
+  // Initialize Google Identity Services (GIS) on mount (lazy-loaded only on auth routes)
   useEffect(() => {
     if (!googleClientId) return;
+
+    if (!document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
 
     const initGIS = () => {
       const google = (window as any).google;

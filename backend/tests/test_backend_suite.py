@@ -211,6 +211,56 @@ class TestStaticSecurityAndCodeQuality(unittest.TestCase):
         self.assertIn("category_attributes: Optional[Dict[str, Any]] = None", schemas_file)
         self.assertIn("def _sanitize_category_attributes", schemas_file)
 
+    def test_lighthouse_bfcache_csp_and_session_endpoint(self):
+        import importlib.util
+        import os
+
+        repo_root = BACKEND_DIR.parent
+        auth_router = (BACKEND_DIR / "app" / "routers" / "auth.py").read_text(encoding="utf-8")
+        self.assertIn('@router.get("/session")', auth_router)
+        self.assertIn('_SESSION_HINT_COOKIE = "nb_auth_hint"', auth_router)
+
+        cf_yaml = (repo_root / "infrastructure" / "cloudfront_custom_domain.yaml").read_text(encoding="utf-8")
+        self.assertIn("SpaDocumentCachePolicy", cf_yaml)
+        self.assertIn("require-trusted-types-for 'script'", cf_yaml)
+        self.assertNotIn("cdn.jsdelivr.net", cf_yaml)
+
+        spec = importlib.util.spec_from_file_location(
+            "frontend_lambda_suite", str(repo_root / "frontend" / "lambda_handler.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        prev_origins = os.environ.get("ALLOWED_ORIGINS")
+        try:
+            os.environ["ALLOWED_ORIGINS"] = "https://nockbill.com"
+            spec.loader.exec_module(mod)
+            csp = mod.SECURITY_HEADERS["Content-Security-Policy"]
+            self.assertNotIn("cdn.jsdelivr.net", csp)
+            self.assertNotIn("apis.google.com", csp)
+            self.assertIn("media-src 'self'", csp)
+            self.assertIn("require-trusted-types-for 'script'", csp)
+            self.assertEqual(mod.get_content_type("pos_3d.webp"), "image/webp")
+            self.assertEqual(mod.get_content_type("hero-ambient.vtt"), "text/vtt; charset=utf-8")
+            self.assertEqual(mod.get_content_type("site.webmanifest"), "application/manifest+json")
+
+            if (repo_root / "frontend" / "dist" / "index.html").is_file():
+                html_res = mod.handler({"requestContext": {"http": {"method": "GET", "path": "/"}}}, None)
+                self.assertEqual(html_res["statusCode"], 200)
+                self.assertNotIn("no-store", html_res["headers"]["Cache-Control"])
+                self.assertIn("must-revalidate", html_res["headers"]["Cache-Control"])
+
+                webp_res = mod.handler(
+                    {"requestContext": {"http": {"method": "GET", "path": "/images/pos_3d.webp"}}},
+                    None,
+                )
+                self.assertEqual(webp_res["statusCode"], 200)
+                self.assertTrue(webp_res["isBase64Encoded"])
+                self.assertEqual(webp_res["headers"]["Content-Type"], "image/webp")
+        finally:
+            if prev_origins is None:
+                os.environ.pop("ALLOWED_ORIGINS", None)
+            else:
+                os.environ["ALLOWED_ORIGINS"] = prev_origins
+
 
 if __name__ == "__main__":
     unittest.main()

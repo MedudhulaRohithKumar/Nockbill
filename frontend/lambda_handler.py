@@ -27,9 +27,14 @@ MIME_OVERRIDES = {
     ".html": "text/html; charset=utf-8",
     ".svg": "image/svg+xml",
     ".json": "application/json",
+    ".webmanifest": "application/manifest+json",
+    ".vtt": "text/vtt; charset=utf-8",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
     ".ico": "image/x-icon",
     ".woff": "font/woff",
     ".woff2": "font/woff2",
@@ -38,7 +43,7 @@ MIME_OVERRIDES = {
     ".xml": "application/xml; charset=utf-8",
 }
 
-BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".ico", ".woff", ".woff2", ".ttf", ".eot"}
+BINARY_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".ico", ".woff", ".woff2", ".ttf", ".eot"}
 
 def _build_connect_src() -> str:
     """connect-src: 'self', exact ALLOWED_ORIGINS entries and Google auth endpoints (no blanket https:)."""
@@ -56,7 +61,7 @@ def _build_connect_src() -> str:
 _CONNECT_SRC = _build_connect_src()
 
 # NOTE (accepted risk): style-src keeps 'unsafe-inline' because React inline style attributes
-# cannot be nonced/hashed. Scripts remain restricted to 'self' + Google/jsdelivr hosts.
+# cannot be nonced/hashed. Scripts remain restricted to 'self' + Google Identity Services.
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -68,16 +73,18 @@ SECURITY_HEADERS = {
     "Cross-Origin-Embedder-Policy": "unsafe-none",
     "Content-Security-Policy": (
         "default-src 'self'; "
-        "script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; "
+        "script-src 'self' https://accounts.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
+        "media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net blob: data:; "
         f"connect-src {_CONNECT_SRC}; "
         "frame-src 'self' https://accounts.google.com; "
         "frame-ancestors 'none'; "
         "object-src 'none'; "
         "base-uri 'self'; "
-        "form-action 'self';"
+        "form-action 'self'; "
+        "require-trusted-types-for 'script';"
     )
 }
 
@@ -485,11 +492,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         with open(index_path, "r", encoding="utf-8") as f:
             html_content = f.read()
 
+        # Note: Avoid 'no-store' on HTML documents so browsers can restore pages from
+        # back/forward cache (bfcache) while still revalidating fresh deployments on navigation.
         headers = {
             "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
+            "Cache-Control": "no-cache, max-age=0, must-revalidate",
             **SECURITY_HEADERS
         }
 

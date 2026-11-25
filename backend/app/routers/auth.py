@@ -139,10 +139,13 @@ def _purge_reset_state(db: Session, user_id: int) -> None:
     db.commit()
 
 
+_SESSION_HINT_COOKIE = "nb_auth_hint"
+
+
 def set_auth_cookie(response: Response, token: str) -> None:
     """
-    Attach HttpOnly; Secure; SameSite=Lax cookie for XSS-proof browser sessions.
-    Token is also returned in JSON response body for non-browser / mobile clients.
+    Attach HttpOnly; Secure; SameSite=Lax cookie for XSS-proof browser sessions,
+    plus a non-sensitive boolean hint cookie so public landing pages skip unauthenticated probes.
     """
     max_age = (settings.access_token_expire_minutes * 60) if settings.access_token_expire_minutes else 60 * 60 * 24 * 7
     is_secure = not settings.debug
@@ -156,15 +159,32 @@ def set_auth_cookie(response: Response, token: str) -> None:
         secure=is_secure,
         samesite="lax",
     )
+    response.set_cookie(
+        key=_SESSION_HINT_COOKIE,
+        value="1",
+        max_age=max_age,
+        expires=max_age,
+        path="/",
+        httponly=False,
+        secure=is_secure,
+        samesite="lax",
+    )
 
 
 def clear_auth_cookie(response: Response) -> None:
-    """Clear the HttpOnly authentication cookie."""
+    """Clear the HttpOnly authentication cookie and non-sensitive session presence hint."""
     is_secure = not settings.debug
     response.delete_cookie(
         key="access_token",
         path="/",
         httponly=True,
+        secure=is_secure,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key=_SESSION_HINT_COOKIE,
+        path="/",
+        httponly=False,
         secure=is_secure,
         samesite="lax",
     )
@@ -1148,6 +1168,24 @@ def logout(
         db.commit()
     clear_auth_cookie(response)
     return {"success": True, "message": "Successfully logged out"}
+
+
+@router.get("/session")
+def get_session_status(
+    response: Response,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Return 200 OK session status without emitting 401 errors in browser console on public pages."""
+    if current_user is None:
+        response.delete_cookie(
+            key=_SESSION_HINT_COOKIE,
+            path="/",
+            httponly=False,
+            secure=not settings.debug,
+            samesite="lax",
+        )
+        return {"authenticated": False, "user": None}
+    return {"authenticated": True, "user": _serialize_user(current_user)}
 
 
 @router.get("/me", response_model=UserResponse)

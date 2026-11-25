@@ -31,7 +31,9 @@ import {
   CheckCircle2,
   MapPin,
   Clock,
-  History
+  History,
+  Pencil,
+  Radio
 } from 'lucide-react';
 import { productsApi, salesApi, khataApi, settingsApi, getErrorMessage } from '../api';
 import { Product, ProductVariant, ProductBatch, SaleItem, Sale } from '../types';
@@ -758,9 +760,7 @@ export const BillingPage: React.FC = () => {
               {/* 1. OMNIBAR PRODUCT SEARCH & BARCODE SCANNER */}
               <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-xs border border-surface-container flex flex-col gap-3 relative overflow-visible">
                 <div className="flex items-center gap-3 bg-surface-container-low rounded-xl px-4 py-2.5 transition-all focus-within:bg-sprout-tint focus-within:ring-2 focus-within:ring-primary">
-                  <span className="material-symbols-outlined text-forest-emerald text-[24px]">
-                    barcode_scanner
-                  </span>
+                  <Barcode className="w-6 h-6 text-forest-emerald shrink-0" />
                   <label htmlFor="sku-omnibar-input" className="sr-only">
                     Scan Barcode or Search Molecule, Brand, HSN
                   </label>
@@ -791,7 +791,7 @@ export const BillingPage: React.FC = () => {
                       onClick={() => setIsScannerOpen(true)}
                       className="flex items-center gap-1 text-forest-emerald bg-surface-container-lowest px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold hover:bg-forest-emerald hover:text-on-primary transition-all shadow-xs cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[14px]">sensors</span>
+                      <Radio className="w-3.5 h-3.5" />
                       <span>AUTO-SCAN ON</span>
                     </button>
                   </div>
@@ -860,7 +860,7 @@ export const BillingPage: React.FC = () => {
                       }}
                       className="bg-surface-container-low hover:bg-sprout-tint hover:text-primary text-on-surface text-xs px-3.5 py-1.5 rounded-full font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[16px]">eco</span>
+                      <Sprout className="w-4 h-4" />
                       <span>{cat}</span>
                     </button>
                   ))}
@@ -918,7 +918,7 @@ export const BillingPage: React.FC = () => {
                       className="text-xs px-3 py-2 rounded-xl font-bold bg-surface-container-low hover:bg-surface-container text-on-surface-variant border border-surface-container transition-colors cursor-pointer flex items-center gap-1"
                       title="Edit Farmer Details"
                     >
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      <Pencil className="w-3.5 h-3.5" />
                       <span>{isFarmerEditing ? 'Close' : 'Details'}</span>
                     </button>
                   </div>
@@ -952,7 +952,7 @@ export const BillingPage: React.FC = () => {
                           </span>
                           {customerLookup?.found ? (
                             <span className="text-[10px] font-bold bg-sprout-tint text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[12px]">verified</span> REGISTERED FARMER
+                              <CheckCircle2 className="w-3 h-3" /> REGISTERED FARMER
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
@@ -1088,7 +1088,7 @@ export const BillingPage: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] font-mono text-forest-emerald dark:text-emerald-400 font-semibold">
-                    <span className="material-symbols-outlined text-[14px]">bolt</span>
+                    <Zap className="w-3.5 h-3.5" />
                     <span>FEFO Batch Allocation Active</span>
                     <MetricInfoTooltip
                       title="FEFO Batch Allocation Active"

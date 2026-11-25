@@ -2,12 +2,12 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ShopProvider } from './context/ShopContext';
-import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { OrbitalLoader } from './components/common/OrbitalLoader';
 import { HomePage } from './pages/HomePage';
 
 // Route-level code splitting: keep initial landing page lightweight and fast
+const AppLayout = lazy(() => import('./components/layout/AppLayout').then(m => ({ default: m.AppLayout })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const SubscriptionPaymentPage = lazy(() => import('./pages/SubscriptionPaymentPage').then(m => ({ default: m.SubscriptionPaymentPage })));

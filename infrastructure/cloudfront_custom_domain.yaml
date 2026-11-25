@@ -56,7 +56,7 @@ Resources:
             ReferrerPolicy: strict-origin-when-cross-origin
             Override: true
           ContentSecurityPolicy:
-            ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net blob: data:; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script';"
             Override: true
         RemoveHeadersConfig:
           Items:
@@ -87,7 +87,26 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: none
 
-  # Dynamic API traffic (/api/*, /uploads/*) uses AWS managed policies:
+  # SPA Document & Root Asset Cache Policy (respects Origin Cache-Control so index.html
+  # revalidates with max-age=0 without 'no-store', preserving browser bfcache eligibility)
+  SpaDocumentCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: KisanSevaSpaDocumentCachePolicy
+        Comment: Respect origin Cache-Control headers for SPA HTML and root assets
+        DefaultTTL: 0
+        MaxTTL: 31536000
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
   #   Cache policy:          CachingDisabled           (4135ea2d-6df8-47a0-a0da-92f2a2a5f3b5)
   #   Origin request policy: AllViewerExceptHostHeader (b689b0a8-53d0-40ab-baf2-68738e2966ac)
   # AllViewerExceptHostHeader forwards ALL viewer headers (Authorization, Origin, Content-Type,
@@ -164,7 +183,7 @@ Resources:
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD]
           Compress: true
-          CachePolicyId: !Ref StaticAssetCachePolicy
+          CachePolicyId: !Ref SpaDocumentCachePolicy
           ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
 
         # Request flow (B4): API traffic goes Viewer -> CloudFront -> Backend Lambda Function URL
@@ -195,6 +214,16 @@ Resources:
 
           # Cache Behavior 2: Static Hashed Assets (/assets/*)
           - PathPattern: /assets/*
+            TargetOriginId: FrontendSpaOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref StaticAssetCachePolicy
+            ResponseHeadersPolicyId: !Ref EdgeSecurityHeadersPolicy
+
+          # Cache Behavior 3: Optimized Static Images (/images/*)
+          - PathPattern: /images/*
             TargetOriginId: FrontendSpaOrigin
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD, OPTIONS]

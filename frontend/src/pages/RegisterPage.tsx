@@ -527,9 +527,9 @@ passwords across unencrypted emails or chat messages.
             </span>
           </div>
         </Link>
-        <h2 className="font-['Grandstander'] text-lg sm:text-xl font-black text-white tracking-tight drop-shadow-xs">
+        <h1 className="font-['Grandstander'] text-lg sm:text-xl font-black text-white tracking-tight drop-shadow-xs">
           {step === 4 ? 'Shop Registration Complete' : 'Create Store Account'}
-        </h2>
+        </h1>
         <p className="mt-0.5 text-[10px] sm:text-[11px] text-emerald-100/90 font-medium">
           {step === 4 
             ? 'Download your secure master credentials and start billing.' 
@@ -564,7 +564,7 @@ passwords across unencrypted emails or chat messages.
       </div>
 
       {/* Main Glass Card Container */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10 w-full">
+      <main className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10 w-full">
         <div className="glass-card-dark rounded-2xl p-3 sm:p-4 lg:p-3.5 border border-white/25 shadow-2xl backdrop-blur-xl">
           {redirectNotice && step < 4 && (
             <div className="mb-2 p-2 bg-amber-950/80 border border-amber-500/50 text-amber-200 rounded-xl text-xs flex items-start gap-1.5">
@@ -1284,7 +1284,7 @@ passwords across unencrypted emails or chat messages.
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

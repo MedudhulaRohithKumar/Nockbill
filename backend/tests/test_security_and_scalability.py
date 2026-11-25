@@ -1905,6 +1905,50 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
             404,
         )
 
+    # ── Lighthouse Audit Fixes: 200-OK /api/auth/session, bfcache headers, CSP & Trusted Types ──
+    def test_lighthouse_session_bfcache_and_csp_hardening(self):
+        import importlib.util
+
+        # 1. Unauthenticated /api/auth/session returns 200 OK (never 401 console error)
+        unauth_res = self.client.get("/api/auth/session")
+        self.assertEqual(unauth_res.status_code, 200)
+        self.assertEqual(unauth_res.json(), {"authenticated": False, "user": None})
+
+        # 2. Authenticated /api/auth/session returns 200 OK with serialized user
+        auth_res = self.client.get("/api/auth/session", headers=self.owner_a_headers)
+        self.assertEqual(auth_res.status_code, 200)
+        body = auth_res.json()
+        self.assertTrue(body["authenticated"])
+        self.assertEqual(body["user"]["username"], "owner_a")
+
+        # 3. Frontend Lambda headers: bfcache-friendly Cache-Control (no 'no-store' on HTML),
+        #    Trusted Types & media-src CSP, no JSONP bypass CDNs, and WebP/VTT/WebManifest MIME support
+        spec = importlib.util.spec_from_file_location(
+            "frontend_lambda_lh", str(REPO_ROOT / "frontend" / "lambda_handler.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        with patch.dict(os.environ, {"ALLOWED_ORIGINS": "https://nockbill.com"}):
+            spec.loader.exec_module(mod)
+            csp = mod.SECURITY_HEADERS["Content-Security-Policy"]
+            self.assertNotIn("cdn.jsdelivr.net", csp)
+            self.assertNotIn("apis.google.com", csp)
+            self.assertIn("media-src 'self'", csp)
+            self.assertIn("require-trusted-types-for 'script'", csp)
+            self.assertEqual(mod.get_content_type("pos_3d.webp"), "image/webp")
+            self.assertEqual(mod.get_content_type("hero-ambient.vtt"), "text/vtt; charset=utf-8")
+            self.assertEqual(mod.get_content_type("site.webmanifest"), "application/manifest+json")
+            self.assertIn(".webp", mod.BINARY_EXTENSIONS)
+
+            if os.path.isfile(os.path.join(mod.DIST_DIR, "index.html")):
+                html_resp = mod.handler(
+                    {"requestContext": {"http": {"method": "GET", "path": "/"}}},
+                    None,
+                )
+                self.assertEqual(html_resp["statusCode"], 200)
+                cc = html_resp["headers"].get("Cache-Control", "")
+                self.assertNotIn("no-store", cc)
+                self.assertIn("must-revalidate", cc)
+
 
 
 if __name__ == "__main__":

@@ -163,6 +163,13 @@ export const authApi = {
     }>('/auth/activate-subscription', payload);
     return res.data;
   },
+  session: async () => {
+    const res = await api.get<{
+      authenticated: boolean;
+      user: any | null;
+    }>('/auth/session');
+    return res.data;
+  },
   me: async () => {
     const res = await api.get('/auth/me');
     return res.data;

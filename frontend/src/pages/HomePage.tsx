@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Sprout, 
@@ -19,13 +19,10 @@ import {
   Camera, 
   ScanLine, 
   Check, 
-  ExternalLink,
   Zap,
-  Cpu,
-  FileSpreadsheet
+  Cpu
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { OrbitalLoader } from '../components/common/OrbitalLoader';
 
 // ─── PLATFORM FEATURE ITEM CONTRACT ──────────────────────────────────────────
 export interface PlatformFeatureItem {
@@ -453,6 +450,31 @@ export const HomePage: React.FC = () => {
     dosage: string;
   } | null>(null);
 
+  // Defer decorative background video until after initial page load to protect LCP & network budget
+  const [enableAmbientVideo, setEnableAmbientVideo] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const saveData = (navigator as any)?.connection?.saveData === true;
+    if (prefersReducedMotion || saveData) return;
+
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleVideo = () => {
+      timerId = setTimeout(() => setEnableAmbientVideo(true), 1200);
+    };
+
+    if (document.readyState === 'complete') {
+      scheduleVideo();
+    } else {
+      window.addEventListener('load', scheduleVideo, { once: true });
+    }
+    return () => {
+      window.removeEventListener('load', scheduleVideo);
+      if (timerId) clearTimeout(timerId);
+    };
+  }, []);
+
   const availableCrops = Array.from(new Set(PUBLIC_ADVISORIES.map((a) => a.crop)));
 
   const currentCropAdvisories = PUBLIC_ADVISORIES.filter((adv) => {
@@ -492,14 +514,22 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#faf8ff] text-slate-900 font-sans selection:bg-emerald-600 selection:text-white">
+    <div className="min-h-screen bg-[#faf8ff] text-slate-900 font-sans selection:bg-emerald-700 selection:text-white">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-emerald-900 focus:text-white focus:rounded-xl font-bold text-xs shadow-lg"
+      >
+        Skip to main content
+      </a>
+
       {/* ─── FLOATING TOP NAVIGATION BAR ─────────────────────────────────────── */}
       <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-6 lg:px-8 py-3.5 transition-all duration-300">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Brand Mark: Strictly NockBill */}
           <Link
             to="/"
-            className="flex items-center gap-2.5 bg-white/85 hover:bg-white backdrop-blur-md px-4 py-2 rounded-full border border-white/90 shadow-sm transition-all group"
+            aria-label="NockBill Agri ERP Home"
+            className="flex items-center gap-2.5 bg-white/95 hover:bg-white backdrop-blur-md px-4 py-2 rounded-full border border-slate-200/80 shadow-sm transition-all group"
           >
             <div className="w-8 h-8 rounded-full bg-emerald-900 flex items-center justify-center text-emerald-200 shadow-inner">
               <Sprout className="w-4 h-4 text-emerald-300" />
@@ -507,45 +537,41 @@ export const HomePage: React.FC = () => {
             <div className="flex flex-col">
               <div className="flex items-baseline gap-1">
                 <span className="font-['Grandstander'] font-black text-xl text-emerald-950 leading-none tracking-tight">
-                  Nock<span className="text-emerald-700">Bill</span>
+                  Nock<span className="text-emerald-800">Bill</span>
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-800 font-black">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-900 font-black">
                   Agri ERP
                 </span>
               </div>
             </div>
           </Link>
 
-          {/* Frosted Glass Pill Menu (Store Login link removed per user request) */}
+          {/* High-Contrast Frosted Dark Forest Pill Menu */}
           <nav
             aria-label="Primary Navigation"
-            className="hidden md:flex items-center gap-6 px-6 py-2 rounded-full border shadow-sm backdrop-blur-md"
-            style={{
-              backgroundColor: 'rgba(173, 196, 174, 0.45)',
-              borderColor: 'rgba(255, 255, 255, 0.55)',
-            }}
+            className="hidden md:flex items-center gap-6 px-6 py-2 rounded-full bg-emerald-950/90 border border-emerald-700/60 shadow-md backdrop-blur-md"
           >
             <a
               href="#mission-vision"
-              className="text-xs font-semibold text-white drop-shadow hover:text-emerald-100 transition-colors flex items-center gap-1.5"
+              className="text-xs font-semibold text-white hover:text-emerald-200 transition-colors flex items-center gap-1.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
               Mission &amp; Vision
             </a>
-            <span className="text-white/40 text-xs">·</span>
+            <span className="text-emerald-400/60 text-xs" aria-hidden="true">·</span>
             <a
               href="#platform-features"
-              className="text-xs font-semibold text-white drop-shadow hover:text-emerald-100 transition-colors flex items-center gap-1.5"
+              className="text-xs font-semibold text-white hover:text-emerald-200 transition-colors flex items-center gap-1.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
               All Features
             </a>
-            <span className="text-white/40 text-xs">·</span>
+            <span className="text-emerald-400/60 text-xs" aria-hidden="true">·</span>
             <a
               href="#agri-doctor-section"
-              className="text-xs font-semibold text-white drop-shadow hover:text-emerald-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="text-xs font-semibold text-white hover:text-emerald-200 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-300 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-300" />
               Free Agri Doctor
             </a>
           </nav>
@@ -564,16 +590,16 @@ export const HomePage: React.FC = () => {
               <>
                 <Link
                   to="/login"
-                  className="px-4 py-2 rounded-full text-xs font-bold text-white bg-black/25 hover:bg-black/40 backdrop-blur-md border border-white/30 transition-all shadow-sm"
+                  className="px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-950/85 hover:bg-emerald-900 backdrop-blur-md border border-emerald-700/60 transition-all shadow-sm"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-xs bg-white text-[#5b875c] shadow-md hover:bg-emerald-50 transition-all transform hover:-translate-y-0.5"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-xs bg-white text-emerald-800 shadow-md hover:bg-emerald-50 border border-emerald-200 transition-all transform hover:-translate-y-0.5"
                 >
                   <span>Open Store</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-[#5b875c]" />
+                  <ArrowRight className="w-3.5 h-3.5 text-emerald-800" />
                 </Link>
               </>
             )}
@@ -581,36 +607,47 @@ export const HomePage: React.FC = () => {
         </div>
       </header>
 
+      <main id="main-content">
       {/* ─── HERO CANVAS (PASTORAL SUNNY SKY + ANIMATED VIDEO OVERLAY) ────────── */}
-      <section className="relative w-full overflow-hidden min-h-[640px] sm:min-h-[720px] lg:min-h-[820px] flex flex-col justify-between pt-24 sm:pt-28 pb-16 lg:pb-24">
-        {/* Layer 1: Hand-painted Ghibli pastoral plate + Looping Video Overlay */}
+      <section className="relative w-full overflow-hidden bg-emerald-950 min-h-[640px] sm:min-h-[720px] lg:min-h-[820px] flex flex-col justify-between pt-24 sm:pt-28 pb-16 lg:pb-24">
+        {/* Layer 1: Hand-painted pastoral plate + Deferred Looping Video Overlay */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none overflow-hidden">
           <img
             src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"
             alt="Sunny pastoral meadow hillside with soft cumulus clouds and gentle breeze"
+            width={1920}
+            height={1080}
+            decoding="sync"
+            {...({ fetchPriority: 'high' } as any)}
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
 
           <video
-            autoPlay
+            autoPlay={enableAmbientVideo}
             loop
             muted
             playsInline
-            className="absolute left-0 w-full object-cover pointer-events-none opacity-90 transition-opacity duration-1000"
-            style={{
-              height: '112.5%',
-              top: '-6.25%',
-              mixBlendMode: 'screen',
-            }}
+            preload="none"
+            aria-label="Ambient pastoral meadow clouds drifting across sunlit sky"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-35 transition-opacity duration-1000"
           >
-            <source
-              src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d2cb5bef-f92b-4e91-ae93-8dc6555e56ac.mp4"
-              type="video/mp4"
+            {enableAmbientVideo && (
+              <source
+                src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/d2cb5bef-f92b-4e91-ae93-8dc6555e56ac.mp4"
+                type="video/mp4"
+              />
+            )}
+            <track
+              kind="captions"
+              src="/captions/hero-ambient.vtt"
+              srcLang="en"
+              label="English (Ambient Visual Description)"
+              default
             />
           </video>
 
-          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/90 via-emerald-950/20 to-black/25" />
-          <div className="absolute inset-0 bg-radial-at-c from-transparent via-transparent to-emerald-950/35" />
+          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/90 via-emerald-950/30 to-black/30" />
+          <div className="absolute inset-0 bg-radial-at-c from-transparent via-transparent to-emerald-950/40" />
         </div>
 
         {/* Layer 2: Real NockBill Value Proposition Copy (Split: Left Display + Opposite Right Description/CTA) */}
@@ -618,45 +655,41 @@ export const HomePage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             {/* Left Column: Top-Left Header & Display Typography in Open Sky */}
             <div className="lg:col-span-7 flex flex-col items-start select-none">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/20 backdrop-blur-md border border-white/35 shadow-sm mb-3 sm:mb-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[11px] font-mono text-white uppercase tracking-widest font-black drop-shadow">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/85 backdrop-blur-md border border-emerald-400/40 shadow-sm mb-3 sm:mb-4">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <span className="text-[11px] font-mono text-white uppercase tracking-widest font-black">
                   INDIA&apos;S LEADING AGRI-FINTECH &amp; POS PLATFORM
                 </span>
               </div>
 
-              <div className="flex flex-col">
-                <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[80px] text-white font-black drop-shadow-[0_6px_22px_rgba(20,83,45,0.7)] leading-[0.92] tracking-tight">
+              <h1 className="flex flex-col font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[80px] font-black leading-[0.92] tracking-tight">
+                <span className="text-white drop-shadow-[0_6px_22px_rgba(20,83,45,0.85)]">
                   EMPOWERING
-                </h1>
-                <h1 className="font-['Grandstander'] text-5xl sm:text-6xl md:text-7xl lg:text-[80px] text-emerald-200 font-black drop-shadow-[0_6px_26px_rgba(20,83,45,0.75)] leading-[0.92] tracking-tight mt-1">
+                </span>
+                <span className="text-emerald-200 drop-shadow-[0_6px_26px_rgba(20,83,45,0.9)] mt-1">
                   AGRI COMMERCE &amp; RETAIL
-                </h1>
-              </div>
+                </span>
+              </h1>
             </div>
 
-            {/* Right Column: Highlighted Content Moved to Opposite Side (Leaves Boy & Dog on Left Completely Visible) */}
+            {/* Right Column: Highlighted Content Moved to Opposite Side */}
             <div className="lg:col-span-5 flex flex-col items-start lg:items-end justify-center pt-2 lg:pt-0">
-              <div className="max-w-lg bg-black/30 lg:bg-black/25 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-white/25 shadow-2xl">
-                <p className="text-sm sm:text-base md:text-lg text-white font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">
+              <div className="max-w-lg bg-emerald-950/85 backdrop-blur-md p-6 sm:p-7 rounded-3xl border border-emerald-500/35 shadow-2xl">
+                <p className="text-sm sm:text-base md:text-lg text-white font-medium leading-relaxed">
                   Built for fertilizer, seeds, and pesticide retailers. Rapid 3-second counter billing, 80mm thermal receipts, digital Farmer Khata credit recovery, automated Form O statutory registers, and field-grade agronomic AI.
                 </p>
 
                 <div className="flex flex-wrap items-center gap-3.5 mt-6">
                   <Link
                     to="/register"
-                    className="flex items-center justify-center px-7 py-3 rounded-full bg-white text-[#5b875c] font-black text-xs sm:text-sm shadow-xl hover:bg-emerald-50 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
+                    className="flex items-center justify-center px-7 py-3 rounded-full bg-white text-emerald-800 font-black text-xs sm:text-sm shadow-xl hover:bg-emerald-50 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
                   >
                     Open Your Store
                   </Link>
 
                   <a
                     href="#platform-features"
-                    className="group flex items-center justify-center gap-2 px-5 py-3 rounded-full shadow-lg backdrop-blur-md transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
-                    style={{
-                      backgroundColor: 'rgba(204, 218, 173, 0.7)',
-                      border: '1px solid rgba(255, 255, 255, 0.5)',
-                    }}
+                    className="group flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-emerald-200 hover:bg-emerald-100 border border-emerald-300 shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
                   >
                     <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-sm">
                       <Play className="w-3 h-3 fill-emerald-900 text-emerald-900 ml-0.5" />
@@ -677,7 +710,7 @@ export const HomePage: React.FC = () => {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
             <div className="flex items-center gap-2.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               <h2 className="font-mono text-xs sm:text-sm font-black text-white uppercase tracking-wider">
                 CORE PILLARS OF NOCKBILL
               </h2>
@@ -694,102 +727,126 @@ export const HomePage: React.FC = () => {
           {/* 3 Compact 3D Pastoral Feature Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Card 1: 3D POS Counter */}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 const el = document.getElementById('platform-features');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 setActiveCardIndex(0);
               }}
-              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/50 cursor-pointer border border-white/20"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/95 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-emerald-950/50 cursor-pointer border border-white/20 text-left w-full"
             >
-              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
-                <img
-                  src="/images/pos_3d.jpg"
-                  alt="3D POS billing counter with 80mm thermal printer, barcode gun, and fertilizer sack in sunny pastoral meadow"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/60">
+                <picture>
+                  <source srcSet="/images/pos_3d.webp" type="image/webp" />
+                  <img
+                    src="/images/pos_3d.jpg"
+                    alt="3D POS billing counter with 80mm thermal printer, barcode gun, and fertilizer sack in sunny pastoral meadow"
+                    width={800}
+                    height={450}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-emerald-800 text-white border border-emerald-400/40 font-mono text-[9px] font-black uppercase shadow-xs">
                   RETAIL CHECKOUT
                 </div>
               </div>
-              <div className="p-4 bg-slate-900/95 border-t border-white/10">
-                <span className="font-mono text-[10px] text-emerald-400 uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900 border-t border-white/10">
+                <span className="font-mono text-[10px] text-emerald-300 uppercase tracking-wider font-bold block">
                   Fast Counter POS
                 </span>
                 <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-emerald-300 transition-colors mt-0.5">
                   3-Second Rapid Billing &amp; 80mm ESC/POS
                 </h3>
-                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                <p className="text-xs text-slate-300 line-clamp-2 mt-1">
                   Barcode gun scanning, split Cash + UPI payments in one receipt.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* Card 2: 3D Agri Doctor */}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 const el = document.getElementById('agri-doctor-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-sky-950/50 cursor-pointer border border-white/20"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/95 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-sky-950/50 cursor-pointer border border-white/20 text-left w-full"
             >
-              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
-                <img
-                  src="/images/agri_doctor_3d.jpg"
-                  alt="3D Agri Doctor laboratory setup with modern microscope and leaf telemetry rings in sunny oak meadow"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/60">
+                <picture>
+                  <source srcSet="/images/agri_doctor_3d.webp" type="image/webp" />
+                  <img
+                    src="/images/agri_doctor_3d.jpg"
+                    alt="3D Agri Doctor laboratory setup with modern microscope and leaf telemetry rings in sunny oak meadow"
+                    width={800}
+                    height={450}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-sky-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-sky-800 text-white border border-sky-400/40 font-mono text-[9px] font-black uppercase shadow-xs">
                   AI TELEMETRY
                 </div>
               </div>
-              <div className="p-4 bg-slate-900/95 border-t border-white/10">
-                <span className="font-mono text-[10px] text-sky-400 uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900 border-t border-white/10">
+                <span className="font-mono text-[10px] text-sky-300 uppercase tracking-wider font-bold block">
                   Crop Diagnostic Engine
                 </span>
                 <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-sky-300 transition-colors mt-0.5">
                   Agri Doctor &amp; Chemical Formulations
                 </h3>
-                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                <p className="text-xs text-slate-300 line-clamp-2 mt-1">
                   Instant pest/disease diagnosis and approved spray dosage guidelines.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* Card 3: 3D Khata & Compliance */}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 const el = document.getElementById('platform-features');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                 setActiveCardIndex(1);
               }}
-              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/80 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-amber-950/50 cursor-pointer border border-white/20"
+              className="group relative rounded-2xl overflow-hidden shadow-2xl bg-slate-900/95 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-amber-950/50 cursor-pointer border border-white/20 text-left w-full"
             >
-              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/40">
-                <img
-                  src="/images/compliance_3d.jpg"
-                  alt="3D agricultural compliance emblem with Form O certificate, ledger book, rupee coin, and UPI smartphone in sunny meadow"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+              <div className="h-36 sm:h-40 w-full overflow-hidden relative bg-emerald-950/60">
+                <picture>
+                  <source srcSet="/images/compliance_3d.webp" type="image/webp" />
+                  <img
+                    src="/images/compliance_3d.jpg"
+                    alt="3D agricultural compliance emblem with Form O certificate, ledger book, rupee coin, and UPI smartphone in sunny meadow"
+                    width={800}
+                    height={450}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-amber-600 text-white font-mono text-[9px] font-black uppercase shadow-xs">
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-amber-300 text-slate-950 font-mono text-[9px] font-black uppercase shadow-xs">
                   STATUTORY RECOVERY
                 </div>
               </div>
-              <div className="p-4 bg-slate-900/95 border-t border-white/10">
-                <span className="font-mono text-[10px] text-amber-400 uppercase tracking-wider font-bold block">
+              <div className="p-4 bg-slate-900 border-t border-white/10">
+                <span className="font-mono text-[10px] text-amber-300 uppercase tracking-wider font-bold block">
                   Statutory &amp; Credit Ledger
                 </span>
                 <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-amber-300 transition-colors mt-0.5">
                   Farmer Khata &amp; Form O Register
                 </h3>
-                <p className="text-xs text-slate-400 line-clamp-2 mt-1">
+                <p className="text-xs text-slate-300 line-clamp-2 mt-1">
                   WhatsApp payment reminders, shift handovers, and FCO Form O ledgers.
                 </p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </section>
@@ -892,7 +949,7 @@ export const HomePage: React.FC = () => {
 
             {/* Quick Card Stepper */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-slate-500 font-bold uppercase tracking-wider hidden lg:inline">
+              <span className="text-xs font-mono text-slate-700 font-bold uppercase tracking-wider hidden lg:inline">
                 Jump to Deck:
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -900,11 +957,12 @@ export const HomePage: React.FC = () => {
                   <button
                     key={card.id}
                     type="button"
+                    aria-label={`Select feature deck ${card.index}: ${card.title}`}
                     onClick={() => setActiveCardIndex(idx)}
                     className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
                       activeCardIndex === idx
                         ? 'bg-emerald-800 text-white shadow-sm ring-2 ring-emerald-500/30'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                        : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100'
                     }`}
                   >
                     {card.index}
@@ -924,13 +982,15 @@ export const HomePage: React.FC = () => {
                   className={`rounded-3xl border transition-all duration-300 overflow-hidden ${
                     isSelected
                       ? `bg-white shadow-xl ${card.accentBorder} ring-2 ring-emerald-500/20`
-                      : 'bg-white/80 border-slate-200 hover:border-slate-300 shadow-sm opacity-90'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
                   }`}
                 >
                   {/* Card Header Banner */}
-                  <div
+                  <button
+                    type="button"
+                    aria-expanded={isSelected}
                     onClick={() => setActiveCardIndex(cardIdx)}
-                    className={`p-5 sm:p-6 flex items-center justify-between cursor-pointer border-b transition-colors ${
+                    className={`w-full text-left p-5 sm:p-6 flex items-center justify-between cursor-pointer border-b transition-colors ${
                       isSelected
                         ? 'bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white border-emerald-800/60'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-900 border-slate-200'
@@ -940,7 +1000,7 @@ export const HomePage: React.FC = () => {
                       <div
                         className={`w-9 h-9 rounded-xl flex items-center justify-center font-mono font-black text-sm shrink-0 shadow-sm ${
                           isSelected
-                            ? 'bg-emerald-500 text-emerald-950'
+                            ? 'bg-emerald-400 text-emerald-950'
                             : 'bg-slate-200 text-slate-800'
                         }`}
                       >
@@ -950,7 +1010,7 @@ export const HomePage: React.FC = () => {
                         <h3 className={`text-base sm:text-lg font-bold tracking-tight ${isSelected ? 'text-white' : 'text-slate-900'}`}>
                           {card.title}
                         </h3>
-                        <p className={`text-xs mt-0.5 line-clamp-1 ${isSelected ? 'text-emerald-200/80' : 'text-slate-500'}`}>
+                        <p className={`text-xs mt-0.5 line-clamp-1 ${isSelected ? 'text-emerald-200' : 'text-slate-600'}`}>
                           {card.subtitle}
                         </p>
                       </div>
@@ -958,22 +1018,22 @@ export const HomePage: React.FC = () => {
 
                     <div className="flex items-center gap-3 shrink-0">
                       <span className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full hidden sm:inline ${
-                        isSelected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' : 'bg-slate-200 text-slate-700'
+                        isSelected ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30' : 'bg-slate-200 text-slate-800'
                       }`}>
                         {card.features.length} Features
                       </span>
                       <ChevronDown
                         className={`w-5 h-5 transition-transform duration-200 ${
-                          isSelected ? 'rotate-180 text-emerald-300' : 'text-slate-400'
+                          isSelected ? 'rotate-180 text-emerald-300' : 'text-slate-600'
                         }`}
                       />
                     </div>
-                  </div>
+                  </button>
 
                   {/* Line-by-Line Reveal Items (Visible when Card is Selected) */}
                   {isSelected && (
                     <div className="divide-y divide-slate-100 p-4 sm:p-6 bg-white space-y-2">
-                      {card.features.map((feat, featIdx) => {
+                      {card.features.map((feat) => {
                         const isExpanded = expandedFeatureId === feat.id;
                         return (
                           <div
@@ -981,16 +1041,18 @@ export const HomePage: React.FC = () => {
                             className={`rounded-2xl transition-all duration-200 border ${
                               isExpanded
                                 ? 'bg-emerald-50/40 border-emerald-200 shadow-xs'
-                                : 'bg-slate-50/50 hover:bg-slate-50 border-transparent hover:border-slate-200'
+                                : 'bg-slate-50/60 hover:bg-slate-50 border-transparent hover:border-slate-200'
                             }`}
                           >
                             {/* Line Header Row */}
-                            <div
+                            <button
+                              type="button"
+                              aria-expanded={isExpanded}
                               onClick={() => setExpandedFeatureId(isExpanded ? null : feat.id)}
-                              className="p-4 sm:p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer"
+                              className="w-full text-left p-4 sm:p-4.5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer"
                             >
                               <div className="flex items-start sm:items-center gap-3 min-w-0">
-                                <span className="font-mono text-xs font-bold text-slate-400 shrink-0 mt-0.5 sm:mt-0">
+                                <span className="font-mono text-xs font-bold text-slate-600 shrink-0 mt-0.5 sm:mt-0">
                                   {feat.code}
                                 </span>
                                 <div className="min-w-0">
@@ -1012,37 +1074,37 @@ export const HomePage: React.FC = () => {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-slate-600 mt-1 line-clamp-1">
+                                  <p className="text-xs text-slate-700 mt-1 line-clamp-1">
                                     {feat.summary}
                                   </p>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
-                                <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-700 font-bold bg-emerald-100/80 px-2.5 py-1 rounded-lg">
-                                  <Check className="w-3.5 h-3.5 text-emerald-700" />
+                                <div className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-900 font-bold bg-emerald-100 px-2.5 py-1 rounded-lg">
+                                  <Check className="w-3.5 h-3.5 text-emerald-800" />
                                   <span>Active Module</span>
                                 </div>
-                                <span className="text-xs text-slate-400 font-mono">
+                                <span className="text-xs text-slate-600 font-mono font-semibold">
                                   {isExpanded ? 'Hide Specs ▲' : 'Details ▼'}
                                 </span>
                               </div>
-                            </div>
+                            </button>
 
                             {/* Line-by-Line Expanded Details */}
                             {isExpanded && (
                               <div className="px-4 pb-4 pt-1 sm:px-5 sm:pb-5 text-xs text-slate-700 border-t border-emerald-100/60 mt-1">
                                 <div className="p-3.5 bg-white rounded-xl border border-emerald-200/80 shadow-inner space-y-2">
                                   <div className="flex items-center gap-2 font-mono text-[11px] text-emerald-900 font-bold">
-                                    <Zap className="w-3.5 h-3.5 text-emerald-600" />
+                                    <Zap className="w-3.5 h-3.5 text-emerald-700" />
                                     <span>Detailed Operational Capability:</span>
                                   </div>
-                                  <p className="leading-relaxed text-slate-600">
+                                  <p className="leading-relaxed text-slate-700">
                                     {feat.detail}
                                   </p>
                                   <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                                    <span className="text-[10px] font-mono text-slate-400">
-                                      System Endpoint: <code className="text-slate-600 font-bold">{feat.path}</code>
+                                    <span className="text-[10px] font-mono text-slate-600">
+                                      System Endpoint: <code className="text-slate-800 font-bold">{feat.path}</code>
                                     </span>
                                     <span className="text-[10px] font-bold text-emerald-800">
                                       Ready on Retail POS
@@ -1089,37 +1151,37 @@ export const HomePage: React.FC = () => {
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
               <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-xs font-black uppercase tracking-wider mb-3">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
                   <span>Upcoming AI Feature · Neural Computer Vision</span>
                 </div>
                 <h3 className="font-['Grandstander'] text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
                   Multimodal Leaf Photo Diagnostic Engine
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-100/90 mt-2.5 leading-relaxed">
+                <p className="text-xs sm:text-sm text-emerald-100 mt-2.5 leading-relaxed">
                   We are integrating on-device and cloud neural vision models directly into NockBill. Store clerks or farmers can snap a photo of an infected crop leaf with any smartphone or webcam. The AI detects the pathogen, measures infection severity, and formulates the approved CIB&amp;RC chemical spray recipe in under 2 seconds.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-5">
-                  <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
                     <span className="font-mono text-[10px] text-emerald-300 font-bold uppercase block">Step 01</span>
                     <span className="text-xs font-bold text-white block mt-0.5">Snap Leaf Photo</span>
-                    <span className="text-[11px] text-white/70 block mt-0.5">Mobile camera or USB counter webcam</span>
+                    <span className="text-[11px] text-slate-200 block mt-0.5">Mobile camera or USB counter webcam</span>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
                     <span className="font-mono text-[10px] text-teal-300 font-bold uppercase block">Step 02</span>
                     <span className="text-xs font-bold text-white block mt-0.5">Neural Pathology Scan</span>
-                    <span className="text-[11px] text-white/70 block mt-0.5">Identifies blast, rust, bollworm &amp; thrips</span>
+                    <span className="text-[11px] text-slate-200 block mt-0.5">Identifies blast, rust, bollworm &amp; thrips</span>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
                     <span className="font-mono text-[10px] text-amber-300 font-bold uppercase block">Step 03</span>
                     <span className="text-xs font-bold text-white block mt-0.5">Prescription Dispatch</span>
-                    <span className="text-[11px] text-white/70 block mt-0.5">Exact chemical dilution sent to WhatsApp</span>
+                    <span className="text-[11px] text-slate-200 block mt-0.5">Exact chemical dilution sent to WhatsApp</span>
                   </div>
                 </div>
               </div>
 
               {/* Interactive AI Scanner Simulation Box */}
-              <div className="lg:w-80 w-full bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 shrink-0 text-center flex flex-col items-center">
+              <div className="lg:w-80 w-full bg-slate-900/85 backdrop-blur-md rounded-2xl p-5 border border-white/20 shrink-0 text-center flex flex-col items-center">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 mb-3 relative">
                   <Camera className="w-7 h-7" />
                   {isScanningLeaf && (
@@ -1130,7 +1192,7 @@ export const HomePage: React.FC = () => {
                 <h4 className="text-sm font-bold text-white">
                   Test AI Diagnostic Engine
                 </h4>
-                <p className="text-[11px] text-white/70 mt-1 mb-4">
+                <p className="text-[11px] text-slate-200 mt-1 mb-4">
                   Run a live simulation of the upcoming computer vision pathology scanner.
                 </p>
 
@@ -1138,7 +1200,7 @@ export const HomePage: React.FC = () => {
                   type="button"
                   onClick={handleSimulateAiScan}
                   disabled={isScanningLeaf}
-                  className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-400 hover:bg-emerald-300 text-emerald-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                 >
                   {isScanningLeaf ? (
                     <>
@@ -1154,10 +1216,10 @@ export const HomePage: React.FC = () => {
                 </button>
 
                 {aiScanResult && (
-                  <div className="mt-4 p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-left w-full animate-in fade-in zoom-in-95 duration-200">
+                  <div className="mt-4 p-3 rounded-xl bg-emerald-950 border border-emerald-500/40 text-left w-full animate-in fade-in zoom-in-95 duration-200">
                     <div className="flex items-center justify-between text-[10px] font-mono text-emerald-300">
                       <span>{aiScanResult.confidence}</span>
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     </div>
                     <div className="text-xs font-bold text-white mt-1">
                       {aiScanResult.disease}
@@ -1165,7 +1227,7 @@ export const HomePage: React.FC = () => {
                     <div className="text-[11px] text-emerald-200 mt-1">
                       Rx: {aiScanResult.molecule}
                     </div>
-                    <div className="text-[10px] text-white/70">
+                    <div className="text-[10px] text-slate-200">
                       {aiScanResult.dosage}
                     </div>
                   </div>
@@ -1179,19 +1241,20 @@ export const HomePage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               {/* Crop Selector Pills */}
               <div>
-                <label htmlFor="crop-select-label" id="crop-select-label" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+                <span id="crop-select-label" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5">
                   Select Target Crop:
-                </label>
-                <div className="flex flex-wrap gap-2">
+                </span>
+                <div role="group" aria-labelledby="crop-select-label" className="flex flex-wrap gap-2">
                   {availableCrops.map((crop) => (
                     <button
                       key={crop}
                       type="button"
+                      aria-pressed={selectedCrop === crop}
                       onClick={() => setSelectedCrop(crop)}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                         selectedCrop === crop
-                          ? 'bg-emerald-700 text-white shadow-sm'
-                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          ? 'bg-emerald-800 text-white shadow-sm'
+                          : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100'
                       }`}
                     >
                       {crop}
@@ -1202,24 +1265,26 @@ export const HomePage: React.FC = () => {
 
               {/* Symptom Search Bar */}
               <div className="w-full lg:w-80">
-                <label htmlFor="search-symptom-input" className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+                <label htmlFor="search-symptom-input" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2.5">
                   Search Pest / Symptom:
                 </label>
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     id="search-symptom-input"
+                    name="symptomSearch"
                     type="text"
                     value={searchSymptom}
                     onChange={(e) => setSearchSymptom(e.target.value)}
                     placeholder="e.g. Bollworm, Blast, Rust, Curl..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-700"
                   />
                   {searchSymptom && (
                     <button
                       type="button"
+                      aria-label="Clear symptom search"
                       onClick={() => setSearchSymptom('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-900 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1233,9 +1298,9 @@ export const HomePage: React.FC = () => {
           <div className="space-y-4">
             {currentCropAdvisories.length === 0 ? (
               <div className="p-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                <Bug className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="text-sm font-bold text-slate-700">No matching advisory found for this query.</p>
-                <p className="text-xs text-slate-500 mt-1">Try clearing your search query or selecting a different crop.</p>
+                <Bug className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-800">No matching advisory found for this query.</p>
+                <p className="text-xs text-slate-600 mt-1">Try clearing your search query or selecting a different crop.</p>
               </div>
             ) : (
               currentCropAdvisories.map((adv, idx) => (
@@ -1245,10 +1310,10 @@ export const HomePage: React.FC = () => {
                 >
                   <div className="max-w-2xl">
                     <div className="flex items-center gap-2.5 mb-2">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-sky-800 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-sky-900 bg-sky-100 px-2.5 py-0.5 rounded-full border border-sky-200">
                         {adv.category}
                       </span>
-                      <span className="text-xs font-mono text-slate-500 italic">
+                      <span className="text-xs font-mono text-slate-600 italic">
                         {adv.scientificName}
                       </span>
                     </div>
@@ -1256,28 +1321,28 @@ export const HomePage: React.FC = () => {
                     <h3 className="text-lg font-black text-emerald-950">
                       {adv.pest} on {adv.crop}
                     </h3>
-                    <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                    <p className="text-xs text-slate-700 mt-2 leading-relaxed">
                       <strong className="text-slate-900">Symptoms:</strong> {adv.symptoms}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1 italic">
-                      <strong className="text-slate-700 not-italic">Application Guidance:</strong> {adv.applicationNotes}
+                    <p className="text-xs text-slate-600 mt-1 italic">
+                      <strong className="text-slate-800 not-italic">Application Guidance:</strong> {adv.applicationNotes}
                     </p>
                   </div>
 
                   {/* Recommendation Dosage Box */}
                   <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 shrink-0 p-4 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="text-left lg:text-right">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-600 block">
                         Approved Technical Molecule
                       </span>
-                      <span className="text-xs sm:text-sm font-bold text-emerald-900 block mt-0.5">
+                      <span className="text-xs sm:text-sm font-bold text-emerald-950 block mt-0.5">
                         {adv.molecule}
                       </span>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-slate-700">
-                        <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                      <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-slate-800">
+                        <span className="bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded">
                           Pump: {adv.dosagePump}
                         </span>
-                        <span className="bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded">
+                        <span className="bg-sky-100 text-sky-900 font-bold px-2 py-0.5 rounded">
                           Acre: {adv.dosageAcre}
                         </span>
                       </div>
@@ -1287,7 +1352,8 @@ export const HomePage: React.FC = () => {
                       href={buildWhatsAppShareUrl(adv)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors shrink-0"
+                      aria-label={`Share ${adv.pest} on ${adv.crop} advisory via WhatsApp`}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-800 hover:bg-emerald-900 text-white shadow-xs transition-colors shrink-0"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>Share via WhatsApp</span>
@@ -1299,9 +1365,10 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </section>
+      </main>
 
       {/* ─── PUBLIC FOOTER (STRICTLY NOCKBILL) ─────────────────────────────────── */}
-      <footer className="w-full bg-emerald-950 text-white/90 pt-16 pb-12 border-t border-white/10">
+      <footer className="w-full bg-emerald-950 text-slate-100 pt-16 pb-12 border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-white/10">
             <div className="md:col-span-1">
@@ -1311,7 +1378,7 @@ export const HomePage: React.FC = () => {
                 </div>
                 <span className="font-['Grandstander'] font-bold text-xl text-white">NockBill</span>
               </div>
-              <p className="text-xs text-white/70 leading-relaxed">
+              <p className="text-xs text-slate-200 leading-relaxed">
                 The next-generation agri retail operating system and agricultural billing standard designed for resilient cooperatives and input dealers across India.
               </p>
               <div className="flex items-center gap-2 mt-4 text-xs text-emerald-300">
@@ -1321,8 +1388,8 @@ export const HomePage: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Core Modules</h4>
-              <ul className="space-y-2 text-xs text-white/80">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Core Modules</h3>
+              <ul className="space-y-2 text-xs text-slate-200">
                 <li><Link to="/billing" className="hover:text-white transition-colors">Fast Counter POS</Link></li>
                 <li><Link to="/khata?tab=compliance" className="hover:text-white transition-colors">Fertilizer Form O Records</Link></li>
                 <li><Link to="/khata" className="hover:text-white transition-colors">Farmer Credit Khata</Link></li>
@@ -1331,8 +1398,8 @@ export const HomePage: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Statutory Standards</h4>
-              <ul className="space-y-2 text-xs text-white/80">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Statutory Standards</h3>
+              <ul className="space-y-2 text-xs text-slate-200">
                 <li><span>Fertilizer Control Order (FCO 1985)</span></li>
                 <li><span>Insecticides Act 1968 Compliance</span></li>
                 <li><span>Seeds Act 1966 Certification</span></li>
@@ -1341,8 +1408,8 @@ export const HomePage: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Dealership Support</h4>
-              <p className="text-xs text-white/70 mb-3">Need on-site terminal setup, ESC/POS printer driver packs, or barcode rolls?</p>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Dealership Support</h3>
+              <p className="text-xs text-slate-200 mb-3">Need on-site terminal setup, ESC/POS printer driver packs, or barcode rolls?</p>
               <Link
                 to="/register"
                 className="inline-block w-full text-center py-2.5 px-4 rounded-full bg-emerald-400 text-emerald-950 font-bold text-xs hover:bg-white transition-all"
@@ -1352,12 +1419,12 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-white/60 gap-4">
+          <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-300 gap-4">
             <span>&copy; 2026 NockBill Technologies Pvt Ltd. All rights reserved.</span>
             <div className="flex items-center gap-6">
-              <a href="#platform-features" className="hover:text-white transition-colors">Privacy Policy</a>
-              <a href="#platform-features" className="hover:text-white transition-colors">Terms of Service</a>
-              <a href="#platform-features" className="hover:text-white transition-colors">Security Architecture</a>
+              <a href="#mission-vision" className="hover:text-white transition-colors">Our Mission</a>
+              <a href="#platform-features" className="hover:text-white transition-colors">Platform Modules</a>
+              <Link to="/login" className="hover:text-white transition-colors">Dealer Console</Link>
             </div>
           </div>
         </div>
@@ -1365,8 +1432,8 @@ export const HomePage: React.FC = () => {
 
       {/* ─── FLOATING AGRI DOCTOR ICON IN RIGHT BOTTOM CORNER ─────────────────── */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 group">
-        <div className="bg-emerald-950/95 text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-emerald-500/30 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none duration-200 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+        <div className="bg-emerald-950 text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-emerald-500/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none duration-200 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           <span>Agri Doctor AI · Free Crop Diagnosis</span>
         </div>
 
@@ -1378,9 +1445,8 @@ export const HomePage: React.FC = () => {
             const el = document.getElementById('agri-doctor-section');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }}
-          className="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-white shadow-2xl flex items-center justify-center transition-all duration-300 transform hover:scale-110 active:scale-95 border-2 border-white/80 cursor-pointer"
+          className="relative w-14 h-14 rounded-full bg-emerald-800 hover:bg-emerald-900 text-white shadow-2xl flex items-center justify-center transition-transform duration-200 hover:scale-105 active:scale-95 border-2 border-white cursor-pointer"
         >
-          <span className="absolute -inset-1 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
           <div className="relative z-10 flex items-center justify-center">
             <Stethoscope className="w-6 h-6 text-white stroke-[2.2]" />
             <Sprout className="w-3.5 h-3.5 text-emerald-200 absolute -top-1 -right-1" />

@@ -120,6 +120,23 @@ async function runFrontendSuite() {
   totalAssertions += 3;
   console.log('✓ [Test 3b] Vite security & bundle chunking config + clean dependency manifest verified');
 
+  // Test 3d: Lighthouse Performance, Accessibility & CSP/Trusted-Types Regression Gate
+  const indexHtml = fs.readFileSync(path.join(FRONTEND_DIR, 'index.html'), 'utf8');
+  assert.ok(!/<script>\s*[\s\S]+?<\/script>/.test(indexHtml), 'index.html must not contain inline <script> blocks that violate strict CSP');
+  assert.ok(!indexHtml.includes('accounts.google.com/gsi/client'), 'index.html must not eagerly load 3rd-party Google GIS script on landing page');
+  assert.ok(!indexHtml.includes('Material+Symbols+Outlined'), 'index.html must not load heavy Material Symbols variable font');
+  const themeInit = fs.readFileSync(path.join(FRONTEND_DIR, 'public/theme-init.js'), 'utf8');
+  assert.ok(themeInit.includes("createPolicy('default'"), 'public/theme-init.js must register default Trusted Types policy');
+  const vttFile = fs.readFileSync(path.join(FRONTEND_DIR, 'public/captions/hero-ambient.vtt'), 'utf8');
+  assert.ok(vttFile.startsWith('WEBVTT'), 'hero-ambient.vtt must be a valid WebVTT captions file');
+  const homeTsx = fs.readFileSync(path.join(SRC_DIR, 'pages/HomePage.tsx'), 'utf8');
+  assert.ok(homeTsx.includes('<main id="main-content">'), 'HomePage.tsx must include a <main> landmark');
+  assert.ok(homeTsx.includes('kind="captions"'), 'HomePage.tsx <video> must include a captions <track>');
+  assert.ok(homeTsx.includes('/images/pos_3d.webp'), 'HomePage.tsx must serve compressed WebP images');
+  assert.ok(!homeTsx.includes('htmlFor="crop-select-label"'), 'HomePage.tsx must not point <label htmlFor> at a non-control element');
+  totalAssertions += 9;
+  console.log('✓ [Test 3d] Lighthouse CSP, bfcache, WebP, <main> landmark & <video> captions checks passed');
+
   const runtimeAssertions = await runRuntimeUnitTests();
   totalAssertions += runtimeAssertions;
   console.log(`✓ [Test 3c] Executed frontend TypeScript runtime unit tests (${runtimeAssertions} assertions passed)`);

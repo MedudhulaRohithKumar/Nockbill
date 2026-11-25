@@ -26,20 +26,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Clean up legacy tokens and user cache from localStorage to prevent exposure or poisoning
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+
+      const hasSessionHint =
+        typeof document !== 'undefined' &&
+        document.cookie.split(';').some((c) => c.trim().startsWith('nb_auth_hint=1'));
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+      const isPublicAuthOptionalRoute =
+        pathname === '/' || pathname === '/login' || pathname === '/register';
+
+      if (isPublicAuthOptionalRoute && !hasSessionHint) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       try {
-        const res: any = await authApi.me();
-        const role: UserRole = res.role === 'OWNER' ? 'owner' : 'operator';
-        const userData: User = {
-          id: res.id,
-          username: res.username,
-          full_name: res.name || (role === 'owner' ? 'Shop Owner' : 'Billing Operator'),
-          role,
-          subscription_status: res.subscription_status || 'PENDING',
-          is_active: res.is_active ?? true,
-        };
-        setUser(userData);
+        const sessionRes = await authApi.session();
+        if (sessionRes?.authenticated && sessionRes.user) {
+          const res = sessionRes.user;
+          const role: UserRole = res.role === 'OWNER' ? 'owner' : 'operator';
+          const userData: User = {
+            id: res.id,
+            username: res.username,
+            full_name: res.name || (role === 'owner' ? 'Shop Owner' : 'Billing Operator'),
+            role,
+            subscription_status: res.subscription_status || 'PENDING',
+            is_active: res.is_active ?? true,
+          };
+          setUser(userData);
+        } else {
+          localStorage.removeItem('shop_settings');
+          setUser(null);
+        }
       } catch {
-        // Session expired or unauthenticated
+        // Fallback or unauthenticated session
         localStorage.removeItem('shop_settings');
         setUser(null);
       } finally {
