@@ -3,12 +3,10 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   Sprout, Lock, User as UserIcon, AlertCircle, ArrowRight, 
   ShieldCheck, Eye, EyeOff, KeyRound, Mail, CheckCircle2, 
-  Sparkles, X, ScanLine, FileText, Users, Award, RefreshCw, MessageCircle
+  Sparkles, X, FileText, RefreshCw, MessageCircle, BookOpen, Globe, Phone
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useShop } from '../context/ShopContext';
 import { authApi, getErrorMessage } from '../api';
-import { GoldenSeedsCanvas } from '../components/common/GoldenSeedsCanvas';
 
 export const LoginPage: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'owner' | 'iam'>('owner');
@@ -60,7 +58,6 @@ export const LoginPage: React.FC = () => {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com';
 
   const { login, loginWithGoogle } = useAuth();
-  const { settings } = useShop();
   const navigate = useNavigate();
 
   // Fetch server-side cryptographic CAPTCHA challenge
@@ -82,7 +79,7 @@ export const LoginPage: React.FC = () => {
     void fetchCaptcha();
   }, []);
 
-  // Handle URL deep links for password reset and AWS-style IAM console sign-in (?account=SHOP-00001).
+  // Handle URL deep links for password reset and staff console sign-in (?account=SHOP-00001).
   useEffect(() => {
     const action = searchParams.get('action');
     const user = searchParams.get('user');
@@ -176,7 +173,7 @@ export const LoginPage: React.FC = () => {
     setError(null);
     const google = (window as any).google;
 
-    // 1. Try Google OAuth2 Token Client (opens native, responsive popup on user gesture)
+    // 1. Try Google OAuth2 Token Client
     if (google?.accounts?.oauth2) {
       try {
         const client = google.accounts.oauth2.initTokenClient({
@@ -230,7 +227,7 @@ export const LoginPage: React.FC = () => {
 
     const cleanCaptcha = captchaCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
     if (cleanCaptcha.length !== 6) {
-      setError('Please enter all 6 characters shown in the security CAPTCHA image.');
+      setError('Please enter all 6 characters shown in the security CAPTCHA verification.');
       return;
     }
     if (!captchaToken) {
@@ -262,7 +259,6 @@ export const LoginPage: React.FC = () => {
         });
         return;
       }
-      // Every verification attempt burns the single-use server nonce — always issue a fresh CAPTCHA
       void fetchCaptcha();
       if (err.response?.status === 401) {
         setError(getErrorMessage(err, 'Incorrect username, mobile, or password.'));
@@ -377,280 +373,325 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#031b0f] text-white flex flex-col justify-between items-center p-2 sm:p-3 lg:py-1.5 lg:px-6 relative select-none w-full max-w-full overflow-x-hidden">
-      {/* ─── PASTORAL STAGE BACKDROP & PROCEDURAL GOLDEN SEEDS CANVAS ───────── */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <img 
-          src="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/3ca5d10d-ea2f-4907-876f-33bde169469e.jpg"
-          alt="Sunlit pastoral agricultural meadow landscape"
-          className="w-full h-full object-cover object-center opacity-45 scale-105 filter blur-[1px]"
-        />
-        {/* Scrim Gradients for Sunlight & Emerald Glare Contrast */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#02180c] via-[#032414]/80 to-[#011409]/60" />
-        <div className="absolute inset-0 bg-radial-at-tl from-emerald-500/20 via-transparent to-black/60" />
-
-        {/* Procedural Canvas: Floating Golden Seeds & Sun Godrays */}
-        <GoldenSeedsCanvas />
+    <div className="login-atmosphere min-h-screen text-slate-100 font-sans selection:bg-emerald-500 selection:text-white relative overflow-x-hidden flex flex-col justify-between select-none">
+      
+      {/* ─── AMBIENT BACKGROUND PARTICLES (NO IMAGES) ────────────────────────── */}
+      <div aria-hidden="true" className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="particle w-3.5 h-3.5 top-[12%] left-[8%] [animation-duration:9s]" />
+        <div className="particle w-2.5 h-2.5 top-[28%] left-[22%] [animation-duration:11s] [animation-delay:1s]" />
+        <div className="particle w-4 h-4 top-[18%] left-[45%] [animation-duration:14s] [animation-delay:2s]" />
+        <div className="particle w-3 h-3 top-[65%] left-[15%] [animation-duration:8s] [animation-delay:0.5s]" />
+        <div className="particle w-2 h-2 top-[80%] left-[38%] [animation-duration:10s]" />
+        <div className="particle w-3.5 h-3.5 top-[32%] left-[58%] [animation-duration:13s] [animation-delay:3s]" />
+        <div className="particle w-2 h-2 top-[75%] left-[70%] [animation-duration:9s] [animation-delay:1.5s]" />
+        <div className="particle w-4 h-4 top-[22%] left-[88%] [animation-duration:12s]" />
+        <div className="particle w-2.5 h-2.5 top-[50%] left-[92%] [animation-duration:10s] [animation-delay:2.5s]" />
+        <div className="particle w-3 h-3 top-[85%] left-[84%] [animation-duration:15s] [animation-delay:0.8s]" />
       </div>
 
-      {/* ─── MAIN RESPONSIVE CONTAINER (TRIPLE-MODE ENGINE) ─────────────────── */}
-      <div className="max-w-7xl w-full mx-auto relative z-10 py-0.5 sm:py-1 flex-1 flex flex-col justify-center">
-        {/* Top Floating Bar */}
-        <div className="mb-1 sm:mb-2 flex items-center justify-between px-1">
-          <Link 
-            to="/" 
-            className="inline-flex items-center gap-1.5 text-white/90 hover:text-white text-[11px] font-bold px-3 py-1 rounded-full bg-black/40 hover:bg-black/60 border border-white/30 backdrop-blur-md transition-all active:scale-95 shadow-xs"
-          >
-            <span>← Back to NockBill Agriculture</span>
-          </Link>
-          <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-emerald-300 bg-black/40 px-3 py-0.5 rounded-full border border-emerald-500/30 backdrop-blur-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>Agri ERP Cloud Grid v2.5 Active</span>
+      {/* ─── TOP NAVIGATION BAR ──────────────────────────────────────────────── */}
+      <header className="relative z-20 w-full px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-emerald-900/40 bg-[#051c14]/70 backdrop-blur-md">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 via-emerald-600 to-forest-950 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-400/40 shrink-0">
+            <Sprout className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex flex-col">
+            <div className="flex items-center space-x-1.5">
+              <span className="text-lg font-black tracking-tight text-white">Nock<span className="text-emerald-400">Bill</span></span>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 uppercase">ERP</span>
+            </div>
+            <span className="text-[11px] font-medium text-emerald-300/70 tracking-wide">Agro Billing &amp; Statutory Compliance</span>
           </div>
         </div>
 
-        {/* 2-Column Responsive Layout (Mode A / Mode B / Mode C) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-6 items-center w-full">
-          
-          {/* Left Column: Atmospheric Pastoral Warmth & Enterprise Highlights (Desktop Only for Clean Single-Screen View) */}
-          <div className="hidden lg:flex lg:col-span-7 flex-col justify-center space-y-2 text-white order-2 lg:order-1 px-1">
-            {/* Header Badge */}
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9px] font-mono uppercase tracking-wider font-bold w-fit shadow-xs backdrop-blur-md">
-              <Sprout className="w-3 h-3 text-emerald-400" />
-              <span>NockBill Agriculture • Meadowbell POS</span>
-            </div>
+        <div className="flex items-center space-x-3 sm:space-x-4 text-emerald-300/70">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-emerald-200/90 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-full bg-forest-850/60 border border-emerald-500/20 transition-all hover:bg-forest-800"
+          >
+            <span>← Back to Store</span>
+          </Link>
 
-            {/* Title & Description */}
-            <div className="space-y-0.5">
-              <h1 className="font-['Grandstander'] text-xl lg:text-2xl font-black tracking-tight text-white leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
-                Empower Your Agro-Store <span className="text-emerald-300">Instantly</span>
-              </h1>
-              <p className="text-[11px] text-slate-200/90 leading-snug max-w-lg font-medium drop-shadow-xs">
-                Microsecond keyboard billing, 80mm ESC/POS thermal printing, statutory Form O registers, and automated digital Farmer Khata credit recovery.
-              </p>
-            </div>
-
-            {/* 3D Pastoral Showcase Visual Cards */}
-            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
-              <div className="glass-card-dark rounded-xl p-2 border border-white/20 shadow-lg overflow-hidden group">
-                <div className="h-16 lg:h-18 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
-                  <img 
-                    src="/images/pos_3d.jpg" 
-                    alt="Fast Counter POS with thermal printer in sunny meadow"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                  <span className="absolute top-1 right-1 px-1.5 py-0.2 rounded-full bg-emerald-600 text-white font-mono text-[8px] font-bold">
-                    3-SEC POS
-                  </span>
-                </div>
-                <div className="mt-1">
-                  <h4 className="text-[10px] font-bold text-white">Rapid Counter Checkout</h4>
-                  <p className="text-[8px] text-emerald-200/80">F1 keystroke &amp; split Cash/UPI</p>
-                </div>
-              </div>
-
-              <div className="glass-card-dark rounded-xl p-2 border border-white/20 shadow-lg overflow-hidden group">
-                <div className="h-16 lg:h-18 w-full rounded-lg overflow-hidden relative bg-emerald-950/40">
-                  <img 
-                    src="/images/compliance_3d.jpg" 
-                    alt="Statutory Form O register with rupee coin in meadow"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                  <span className="absolute top-1 right-1 px-1.5 py-0.2 rounded-full bg-amber-600 text-white font-mono text-[8px] font-bold">
-                    FORM O READY
-                  </span>
-                </div>
-                <div className="mt-1">
-                  <h4 className="text-[10px] font-bold text-white">Fertilizer Compliance</h4>
-                  <p className="text-[8px] text-amber-200/80">FCO 1985 &amp; statutory registers</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 4 Feature Value Chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs pt-0.5">
-              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
-                <FileText className="w-3 h-3 text-emerald-300 shrink-0" />
-                <span className="text-[9px] font-bold text-white truncate">GST Invoicing</span>
-              </div>
-              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
-                <ScanLine className="w-3 h-3 text-teal-300 shrink-0" />
-                <span className="text-[9px] font-bold text-white truncate">Barcode Scanner</span>
-              </div>
-              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
-                <Sprout className="w-3 h-3 text-amber-300 shrink-0" />
-                <span className="text-[9px] font-bold text-white truncate">Batch Expiry</span>
-              </div>
-              <div className="glass-card-dark p-1.5 rounded-lg border border-white/15 flex items-center gap-1">
-                <Users className="w-3 h-3 text-sky-300 shrink-0" />
-                <span className="text-[9px] font-bold text-white truncate">Farmer Khata</span>
-              </div>
-            </div>
+          <div className="hidden sm:flex items-center space-x-2 text-xs font-mono text-emerald-300/80 px-3 py-1 rounded-full bg-forest-850/60 border border-emerald-500/20">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+            <span>Cloud Grid Online</span>
           </div>
+        </div>
+      </header>
 
-          {/* Right Column: Translucent Action Pane with Luminous Borders */}
-          <div className="lg:col-span-5 w-full max-w-md mx-auto order-1 lg:order-2">
-            <div className="glass-card-dark rounded-2xl p-3 sm:p-4 lg:p-3.5 border border-white/25 shadow-2xl relative overflow-hidden backdrop-blur-xl">
-              
-              {/* Card Header with Animated Seedling Emblem */}
-              <div className="text-center space-y-0.5 mb-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-emerald-600 to-emerald-400 text-white flex items-center justify-center mx-auto shadow-sm shadow-emerald-950/60 animate-leaf-pulse border border-white/40">
-                  <Sprout className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+      {/* ─── MAIN HERO + AUTH GRID ──────────────────────────────────────────── */}
+      <main className="relative z-10 w-full max-w-[1400px] mx-auto px-4 sm:px-6 py-6 lg:py-10 flex-1 flex flex-col justify-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
+          
+          {/* ── LEFT HERO INFORMATION SECTION (ZERO IMAGES) ── */}
+          <section className="lg:col-span-7 flex flex-col justify-center pt-2 lg:pt-4" data-purpose="hero-overview">
+            <div className="inline-flex items-center space-x-2 self-start px-3.5 py-1.5 rounded-full bg-emerald-900/40 border border-emerald-500/30 text-emerald-300 text-xs font-semibold tracking-wide mb-4">
+              <Sprout className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="uppercase font-mono text-[11px] tracking-wider">AGRI RETAIL ERP &amp; STATUTORY PLATFORM</span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl xl:text-5xl font-extrabold text-white leading-[1.18] tracking-tight mb-3">
+              Empower Your Agro-Store <span className="text-emerald-400 underline decoration-emerald-500/40 decoration-wavy decoration-2">Instantly</span>
+            </h1>
+
+            <p className="text-emerald-100/75 text-sm sm:text-base leading-relaxed max-w-xl mb-6 font-normal">
+              Next-generation point-of-sale engineered for fertilizer dealers, pesticide distributors, and seed retail centers across India.
+            </p>
+
+            {/* 3 Glass Subcards (Pure SVG Icons, Zero Images) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
+              {/* Card 1: Billing */}
+              <div className="glass-subcard rounded-2xl p-4 border border-emerald-500/20 hover:border-emerald-400/50 transition-all duration-300 flex flex-col justify-between group">
+                <div className="space-y-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-sm font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors">
+                    Zero-Error Fertilizer &amp; Pesticide Billing
+                  </h2>
+                  <p className="text-xs text-emerald-100/75 leading-relaxed">
+                    Automated batch number, expiry date tracking, and statutory price-cap checks at the counter.
+                  </p>
                 </div>
-                <h2 className="font-['Grandstander'] text-lg sm:text-xl font-black text-white tracking-tight drop-shadow-xs">
-                  Welcome Back!
-                </h2>
-                <p className="text-[10px] text-emerald-200/90 font-medium">
+                <div className="pt-3 mt-3 border-t border-emerald-500/10 flex items-center space-x-1.5 text-[10px] font-mono text-emerald-400/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>100% Price Capped</span>
+                </div>
+              </div>
+
+              {/* Card 2: Khata */}
+              <div className="glass-subcard rounded-2xl p-4 border border-emerald-500/20 hover:border-emerald-400/50 transition-all duration-300 flex flex-col justify-between group">
+                <div className="space-y-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-sm font-bold text-white tracking-tight group-hover:text-amber-300 transition-colors">
+                    Real-Time Farmer Khata &amp; Udhar Ledger
+                  </h2>
+                  <p className="text-xs text-emerald-100/75 leading-relaxed">
+                    Keep track of seasonal farmer debts, crop cycles, and send automated WhatsApp payment reminders.
+                  </p>
+                </div>
+                <div className="pt-3 mt-3 border-t border-emerald-500/10 flex items-center space-x-1.5 text-[10px] font-mono text-amber-300/90">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>Auto WhatsApp Alert</span>
+                </div>
+              </div>
+
+              {/* Card 3: Compliance */}
+              <div className="glass-subcard rounded-2xl p-4 border border-emerald-500/20 hover:border-emerald-400/50 transition-all duration-300 flex flex-col justify-between group">
+                <div className="space-y-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-sm font-bold text-white tracking-tight group-hover:text-emerald-300 transition-colors">
+                    Instant GST &amp; Govt Statutory Filing
+                  </h2>
+                  <p className="text-xs text-emerald-100/75 leading-relaxed">
+                    1-Click GSTR-1 preparation, POS machine integration, and official Form O registers ready for agriculture officers.
+                  </p>
+                </div>
+                <div className="pt-3 mt-3 border-t border-emerald-500/10 flex items-center space-x-1.5 text-[10px] font-mono text-emerald-400/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>FCO 1985 &amp; GSTR-1</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4 Feature Value Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-xl bg-forest-850/70 border border-emerald-500/20 text-xs text-emerald-200/90 hover:border-emerald-400/40 hover:bg-[#133d2e] transition-all cursor-default">
+                <span className="text-sm">⚡</span>
+                <span className="font-medium truncate">3-Sec POS Invoicing</span>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-xl bg-forest-850/70 border border-emerald-500/20 text-xs text-emerald-200/90 hover:border-emerald-400/40 hover:bg-[#133d2e] transition-all cursor-default">
+                <span className="text-sm">📜</span>
+                <span className="font-medium truncate">Instant Form O Book</span>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-xl bg-forest-850/70 border border-emerald-500/20 text-xs text-emerald-200/90 hover:border-emerald-400/40 hover:bg-[#133d2e] transition-all cursor-default">
+                <span className="text-sm">🌾</span>
+                <span className="font-medium truncate">Digital Farmer Khata</span>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-2.5 rounded-xl bg-forest-850/70 border border-emerald-500/20 text-xs text-emerald-200/90 hover:border-emerald-400/40 hover:bg-[#133d2e] transition-all cursor-default">
+                <span className="text-sm">🛡️</span>
+                <span className="font-medium truncate">Central Sync Ready</span>
+              </div>
+            </div>
+          </section>
+
+          {/* ── RIGHT AUTH FORM CARD ── */}
+          <section className="lg:col-span-5 w-full max-w-md mx-auto" data-purpose="auth-modal-card">
+            <div className="glass-panel rounded-3xl p-6 sm:p-7 shadow-2xl relative">
+              
+              {/* Seedling Sprout Brand Icon Badge */}
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-600 to-forest-950 flex items-center justify-center shadow-xl shadow-emerald-500/25 border border-emerald-300/40 relative">
+                <div className="absolute -inset-1 rounded-2xl bg-emerald-400/20 blur-sm pointer-events-none" />
+                <Sprout className="w-7 h-7 text-white relative z-10" />
+              </div>
+
+              {/* Card Header Texts */}
+              <div className="text-center mb-5">
+                <h2 className="text-2xl font-bold text-white tracking-tight">Welcome Back!</h2>
+                <p className="text-xs text-emerald-200/60 mt-1">
                   Log in to manage your agro-store &amp; billing
                 </p>
               </div>
 
-              {/* AWS Console-Style Sign-In Mode Switcher: Shop Owner (Root) vs IAM Staff User */}
-              <div className="mb-2 grid grid-cols-2 gap-1 p-0.5 bg-black/40 border border-white/20 rounded-xl">
+              {/* User Role Tab Switcher: Store Owner vs Staff / Cashier */}
+              <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-forest-950/80 border border-emerald-900/60 mb-4" data-purpose="role-tab-selector">
                 <button
                   type="button"
+                  id="tab-owner"
                   onClick={() => {
                     setLoginMode('owner');
                     setError(null);
                   }}
-                  className={`py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
                     loginMode === 'owner'
-                      ? 'bg-emerald-600 text-white shadow-xs border border-emerald-400/40'
-                      : 'text-slate-300 hover:text-white'
+                      ? 'bg-emerald-900/60 border border-emerald-500/30 text-emerald-200 shadow-sm'
+                      : 'text-emerald-300/70 hover:text-white'
                   }`}
                 >
                   Shop Owner (Root)
                 </button>
                 <button
                   type="button"
+                  id="tab-iam"
                   onClick={() => {
                     setLoginMode('iam');
                     setError(null);
                   }}
-                  className={`py-1 px-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`py-2 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
                     loginMode === 'iam'
-                      ? 'bg-slate-800 text-emerald-300 shadow-xs border border-emerald-500/30'
-                      : 'text-slate-300 hover:text-white'
+                      ? 'bg-emerald-900/60 border border-emerald-500/30 text-emerald-200 shadow-sm'
+                      : 'text-emerald-300/70 hover:text-white'
                   }`}
                 >
-                  IAM Staff User
+                  Staff / Cashier User
                 </button>
               </div>
 
-              {/* Error Notification */}
-              {error && (
-                <div className="mb-2 p-1.5 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-[11px] flex items-center gap-1.5 shadow-md">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
-                  <span>{error}</span>
-                </div>
-              )}
-
+              {/* Notice Banners */}
               {loginMode === 'owner' ? (
-                <>
-                  {/* PROMINENT GOOGLE SIGN-IN BUTTON (Owner / Root Mode) */}
-                  <div className="mb-1.5">
-                    <button
-                      type="button"
-                      onClick={handleGoogleSignIn}
-                      disabled={isLoading}
-                      className="w-full py-2 px-3 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] disabled:opacity-70 group relative overflow-hidden cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
-                        <path
-                          fill="#4285F4"
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                          fill="#34A853"
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                          fill="#FBBC05"
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                        />
-                        <path
-                          fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                        />
-                      </svg>
-                      <span className="tracking-tight text-slate-900 font-extrabold text-xs">Sign in with Google</span>
-                    </button>
-                    {/* Embedded GIS container (if rendered by SDK) */}
-                    <div ref={googleBtnRef} className="hidden"></div>
+                <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/25 p-2.5 mb-4 flex items-start space-x-2.5 transition-all duration-200">
+                  <div className="p-1 rounded-md bg-emerald-800/40 text-emerald-400 mt-0.5 shrink-0">
+                    <Globe className="w-3.5 h-3.5" />
                   </div>
-
-                  {/* Divider */}
-                  <div className="relative flex items-center justify-center my-1.5">
-                    <div className="border-t border-white/20 w-full"></div>
-                    <span className="bg-black/60 backdrop-blur-md px-2 text-[8px] font-bold uppercase tracking-wider text-emerald-200/70 absolute rounded-full border border-white/10">
-                      or sign in with credentials
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="mb-2 p-1.5 rounded-xl bg-black/60 text-slate-100 border border-emerald-500/30 text-[9px] flex items-start gap-1.5">
-                  <KeyRound className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-white">AWS-Style IAM Staff Console Sign-In</p>
-                    <p className="text-slate-300 mt-0.5 leading-tight">
-                      Enter the <strong>Shop Account ID</strong> along with your IAM username and password.
+                    <p className="text-[11px] font-bold text-emerald-200">Store Owner Master Account</p>
+                    <p className="text-[10px] text-emerald-300/70 leading-normal">
+                      Sign in with your registered Mobile Number, Email, or GSTIN to access the root store portal.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/20 p-2.5 mb-4 flex items-start space-x-2.5 transition-all duration-200">
+                  <div className="p-1 rounded-md bg-emerald-800/40 text-emerald-400 mt-0.5 shrink-0">
+                    <KeyRound className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-emerald-200">Staff &amp; Cashier Console Sign-In</p>
+                    <p className="text-[10px] text-emerald-300/70 leading-normal">
+                      Enter the <strong className="text-emerald-200">Shop Account ID</strong> along with your Staff username and password.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* Login Form with Luminous Fields */}
-              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-1.5" autoComplete="off">
+              {/* Error Alert */}
+              {error && (
+                <div className="mb-4 p-2.5 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-xs flex items-center gap-2 shadow-md">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Google Sign-in for Owner */}
+              {loginMode === 'owner' && (
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isLoading}
+                    className="w-full py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] disabled:opacity-70 group cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span className="text-slate-900 font-extrabold text-xs">Sign in with Google</span>
+                  </button>
+                  <div ref={googleBtnRef} className="hidden" />
+
+                  <div className="relative flex items-center justify-center my-3">
+                    <div className="border-t border-emerald-900/60 w-full" />
+                    <span className="bg-forest-950 px-2.5 text-[9px] font-bold uppercase tracking-wider text-emerald-300/60 absolute rounded-full border border-emerald-900/60">
+                      or continue with credentials
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Container */}
+              <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-3.5" autoComplete="off">
+                {/* Shop Account ID (Staff Mode Only) */}
                 {loginMode === 'iam' && (
                   <div>
-                    <label htmlFor="login-shop-account-id" className="block text-[10px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-xs">
-                      Shop Account ID or Alias <span className="text-red-400">*</span>
+                    <label htmlFor="login-shopId" className="block text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300/80 mb-1">
+                      SHOP ACCOUNT ID OR ALIAS <span className="text-rose-400">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
-                        <ShieldCheck className="w-3 h-3" />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-400/60">
+                        <ShieldCheck className="w-4 h-4" />
                       </div>
                       <input
-                        id="login-shop-account-id"
+                        id="login-shopId"
+                        name="shopId"
                         type="text"
                         required
                         value={shopAccountId}
                         onChange={(e) => setShopAccountId(e.target.value.toUpperCase())}
-                        className="luminous-input w-full pl-8 pr-2.5 py-1 text-base sm:text-xs font-mono uppercase h-8"
-                        placeholder="e.g. SHOP-00001 or Shop GSTIN"
+                        placeholder="E.G. SHOP-00001 OR SHOP GSTIN"
+                        className="agro-input w-full pl-9 pr-3 py-2 text-xs rounded-xl font-mono text-emerald-100 placeholder:text-emerald-500/40 uppercase"
                       />
                     </div>
                   </div>
                 )}
 
+                {/* Username / Identifier */}
                 <div>
-                  <label htmlFor="login-username" className="block text-[10px] font-bold text-white uppercase tracking-wider mb-0.5 drop-shadow-xs">
-                    {loginMode === 'iam' ? 'IAM Username' : 'Email / Mobile / Username'}
+                  <label htmlFor="login-username" className="block text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300/80 mb-1">
+                    {loginMode === 'iam' ? (
+                      <>STAFF USERNAME <span className="text-rose-400">*</span></>
+                    ) : (
+                      <>STORE EMAIL, MOBILE NUMBER, OR GSTIN <span className="text-rose-400">*</span></>
+                    )}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
-                      <UserIcon className="w-3 h-3" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-400/60">
+                      {loginMode === 'iam' ? <UserIcon className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
                     </div>
                     <input
                       id="login-username"
+                      name="username"
                       type="text"
                       required
-                      inputMode="text"
                       autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="luminous-input w-full pl-8 pr-2.5 py-1 text-base sm:text-xs h-8"
-                      placeholder={loginMode === 'iam' ? 'e.g. cashier_ravi' : 'Registered email or mobile number'}
+                      placeholder={loginMode === 'iam' ? 'e.g. cashier_ravi' : 'e.g. 9845211092 or owner@agrokendra.in'}
+                      className="agro-input w-full pl-9 pr-3 py-2 text-xs rounded-xl font-mono text-emerald-100 placeholder:text-emerald-500/40"
                     />
                   </div>
                 </div>
 
+                {/* Password with Forgot Password Link */}
                 <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label htmlFor="login-password" className="block text-[10px] font-bold text-white uppercase tracking-wider drop-shadow-xs">
-                      Password
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="login-password" className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300/80">
+                      {loginMode === 'iam' ? 'STAFF PASSWORD' : 'MASTER PASSWORD'} <span className="text-rose-400">*</span>
                     </label>
                     <button
                       type="button"
@@ -658,80 +699,80 @@ export const LoginPage: React.FC = () => {
                         setForgotIdentifier(username);
                         setShowForgotModal(true);
                       }}
-                      className="text-[10px] font-bold text-emerald-300 hover:text-emerald-200 cursor-pointer drop-shadow-xs"
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer"
                     >
                       Forgot Password?
                     </button>
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-emerald-300">
-                      <Lock className="w-3 h-3" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-400/60">
+                      <Lock className="w-4 h-4" />
                     </div>
                     <input
                       id="login-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       required
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="luminous-input w-full pl-8 pr-8 py-1 text-base sm:text-xs h-8"
-                      placeholder="Enter master password"
+                      placeholder={loginMode === 'iam' ? 'Enter staff password' : 'Enter master owner password'}
+                      className="agro-input w-full pl-9 pr-9 py-2 text-xs rounded-xl text-emerald-100 placeholder:text-emerald-500/40"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1.5 text-emerald-300 hover:text-white p-0.5 cursor-pointer"
+                      aria-label="Toggle password visibility"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-emerald-400/60 hover:text-emerald-300 focus:outline-none cursor-pointer"
                     >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Server-Side Cryptographic CAPTCHA Verification */}
-                <div className="p-1.5 rounded-xl bg-black/40 border border-white/20 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="login-captcha" className="text-[9px] font-bold text-white flex items-center gap-1">
-                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                {/* Security Verification (CAPTCHA) */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="login-captcha" className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300/80 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Security Verification (CAPTCHA)</span>
                     </label>
                     <button
                       type="button"
-                      onClick={() => {
-                        void fetchCaptcha();
-                      }}
+                      onClick={() => { void fetchCaptcha(); }}
                       disabled={captchaLoading}
-                      title="Generate new security challenge"
-                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-300 hover:text-emerald-100 disabled:opacity-50 transition-colors cursor-pointer"
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition-transform duration-300 cursor-pointer disabled:opacity-50"
                     >
-                      <RefreshCw className={`w-2.5 h-2.5 ${captchaLoading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-3 h-3 ${captchaLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-12 gap-1.5 items-center">
-                    {/* Server-Rendered Distorted Raster Image */}
-                    <div className="col-span-7 relative h-8 rounded-lg overflow-hidden border border-white/30 bg-black/60 flex items-center justify-center shadow-inner select-none">
-                      {captchaImage ? (
-                        <img
-                          src={captchaImage}
-                          alt="Security CAPTCHA Challenge"
-                          draggable={false}
-                          onContextMenu={(e) => e.preventDefault()}
-                          className={`w-full h-full object-cover select-none pointer-events-none transition-opacity duration-200 ${
-                            captchaLoading ? 'opacity-40' : 'opacity-100'
-                          }`}
-                        />
-                      ) : (
-                        <span className="text-[9px] text-slate-300 font-medium">
-                          {captchaLoading ? 'Generating...' : 'Unavailable'}
+                  {/* CAPTCHA Box Grid */}
+                  <div className="grid grid-cols-12 gap-2 items-center">
+                    {/* Distorted Graphic Style CAPTCHA Image Container (Zero <img> tags) */}
+                    <div 
+                      className="col-span-7 h-10 rounded-xl bg-forest-950 border border-emerald-500/25 relative overflow-hidden flex items-center justify-center select-none captcha-noise"
+                      style={captchaImage ? { backgroundImage: `url(${captchaImage})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined}
+                    >
+                      {/* Abstract distorted lines */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40" viewBox="0 0 160 40">
+                        <path d="M0,22 Q30,5 70,28 T160,18" fill="none" stroke="#34d399" strokeWidth="1.8" />
+                        <path d="M0,8 Q45,35 90,12 T160,25" fill="none" stroke="#38bdf8" strokeWidth="1.5" />
+                        <path d="M10,38 Q80,2 150,30" fill="none" stroke="#f59e0b" strokeWidth="1.2" />
+                      </svg>
+                      {captchaLoading && (
+                        <span className="text-[10px] font-mono text-emerald-300 z-10 bg-black/60 px-2 py-0.5 rounded">
+                          Refreshing...
                         </span>
                       )}
                     </div>
 
-                    {/* Strictly Sanitized 6-Character Code Input */}
+                    {/* Input code box with counter */}
                     <div className="col-span-5 relative">
                       <input
                         id="login-captcha"
+                        name="captcha"
                         type="text"
                         required
                         maxLength={6}
@@ -742,133 +783,123 @@ export const LoginPage: React.FC = () => {
                           const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
                           setCaptchaCode(sanitized);
                         }}
-                        className="luminous-input w-full h-8 px-1.5 text-center font-mono text-sm font-black tracking-[0.12em] text-white uppercase"
                         placeholder="6-CHAR"
+                        className="agro-input w-full text-center py-2 text-xs font-mono font-bold tracking-widest uppercase rounded-xl text-emerald-100 placeholder:text-emerald-500/30"
                       />
-                      {captchaCode.length === 6 && (
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400 absolute right-1 top-2 pointer-events-none" />
-                      )}
+                      <span className={`absolute -bottom-4 right-1 text-[9px] font-mono transition-colors ${captchaCode.length === 6 ? 'text-emerald-300 font-bold' : 'text-emerald-400/60'}`}>
+                        {captchaCode.length}/6
+                      </span>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between text-[8px] text-slate-300">
-                    <span>Type characters from image</span>
-                    <span className="font-mono font-semibold text-emerald-300">{captchaCode.length}/6</span>
-                  </div>
+                  <p className="text-[10px] text-emerald-300/50 mt-1">Type characters from image</p>
                 </div>
 
-                {/* Primary CTA: Pill-Shaped Emerald Button */}
+                {/* Login CTA Action Button */}
                 <button
                   type="submit"
                   disabled={isLoading || captchaCode.length !== 6}
-                  className="meadow-cta-btn w-full mt-1 py-2 px-3 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 shadow-lg cursor-pointer min-h-[40px] sm:min-h-[36px]"
+                  className="w-full mt-3 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-agrigreen-700 hover:from-emerald-500 hover:to-emerald-600 text-forest-950 font-bold text-sm tracking-wide shadow-lg shadow-emerald-950/60 hover:shadow-emerald-500/25 active:scale-[0.98] transition-all duration-200 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-4 h-4 border-2 border-forest-950 border-t-transparent rounded-full animate-spin" />
                       <span>Signing In...</span>
                     </>
                   ) : (
                     <>
-                      <span>Login →</span>
+                      <span>{loginMode === 'iam' ? 'Login as Staff Operator' : 'Login as Store Owner'}</span>
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
               </form>
 
-              {/* Registration CTA Link */}
-              <div className="mt-1.5 pt-1.5 border-t border-white/15 text-center space-y-0.5">
-                <p className="text-[10px] text-slate-200">
-                  Don&apos;t have an account?
-                </p>
+              {/* Bottom Prompt & Registration Option */}
+              <div className="mt-5 pt-4 border-t border-emerald-900/60 text-center">
+                <p className="text-[11px] text-emerald-300/60 mb-2">Don&apos;t have an account?</p>
                 <Link
                   to="/register"
-                  className="inline-flex items-center justify-center gap-1 text-[11px] font-bold text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-full border border-white/30 transition-all w-full shadow-xs"
+                  className="w-full inline-flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-forest-950/70 border border-emerald-500/30 hover:border-emerald-400/60 hover:bg-forest-900/80 text-emerald-200 text-xs font-semibold transition-all duration-200"
                 >
-                  <Sparkles className="w-3 h-3 text-emerald-300" />
+                  <span>✨</span>
                   <span>Start Free / Create Store Account →</span>
                 </Link>
               </div>
             </div>
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
 
       {/* ─── SCREEN 3: FORGOT PASSWORD & ACCOUNT RECOVERY PORTAL (RESET PASSWORD) ── */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="glass-card-dark max-w-md w-full p-4 sm:p-6 rounded-2xl border border-white/30 relative text-white shadow-2xl max-h-[92vh] overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowForgotModal(false);
-                setForgotStep(1);
-                setForgotError(null);
-                setForgotSuccess(null);
-                setResetOtp('');
-                setVerifiedResetToken('');
-                setDevOtpCode(null);
-              }}
-              className="absolute top-3 right-3 text-slate-300 hover:text-white cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div className="glass-panel max-w-md w-full p-4 sm:p-6 rounded-2xl border border-emerald-500/30 relative text-white shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-emerald-900/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-400 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">Master Password Recovery</h3>
+                  <p className="text-[11px] text-emerald-300/70">Verify identity via Mobile/Email OTP</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotModal(false);
+                  setForgotStep(1);
+                  setForgotError(null);
+                  setForgotSuccess(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            {/* Step Progress Indicator */}
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 1 ? 'bg-emerald-600 text-white' : 'bg-emerald-950 text-emerald-300'}`}>
-                1. Account
+            {/* Step Progress Pill Indicator */}
+            <div className="flex items-center justify-center gap-2 my-4">
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                forgotStep === 1 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-black/30 text-slate-400 border-white/10'
+              }`}>
+                1. Identify
               </span>
-              <span className="w-4 h-0.5 bg-white/20"></span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 2 ? 'bg-emerald-600 text-white' : forgotStep > 2 ? 'bg-emerald-950 text-emerald-300' : 'bg-white/10 text-slate-400'}`}>
+              <span className="text-slate-500 text-xs">→</span>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                forgotStep === 2 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-black/30 text-slate-400 border-white/10'
+              }`}>
                 2. Verify OTP
               </span>
-              <span className="w-4 h-0.5 bg-white/20"></span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${forgotStep === 3 ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-400'}`}>
+              <span className="text-slate-500 text-xs">→</span>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                forgotStep === 3 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-black/30 text-slate-400 border-white/10'
+              }`}>
                 3. New Password
               </span>
             </div>
 
-            <div className="text-center mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center mx-auto mb-2 shadow-inner">
-                <KeyRound className="w-6 h-6" />
-              </div>
-              <h3 className="font-['Grandstander'] text-xl font-bold text-white">
-                {forgotStep === 1
-                  ? 'Reset Password'
-                  : forgotStep === 2
-                  ? 'Verify 6-Digit Code'
-                  : 'Create New Password'}
-              </h3>
-              <p className="text-xs text-emerald-100/90 mt-1 leading-relaxed">
-                {forgotStep === 1
-                  ? 'Enter your registered mobile or email to receive a secure recovery OTP.'
-                  : forgotStep === 2
-                  ? `Enter the 6-digit code for ${maskedTarget || forgotIdentifier} to verify your store ownership.`
-                  : 'Your store ownership has been verified. Choose a new master password.'}
-              </p>
-            </div>
-
+            {/* Status Notifications */}
             {forgotError && (
-              <div className="mb-4 p-3 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-xs flex items-center gap-2">
+              <div className="mb-4 p-3 bg-red-950/80 border border-red-500/40 text-red-200 rounded-xl text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                 <span>{forgotError}</span>
               </div>
             )}
-
             {forgotSuccess && (
-              <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 rounded-xl text-xs flex items-center gap-2">
+              <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 rounded-xl text-xs flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                 <span>{forgotSuccess}</span>
               </div>
             )}
 
-            {/* STEP 1: IDENTIFY ACCOUNT */}
+            {/* STEP 1: IDENTIFY USERNAME/MOBILE */}
             {forgotStep === 1 && (
               <form onSubmit={(e) => { void handleRequestOtp(e); }} className="space-y-4">
                 <div>
                   <label htmlFor="forgot-identifier" className="block text-xs font-bold text-white uppercase tracking-wider mb-1">
-                    Mobile (+91) or Store Email
+                    Store Email or Mobile Number <span className="text-rose-400">*</span>
                   </label>
                   <input
                     id="forgot-identifier"
@@ -876,39 +907,40 @@ export const LoginPage: React.FC = () => {
                     required
                     value={forgotIdentifier}
                     onChange={(e) => setForgotIdentifier(e.target.value)}
-                    placeholder="e.g. 9876543210 or dealer@gmail.com"
-                    className="luminous-input w-full px-4 py-3 text-sm"
+                    placeholder="e.g. 9845211092 or owner@agrokendra.in"
+                    className="agro-input w-full px-4 py-2.5 text-xs text-white rounded-xl"
                   />
-                  <span className="text-[11px] text-emerald-200/80 mt-1 block">
-                    We will send a 6-digit OTP code to verify your store ownership.
-                  </span>
+                  <p className="text-[11px] text-emerald-300/60 mt-1.5 leading-relaxed">
+                    We will send a 6-digit OTP verification code to your registered mobile number and email.
+                  </p>
                 </div>
 
                 <div className="space-y-2 pt-1">
                   <button
                     type="submit"
                     disabled={forgotLoading || !forgotIdentifier.trim()}
-                    className="meadow-cta-btn w-full py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-agrigreen-700 hover:from-emerald-500 hover:to-emerald-600 text-forest-950 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
                   >
                     {forgotLoading ? (
                       <>
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Sending Recovery OTP...</span>
+                        <div className="w-3.5 h-3.5 border-2 border-forest-950 border-t-transparent rounded-full animate-spin" />
+                        <span>Sending OTP...</span>
                       </>
                     ) : (
-                      'Send Recovery OTP →'
+                      <>
+                        <span>Send 6-Digit OTP</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
                     )}
                   </button>
 
-                  {/* Dedicated WhatsApp Fallback Option per Section 4.1 Screen 3 */}
                   <button
                     type="button"
                     onClick={(e) => {
-                      // Trigger request OTP and provide WhatsApp confirmation guidance
                       void handleRequestOtp(e);
                     }}
                     disabled={forgotLoading || !forgotIdentifier.trim()}
-                    className="w-full py-2.5 px-4 rounded-full text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
                     style={{ backgroundColor: '#25D366' }}
                   >
                     <MessageCircle className="w-4 h-4 fill-white" />
@@ -935,7 +967,7 @@ export const LoginPage: React.FC = () => {
                   devOtpCode && (
                     <div className="p-3 bg-amber-950/80 border border-amber-500/40 rounded-xl text-xs text-amber-200 space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white">Local Dev Verification Code:</span>
+                        <span className="font-bold text-white">Verification Code:</span>
                         <button
                           type="button"
                           onClick={() => setResetOtp(devOtpCode)}
@@ -973,7 +1005,7 @@ export const LoginPage: React.FC = () => {
                       setResetOtp(digitsOnly);
                     }}
                     placeholder="000000"
-                    className="luminous-input w-full px-4 py-3.5 text-center tracking-[0.5em] font-mono text-xl text-white font-black"
+                    className="agro-input w-full px-4 py-3 text-center tracking-[0.5em] font-mono text-xl text-white font-black rounded-xl"
                   />
                 </div>
 
@@ -1006,11 +1038,11 @@ export const LoginPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={forgotLoading || resetOtp.length !== 6}
-                    className="meadow-cta-btn px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-agrigreen-700 hover:from-emerald-500 hover:to-emerald-600 text-forest-950 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer shadow-lg"
                   >
                     {forgotLoading ? (
                       <>
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-3.5 h-3.5 border-2 border-forest-950 border-t-transparent rounded-full animate-spin" />
                         <span>Verifying...</span>
                       </>
                     ) : (
@@ -1045,12 +1077,12 @@ export const LoginPage: React.FC = () => {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Min 6 characters"
-                      className="luminous-input w-full pl-4 pr-10 py-3 text-sm text-white"
+                      className="agro-input w-full pl-4 pr-10 py-2.5 text-xs text-white rounded-xl"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3.5 top-3.5 text-emerald-300 hover:text-white cursor-pointer"
+                      className="absolute right-3 top-2.5 text-emerald-300 hover:text-white cursor-pointer"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -1069,7 +1101,7 @@ export const LoginPage: React.FC = () => {
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
                     placeholder="Re-enter password"
-                    className="luminous-input w-full px-4 py-3 text-sm text-white"
+                    className="agro-input w-full px-4 py-2.5 text-xs text-white rounded-xl"
                   />
                 </div>
 
@@ -1087,11 +1119,11 @@ export const LoginPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={forgotLoading || newPassword.length < 6}
-                    className="meadow-cta-btn px-6 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-agrigreen-700 hover:from-emerald-500 hover:to-emerald-600 text-forest-950 text-xs sm:text-sm font-bold flex items-center gap-2 disabled:opacity-60 cursor-pointer shadow-lg"
                   >
                     {forgotLoading ? (
                       <>
-                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-3.5 h-3.5 border-2 border-forest-950 border-t-transparent rounded-full animate-spin" />
                         <span>Updating Password...</span>
                       </>
                     ) : (
@@ -1104,6 +1136,58 @@ export const LoginPage: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── GOOGLE ONE-TAP & OAUTH GUIDE MODAL ──────────────────────────────── */}
+      {showGoogleGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="glass-panel max-w-md w-full p-4 sm:p-6 rounded-2xl border border-emerald-500/30 relative text-white shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-emerald-900/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center p-1.5 shadow-sm">
+                  <svg className="w-full h-full" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Google Sign-In Help</h3>
+                  <p className="text-[11px] text-emerald-300/70">Browser Popup or Script Blocked</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoogleGuide(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="my-4 space-y-3 text-xs text-slate-200">
+              <p>
+                If the Google Sign-In prompt did not appear automatically, please verify:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 text-slate-300 text-[11px] pl-1">
+                <li>Your browser allows popups from this domain</li>
+                <li>Ad-blockers or privacy extensions are not blocking Google Identity Services</li>
+                <li>You can also sign in directly using your <strong>Registered Email/Mobile + Password</strong></li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-emerald-900/60">
+              <button
+                type="button"
+                onClick={() => setShowGoogleGuide(false)}
+                className="px-4 py-2 rounded-xl bg-forest-850 hover:bg-forest-800 text-white text-xs font-bold border border-emerald-500/30 transition cursor-pointer"
+              >
+                Got It
+              </button>
+            </div>
           </div>
         </div>
       )}

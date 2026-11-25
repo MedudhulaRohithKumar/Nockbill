@@ -446,5 +446,82 @@ input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):user-valid
   animation: leafPulse 3s ease-in-out infinite;
 }
 
+/* ─── NockBill Atmospheric Login Glass & Particle Styles ─────────── */
+.login-atmosphere {
+  background-color: #051c14;
+  background-image: 
+    radial-gradient(circle at 18% 25%, rgba(21, 128, 61, 0.22) 0%, transparent 48%),
+    radial-gradient(circle at 82% 70%, rgba(16, 185, 129, 0.16) 0%, transparent 50%),
+    radial-gradient(circle at 50% 10%, rgba(57, 229, 161, 0.08) 0%, transparent 40%),
+    linear-gradient(180deg, #051a13 0%, #03110c 100%);
+  background-attachment: fixed;
+}
+
+/* Ambient floating pollen / dust particles */
+.particle {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(234, 248, 215, 0.85) 0%, rgba(167, 243, 208, 0.1) 70%, transparent 100%);
+  pointer-events: none;
+  filter: blur(0.5px);
+  animation: floatPollen linear infinite alternate;
+}
+
+@keyframes floatPollen {
+  0% {
+    transform: translateY(0px) translateX(0px) scale(0.9);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-28px) translateX(14px) scale(1.15);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateY(-55px) translateX(-10px) scale(0.95);
+    opacity: 0.3;
+  }
+}
+
+/* CAPTCHA texture overlay */
+.captcha-noise {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(56, 189, 248, 0.08),
+    rgba(56, 189, 248, 0.08) 3px,
+    rgba(16, 185, 129, 0.12) 3px,
+    rgba(16, 185, 129, 0.12) 6px
+  );
+}
+
+/* Custom glass paneling */
+.glass-panel {
+  background: linear-gradient(135deg, rgba(14, 38, 30, 0.88) 0%, rgba(9, 27, 21, 0.94) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(52, 211, 153, 0.16);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 35px rgba(16, 185, 129, 0.06);
+}
+
+.glass-subcard {
+  background: rgba(14, 40, 31, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(74, 222, 128, 0.15);
+}
+
+/* Custom input focus glows */
+.agro-input {
+  background: rgba(22, 48, 38, 0.55);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.agro-input:focus {
+  background: rgba(26, 58, 46, 0.8);
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.18);
+  outline: none;
+}
+
+
 
 

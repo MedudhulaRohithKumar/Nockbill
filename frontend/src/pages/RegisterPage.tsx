@@ -423,7 +423,7 @@ export const RegisterPage: React.FC = () => {
     }
   };
 
-  // Download credentials in AWS IAM CSV Format
+  // Download credentials in Store Access Keys CSV Format
   const downloadCredentialsCsv = () => {
     if (!generatedCreds) return;
     const headers = ['User name', 'Password', 'Access URL', 'Account ID', 'Shop Name', 'Owner Name', 'Email', 'Phone', 'GSTIN', 'Fertilizer License', 'Created At'];
@@ -1175,7 +1175,7 @@ passwords across unencrypted emails or chat messages.
             </form>
           )}
 
-          {/* STEP 4: AWS STYLE CREDENTIALS DOWNLOAD */}
+          {/* STEP 4: MASTER CREDENTIALS DOWNLOAD */}
           {step === 4 && generatedCreds && (
             <div className="space-y-3 sm:space-y-4 animate-in fade-in zoom-in-95 duration-300">
               {/* Top Banner */}

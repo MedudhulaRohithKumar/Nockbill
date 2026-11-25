@@ -30,7 +30,7 @@ class LoginRequest(BaseModel):
     shop_account_id: Optional[str] = Field(
         default=None,
         max_length=100,
-        description="Optional AWS-style Shop Account ID (e.g. SHOP-00001) or shop alias for IAM staff login",
+        description="Optional Shop Account ID (e.g. SHOP-00001) or shop alias for staff login",
     )
 
     @field_validator("username")

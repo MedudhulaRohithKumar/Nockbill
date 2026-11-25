@@ -320,7 +320,7 @@ export const STACKED_CARDS: StackedCard[] = [
         code: 'MOD-21',
         name: 'Shop Management & IAM RBAC',
         path: '/settings',
-        badge: 'AWS-Style IAM',
+        badge: 'Staff RBAC Access',
         badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
         summary: 'Multi-user roles (Owner, Manager, Cashier, Agronomist), invoice template builder, and statutory licenses.',
         detail: 'Granular permissions, custom logo upload, thermal 80mm vs A4 template switcher, and statutory fertilizer, seed, and pesticide license registrations.',

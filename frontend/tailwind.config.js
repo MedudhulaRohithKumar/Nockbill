@@ -33,6 +33,22 @@ export default {
           800: '#92400e',
           900: '#78350f',
         },
+        forest: {
+          950: '#03140e',
+          900: '#051c14',
+          850: '#09251c',
+          800: '#0e2e23',
+          700: '#143c2f',
+          600: '#1d5140',
+        },
+        agrigreen: {
+          300: '#6ee7b7',
+          400: '#34d399',
+          500: '#10b981',
+          600: '#059669',
+          700: '#15803d',
+          accent: '#39e5a1',
+        },
         // Meadowbell Agro ERP Design Tokens
         "on-tertiary-container": "#d0ffd7",
         "inverse-on-surface": "rgb(var(--color-inverse-on-surface) / <alpha-value>)",
