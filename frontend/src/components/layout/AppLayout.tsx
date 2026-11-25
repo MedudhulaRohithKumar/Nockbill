@@ -473,31 +473,31 @@ export const AppLayout: React.FC = () => {
       ========================================================================= */}
       <header
         role="banner"
-        className="fixed top-0 left-0 md:left-20 right-0 h-16 z-30 bg-surface/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-4 transition-colors"
+        className="fixed top-0 left-0 md:left-20 right-0 h-16 z-30 bg-surface/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-outline-variant/30 dark:border-slate-800 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:px-6 flex items-center justify-between gap-2 sm:gap-4 transition-colors"
       >
         {/* Left: Mobile Toggle & Store Credentials */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile hamburger trigger */}
           <button
             type="button"
             aria-label="Toggle Mobile Menu"
             onClick={() => setMobileMenuOpen(prev => !prev)}
-            className="md:hidden p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary rounded-xl"
+            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center text-on-surface-variant dark:text-slate-300 hover:text-primary rounded-xl shrink-0"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
           {/* Store Credentials */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex h-2 w-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-forest-emerald" />
               </span>
-              <span className="text-xs sm:text-sm font-black text-on-surface dark:text-white tracking-tight truncate max-w-[200px] sm:max-w-xs">
+              <span className="text-xs sm:text-sm font-black text-on-surface dark:text-white tracking-tight truncate max-w-[130px] xs:max-w-[190px] sm:max-w-xs">
                 {shopNameDisplay}
               </span>
-              <span className="hidden sm:inline-block rounded-md bg-surface-container-high dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono font-bold text-on-surface-variant dark:text-slate-300">
+              <span className="hidden sm:inline-block rounded-md bg-surface-container-high dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono font-bold text-on-surface-variant dark:text-slate-300 shrink-0">
                 #{gstinDisplay}
               </span>
             </div>
@@ -535,7 +535,7 @@ export const AppLayout: React.FC = () => {
             onClick={toggleDarkMode}
             aria-label={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-amber-400 hover:text-primary transition-all active:scale-95"
+            className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 flex items-center justify-center rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-amber-400 hover:text-primary transition-all active:scale-95 shrink-0"
           >
             {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-600" />}
           </button>
@@ -546,26 +546,26 @@ export const AppLayout: React.FC = () => {
             onClick={() => void fetchTelemetry()}
             disabled={isRefreshingTelemetry}
             aria-label="Refresh Counter Telemetry"
-            className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all active:scale-95 disabled:opacity-50"
+            className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 flex items-center justify-center rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all active:scale-95 disabled:opacity-50 shrink-0"
             title="Refresh Live Telemetry"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshingTelemetry ? 'animate-spin text-primary' : ''}`} />
           </button>
 
           {/* Notification Bell */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               type="button"
               aria-label="Notifications"
               onClick={() => setShowNotificationToast(prev => !prev)}
-              className="rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all relative"
+              className="min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 flex items-center justify-center rounded-xl border border-outline-variant/30 dark:border-slate-800 bg-surface-container-lowest dark:bg-slate-800 p-2 text-on-surface-variant dark:text-slate-300 hover:text-primary transition-all relative"
             >
               <Bell className="h-4 w-4" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-critical-rose" />
             </button>
 
             {showNotificationToast && (
-              <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 text-xs">
+              <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[4.25rem] sm:top-auto sm:mt-2 sm:w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3 z-50 text-xs">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-100">
                   <span>Store Notifications</span>
                   <span className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300 px-1.5 py-0.5 rounded font-mono">1 NEW</span>
@@ -600,7 +600,7 @@ export const AppLayout: React.FC = () => {
       {/* =========================================================================
           3. RECLAIMED CANVAS WORKSTATION
       ========================================================================= */}
-      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface dark:bg-slate-950 text-on-surface dark:text-slate-100 flex-1 overflow-x-hidden pt-16 pb-20 md:pb-6 transition-colors">
+      <main className="md:pl-20 md:pt-16 min-h-screen bg-surface dark:bg-slate-950 text-on-surface dark:text-slate-100 flex-1 w-full max-w-full min-w-0 pt-16 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-6 transition-colors">
         <Outlet />
       </main>
 
@@ -615,7 +615,7 @@ export const AppLayout: React.FC = () => {
         >
           <aside
             aria-label="Mobile Menu"
-            className="w-72 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-full p-4 flex flex-col justify-between shadow-2xl overflow-y-auto border-r border-slate-200 dark:border-slate-800"
+            className="w-72 max-w-[82vw] bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 h-full p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] flex flex-col justify-between shadow-2xl overflow-y-auto border-r border-slate-200 dark:border-slate-800"
           >
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -682,7 +682,7 @@ export const AppLayout: React.FC = () => {
       ========================================================================= */}
       <nav
         aria-label="Mobile Quick Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 py-1.5 px-2 flex items-center justify-around z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] pb-[max(0.375rem,env(safe-area-inset-bottom))]"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pt-1.5 pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
       >
         {bottomNavItems.map((item) => {
           const Icon = item.icon;

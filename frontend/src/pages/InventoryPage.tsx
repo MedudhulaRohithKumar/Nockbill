@@ -890,13 +890,13 @@ export const InventoryPage: React.FC = () => {
   };
 
   return (
-    <div className="p-space-md sm:p-space-lg max-w-[1680px] mx-auto space-y-space-md">
+    <div className="px-3 py-4 sm:p-space-lg max-w-[1680px] mx-auto space-y-space-md">
       {/* =====================================================================
           1. INTERACTIVE TOP ACTION HEADER & BREADCRUMB
       ===================================================================== */}
       <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 flex flex-col xl:flex-row xl:items-center justify-between gap-space-md">
         <div className="flex flex-col gap-1">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2">
+          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => navigate('/dashboard')}

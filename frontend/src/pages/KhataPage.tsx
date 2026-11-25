@@ -351,7 +351,7 @@ export const KhataPage: React.FC = () => {
   const CurrentModuleIcon = currentModule.icon;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="px-3 py-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* ─── SECTION 1: HEADER BANNER CARD ──────────────────────────────────── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
         <div className="flex items-start sm:items-center gap-4">

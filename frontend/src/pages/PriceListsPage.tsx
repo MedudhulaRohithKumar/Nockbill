@@ -688,7 +688,7 @@ export const PriceListsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-space-md sm:p-space-lg max-w-[1680px] mx-auto space-y-space-md pb-16">
+    <div className="px-3 py-4 sm:p-space-lg max-w-[1680px] mx-auto space-y-space-md pb-8">
       {/* Toast Notification */}
       {toast && (
         <div

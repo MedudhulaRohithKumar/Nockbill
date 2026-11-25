@@ -528,6 +528,79 @@ input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):user-valid
   background-attachment: fixed;
 }
 
+/* ─── Unified Mobile Form-Factor, Safe-Area & Dynamic Viewport Layer ─── */
+html {
+  scroll-padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
+  scroll-padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+body {
+  overflow-wrap: break-word;
+}
+
+:where(a, code) {
+  overflow-wrap: anywhere;
+}
+
+:where(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+:where(p, li) {
+  text-wrap: pretty;
+}
+
+.min-h-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.max-h-\[92vh\],
+.max-h-\[95vh\] {
+  max-height: 92vh;
+  max-height: 90dvh;
+}
+
+.mobile-tab-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-snap-type: inline proximity;
+  scroll-padding-inline: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.mobile-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-tab-strip > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+@media (pointer: coarse) {
+  :where(select, textarea, input:not([type="checkbox"], [type="radio"], [type="range"])) {
+    min-block-size: 40px;
+  }
+}
+
+@media (max-width: 639px) {
+  /* Prevent iOS Safari involuntary viewport zoom when focusing inputs (< 16px) */
+  input:not([type="checkbox"], [type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Avoid mobile scroll repaint thrashing from fixed backgrounds */
+  .login-atmosphere,
+  .license-atmosphere {
+    background-attachment: scroll;
+  }
+}
+
 
 
 

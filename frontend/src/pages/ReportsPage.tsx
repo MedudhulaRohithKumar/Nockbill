@@ -226,7 +226,7 @@ export const ReportsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="px-3 py-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* ─── TOP ACTION & TITLE BAR ─────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -296,7 +296,7 @@ export const ReportsPage: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 transition-colors">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Tabs Navigation */}
-          <nav aria-label="Report tabs" className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl overflow-x-auto max-w-full">
+          <nav aria-label="Report tabs" className="mobile-tab-strip items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl max-w-full">
             <button
               type="button"
               onClick={() => setActiveTab('sales')}

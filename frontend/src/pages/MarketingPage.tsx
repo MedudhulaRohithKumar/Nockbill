@@ -1331,7 +1331,7 @@ export const MarketingPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div tabIndex={0} role="region" aria-label="Recent broadcasts and campaign ledger" className="overflow-x-auto max-w-full">
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider border-y border-slate-200 dark:border-slate-800">

@@ -268,7 +268,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden flex flex-col my-auto border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-xl w-full max-h-[92vh] overflow-y-auto flex flex-col my-auto border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">

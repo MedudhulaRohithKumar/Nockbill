@@ -523,23 +523,23 @@ export const HomePage: React.FC = () => {
       </a>
 
       {/* ─── FLOATING TOP NAVIGATION BAR ─────────────────────────────────────── */}
-      <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-6 lg:px-8 py-3.5 transition-all duration-300">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="fixed top-0 left-0 right-0 z-40 pl-[max(0.75rem,env(safe-area-inset-left,0px))] pr-[max(0.75rem,env(safe-area-inset-right,0px))] sm:px-6 lg:px-8 py-3 sm:py-3.5 transition-all duration-300">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand Mark: Strictly NockBill */}
           <Link
             to="/"
             aria-label="NockBill Agri ERP Home"
-            className="flex items-center gap-2.5 bg-white/95 hover:bg-white backdrop-blur-md px-4 py-2 rounded-full border border-slate-200/80 shadow-sm transition-all group"
+            className="flex items-center gap-2 sm:gap-2.5 bg-white/95 hover:bg-white backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-slate-200/80 shadow-sm transition-all group shrink-0"
           >
-            <div className="w-8 h-8 rounded-full bg-emerald-900 flex items-center justify-center text-emerald-200 shadow-inner">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-900 flex items-center justify-center text-emerald-200 shadow-inner shrink-0">
               <Sprout className="w-4 h-4 text-emerald-300" />
             </div>
             <div className="flex flex-col">
               <div className="flex items-baseline gap-1">
-                <span className="font-['Grandstander'] font-black text-xl text-emerald-950 leading-none tracking-tight">
+                <span className="font-['Grandstander'] font-black text-lg sm:text-xl text-emerald-950 leading-none tracking-tight">
                   Nock<span className="text-emerald-800">Bill</span>
                 </span>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-900 font-black">
+                <span className="hidden xs:inline text-[10px] font-mono uppercase tracking-widest text-emerald-900 font-black">
                   Agri ERP
                 </span>
               </div>
@@ -577,29 +577,29 @@ export const HomePage: React.FC = () => {
           </nav>
 
           {/* Right Action Buttons */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-xs bg-emerald-800 text-white shadow-md hover:bg-emerald-900 transition-all"
+                className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-full font-bold text-xs bg-emerald-800 text-white shadow-md hover:bg-emerald-900 transition-all whitespace-nowrap"
               >
                 <span>Store Dashboard</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </Link>
             ) : (
               <>
                 <Link
                   to="/login"
-                  className="px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-950/85 hover:bg-emerald-900 backdrop-blur-md border border-emerald-700/60 transition-all shadow-sm"
+                  className="px-3 sm:px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-950/85 hover:bg-emerald-900 backdrop-blur-md border border-emerald-700/60 transition-all shadow-sm whitespace-nowrap"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-xs bg-white text-emerald-800 shadow-md hover:bg-emerald-50 border border-emerald-200 transition-all transform hover:-translate-y-0.5"
+                  className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 rounded-full font-bold text-xs bg-white text-emerald-800 shadow-md hover:bg-emerald-50 border border-emerald-200 transition-all transform hover:-translate-y-0.5 whitespace-nowrap"
                 >
                   <span>Open Store</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-emerald-800" />
+                  <ArrowRight className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
                 </Link>
               </>
             )}

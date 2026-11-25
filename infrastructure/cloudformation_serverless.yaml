@@ -638,7 +638,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ks-frontend-spa-${Environment}
-      Runtime: python3.11
+      Runtime: python3.13
       Handler: lambda_handler.handler
       CodeUri: ../frontend
       MemorySize: 512

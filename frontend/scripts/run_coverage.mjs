@@ -134,8 +134,11 @@ async function runFrontendSuite() {
   assert.ok(homeTsx.includes('kind="captions"'), 'HomePage.tsx <video> must include a captions <track>');
   assert.ok(homeTsx.includes('/images/pos_3d.webp'), 'HomePage.tsx must serve compressed WebP images');
   assert.ok(!homeTsx.includes('htmlFor="crop-select-label"'), 'HomePage.tsx must not point <label htmlFor> at a non-control element');
-  totalAssertions += 9;
-  console.log('✓ [Test 3d] Lighthouse CSP, bfcache, WebP, <main> landmark & <video> captions checks passed');
+  assert.ok(indexHtml.includes('viewport-fit=cover'), 'index.html must enable viewport-fit=cover for notched mobile safe areas');
+  const indexCss = fs.readFileSync(path.join(SRC_DIR, 'index.css'), 'utf8');
+  assert.ok(indexCss.includes('100dvh') && indexCss.includes('.mobile-tab-strip'), 'index.css must define dvh viewport fallback and mobile-tab-strip');
+  totalAssertions += 11;
+  console.log('✓ [Test 3d] Lighthouse CSP, bfcache, WebP, <main> landmark, <video> captions & mobile dvh/safe-area checks passed');
 
   const runtimeAssertions = await runRuntimeUnitTests();
   totalAssertions += runtimeAssertions;

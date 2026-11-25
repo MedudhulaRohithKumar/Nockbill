@@ -20,10 +20,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24 LTS
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -39,10 +39,10 @@ jobs:
           test -f frontend/dist/index.html || { echo "Frontend dist/index.html missing!"; exit 1; }
           echo "Frontend SPA bundle successfully verified."
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Set up AWS SAM CLI
         run: |

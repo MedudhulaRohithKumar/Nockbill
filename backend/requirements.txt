@@ -24,8 +24,8 @@ dnspython==2.9.2
 # OCR – Tesseract wrapper
 pytesseract==0.3.10
 Pillow==13.0.0
-numpy==1.26.4
-opencv-python-headless==4.9.0.80
+numpy==2.5.5
+opencv-python-headless==5.1.0.95
 
 # OCR – optional cloud providers (install only what you use)
 # google-cloud-vision==3.7.2
@@ -52,6 +52,6 @@ aiofiles==23.2.1
 Jinja2==3.1.6
 
 # Testing & Code Coverage
-pytest==8.2.2
-pytest-cov==5.0.0
-coverage==7.5.3
+pytest==9.2.0
+pytest-cov==7.1.0
+coverage==7.17.5

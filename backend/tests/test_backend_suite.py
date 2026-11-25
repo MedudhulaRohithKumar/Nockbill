@@ -225,6 +225,13 @@ class TestStaticSecurityAndCodeQuality(unittest.TestCase):
         self.assertIn("require-trusted-types-for 'script'", cf_yaml)
         self.assertNotIn("cdn.jsdelivr.net", cf_yaml)
 
+        serverless_yaml = (repo_root / "infrastructure" / "cloudformation_serverless.yaml").read_text(encoding="utf-8")
+        self.assertIn("Runtime: python3.13", serverless_yaml)
+        dockerfile = (BACKEND_DIR / "Dockerfile").read_text(encoding="utf-8")
+        dockerfile_lambda = (BACKEND_DIR / "Dockerfile.lambda").read_text(encoding="utf-8")
+        self.assertIn("FROM python:3.13.", dockerfile)
+        self.assertIn("FROM python:3.13.", dockerfile_lambda)
+
         spec = importlib.util.spec_from_file_location(
             "frontend_lambda_suite", str(repo_root / "frontend" / "lambda_handler.py")
         )

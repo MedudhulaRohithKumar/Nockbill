@@ -447,9 +447,9 @@ export const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-20 text-slate-800">
+    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 text-slate-800 dark:text-slate-100">
       {/* Main Content Workspace */}
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 space-y-6">
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 space-y-6">
         {/* Error Notification Banner if backend call fails */}
         {loadError && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
@@ -1512,7 +1512,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
         </section>
-      </main>
+      </div>
 
       {/* =========================================================================
           7. FLOATING STATUS DOCK (BOTTOM RIGHT)
@@ -1520,7 +1520,7 @@ export const DashboardPage: React.FC = () => {
       {isDockVisible && (
         <aside
           aria-label="Counter status"
-          className="fixed bottom-4 right-4 z-40 flex items-center gap-3 rounded-2xl bg-emerald-950 text-white px-4 py-2.5 shadow-2xl border border-emerald-800/80 backdrop-blur"
+          className="fixed bottom-20 md:bottom-4 left-3 right-3 sm:left-auto sm:right-4 z-40 flex items-center justify-between sm:justify-start gap-3 rounded-2xl bg-emerald-950 text-white px-4 py-2.5 shadow-2xl border border-emerald-800/80 backdrop-blur"
         >
           <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>

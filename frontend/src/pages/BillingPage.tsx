@@ -682,10 +682,10 @@ export const BillingPage: React.FC = () => {
   const upiId = (settings.upi_id || 'store@upi').trim();
 
   return (
-    <div className="w-full min-h-screen bg-surface font-sans text-on-surface antialiased pb-20">
+    <div className="w-full min-h-screen bg-surface font-sans text-on-surface antialiased">
       <div className="flex flex-col w-full">
         {/* ─── POS QUICK BILLING WORKSPACE CONTAINER ─── */}
-        <div className="w-full flex flex-col gap-4 p-4 sm:p-6 max-w-[1600px] mx-auto">
+        <div className="w-full flex flex-col gap-4 px-3 py-4 sm:p-6 max-w-[1600px] mx-auto">
           
           {/* TOP COMMAND & HOTKEY STRIP */}
           <div className="w-full bg-surface-container-lowest/80 backdrop-blur-xl rounded-2xl p-4 shadow-xs border border-surface-container flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">

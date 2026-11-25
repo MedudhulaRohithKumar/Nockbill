@@ -383,15 +383,12 @@ export const SettingsPage: React.FC = () => {
           >
             <Save className="w-4 h-4 text-emerald-300" />
             <span>{isSaving ? 'Saving Changes...' : 'Save All Changes'}</span>
-            <span className="bg-black/20 text-white text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ml-1">
-              Ctrl+S
-            </span>
           </button>
         </div>
       </div>
 
       {/* Quick-Jump Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xs p-1.5 rounded-2xl shadow-xs border border-slate-200 dark:border-slate-800 transition-colors">
+      <div className="mobile-tab-strip items-center gap-1.5 pb-1 bg-white/70 dark:bg-slate-900/80 backdrop-blur-xs p-1.5 rounded-2xl shadow-xs border border-slate-200 dark:border-slate-800 transition-colors">
         {[
           { id: 'panel-store', label: 'Trade Licenses & Store Profile', icon: Store, badge: '3 ACTIVE', badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300' },
           { id: 'panel-bank', label: 'Bank & Merchant UPI QR', icon: Landmark, badge: 'NPCI T+0', badgeColor: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300' },

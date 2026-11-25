@@ -21,10 +21,24 @@ jobs:
           # Disabling shallow clone is recommended for improving relevancy of reporting
           fetch-depth: 0
 
-      - name: Set up Python 3.11
+      - name: Set up Node.js 24 LTS
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python 3.13
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: '3.11'
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Backend & Frontend Test Dependencies
+        run: |
+          pip install --no-cache-dir --only-binary :all: -r backend/requirements.txt
+          npm --prefix frontend ci --ignore-scripts
 
       - name: Run Backend Tests & Generate Coverage XML
         run: python3 backend/tests/generate_coverage_xml.py
