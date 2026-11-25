@@ -402,7 +402,7 @@ def activate_subscription(
 ):
     """
     Activate a subscription plan.
-    Supports a 1-Month Free Trial (All Features Included) for up to 2 new stores,
+    Supports a 1-Month Free Trial (All Features Included),
     as well as demo activation when DEMO_ACTIVATION_ALLOWED is True.
     """
     shop_id = getattr(current_user, "shop_id", None)
@@ -432,26 +432,13 @@ def activate_subscription(
     clean_ref = (payload.payment_ref or f"TRIAL-1M-SHOP{shop_id}").strip()
 
     if is_free_trial:
-        # Enforce early access quota: access to up to 2 new users/stores
-        new_active_shops = db.query(ShopSettings).filter(
-            ShopSettings.id > 1,
-            ShopSettings.subscription_status == "ACTIVE"
-        ).count()
-
-        if new_active_shops >= 2 and shop.subscription_status != "ACTIVE":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Free trial early access capacity reached. Currently limited to 2 new stores. Please contact support to activate your store.",
-            )
-
         current_user.subscription_status = "ACTIVE"
         shop.subscription_status = "ACTIVE"
 
-        slot_num = new_active_shops + 1 if shop_id > 1 else 1
         audit = AuditLog(
             user_id=current_user.id,
             action=AuditAction.SETTINGS_UPDATE,
-            description=f"1-Month Free Trial (All Features) activated for shop {shop.shop_name} (Access Slot {slot_num}/2). Ref: {clean_ref}",
+            description=f"1-Month Free Trial (All Features) activated for shop {shop.shop_name}. Ref: {clean_ref}",
         )
         db.add(audit)
         db.commit()

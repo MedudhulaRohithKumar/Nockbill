@@ -410,7 +410,7 @@ export const SubscriptionPaymentPage: React.FC = () => {
                     <p className="text-[11px] text-emerald-300/90 mt-1">₹0.00 billed for 30 days full access</p>
                   </div>
                   <div className="mt-3 pt-2 border-t border-emerald-800/60 text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                    ★ Early Access Trial (2 Stores)
+                    ★ 1-Month Full Access Free Trial
                   </div>
                 </button>
 
