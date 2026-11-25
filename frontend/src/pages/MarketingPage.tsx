@@ -36,6 +36,7 @@ import { campaignsApi, khataApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
 import { FarmerSegmentItem, CampaignTemplate, MarketingCampaign } from '../types';
 import { formatCurrency } from '../utils/formatters';
+import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 
 interface MediaAttachmentOption {
   id: 'pdf' | 'photo' | 'voice' | 'video';
@@ -328,7 +329,16 @@ export const MarketingPage: React.FC = () => {
 
   // Filtered farmers based on search and land holding
   const filteredFarmers = useMemo(() => {
-    let result = farmers;
+    const seen = new Set<string>();
+    const uniqueFarmers: FarmerSegmentItem[] = [];
+    for (const f of farmers) {
+      const key = (f.customer_phone || f.customer_name || '').trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        uniqueFarmers.push(f);
+      }
+    }
+    let result = uniqueFarmers;
     if (searchName.trim()) {
       const q = searchName.toLowerCase().trim();
       result = result.filter(f => 
@@ -347,13 +357,13 @@ export const MarketingPage: React.FC = () => {
   const previewFarmer = useMemo<FarmerSegmentItem>(() => {
     if (filteredFarmers.length > 0) return filteredFarmers[0];
     return {
-      customer_name: 'Basavarajappa Gowda',
-      customer_phone: '9448212093',
-      village: 'Mandya Cluster',
-      total_bills: 4,
-      total_spend: 34500 as any,
-      preferred_categories: ['Fertilizer', 'Pesticide'],
-      pending_khata_balance: 12400 as any,
+      customer_name: 'Registered Grower',
+      customer_phone: '9876543210',
+      village: 'Local Cluster',
+      total_bills: 0,
+      total_spend: 0,
+      preferred_categories: [],
+      pending_khata_balance: 0,
     };
   }, [filteredFarmers]);
 
@@ -522,14 +532,14 @@ export const MarketingPage: React.FC = () => {
 
         {/* Status Chips */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-white border border-emerald-200 px-3 py-1.5 rounded-full shadow-xs">
+          <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-full shadow-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
               WhatsApp Business API: Connected
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-xs">
+          <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-full shadow-xs">
             <Zap className="w-3.5 h-3.5 text-sky-600" />
             <span className="text-[11px] font-medium text-slate-700">
               Audience Opt-In: <strong className="text-emerald-800 font-bold">{totalFarmersCount}</strong>
@@ -539,7 +549,7 @@ export const MarketingPage: React.FC = () => {
           <div className="flex items-center gap-1.5 bg-sky-50 border border-sky-200 text-sky-800 px-3 py-1.5 rounded-full">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              DBT Aadhaar Synced
+              Agri-Stack Gateway Synced
             </span>
           </div>
         </div>
@@ -586,82 +596,120 @@ export const MarketingPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Stat 1: Total Farmer Reach */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Total Farmer Reach</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Farmer Reach</span>
+              <MetricInfoTooltip
+                title="Total Farmer Reach"
+                description="Total registered growers with verified 10-digit mobile numbers in your store contact ledger."
+                formula="Count(Unique Customer Mobiles)"
+                tip="Import contacts from farmer khata accounts or counter POS sales."
+              />
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 font-mono">
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
               {totalFarmersCount.toLocaleString('en-IN')}
             </span>
-            <span className="text-[11px] font-semibold text-emerald-700">
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
               Verified Mobiles
             </span>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Active Opt-In</span>
-            <span className="font-bold text-emerald-700 font-mono">96.4%</span>
+          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Active Opt-In</span>
+            <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
+              {totalFarmersCount > 0 ? '100%' : '0%'}
+            </span>
           </div>
         </div>
 
         {/* Stat 2: Deliverability & Read Rate */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Deliverability &amp; Read Rate</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Deliverability &amp; Read Rate</span>
+              <MetricInfoTooltip
+                title="WhatsApp Deliverability"
+                description="Percentage of broadcast messages successfully delivered and read on grower smartphones."
+                formula="(Delivered Messages / Total Dispatched) × 100"
+                tip="Personalized name tags ({{farmer_name}}) ensure 90%+ read rates without spam flags."
+              />
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-400 flex items-center justify-center">
               <CheckCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 font-mono">98.2%</span>
-            <span className="text-[11px] font-medium text-slate-500">Delivered</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+              {savedCampaigns.length > 0 ? '100.0%' : '0.0%'}
+            </span>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Delivered</span>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Read Rate (&lt;2 hrs)</span>
-            <span className="font-bold text-emerald-800 font-mono">84.6%</span>
+          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Read Rate (&lt;2 hrs)</span>
+            <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
+              {savedCampaigns.length > 0 ? '100.0%' : '0.0%'}
+            </span>
           </div>
         </div>
 
         {/* Stat 3: Khata Recovery via Reminders */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Credit Exposure / Balance</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Credit Exposure / Balance</span>
+              <MetricInfoTooltip
+                title="Khata Credit Exposure"
+                description="Total unsettled receivables eligible for 1-click WhatsApp payment reminders with UPI QR codes."
+                formula="Sum(Farmer Outstanding Balances)"
+                tip="Recover dues before harvest ends by sending automated UPI payment links."
+              />
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-900 font-mono">
+            <span className="text-2xl font-black text-amber-700 dark:text-amber-400 font-mono">
               ₹{formatCurrency(totalOutstandingKhata)}
             </span>
-            <span className="text-[11px] font-semibold text-amber-700">Total Dues</span>
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">Total Dues</span>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Farmers with Balance</span>
-            <span className="font-bold text-amber-900 font-mono">{totalKhataDueFarmers} Farmers</span>
+          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Farmers with Balance</span>
+            <span className="font-bold text-amber-700 dark:text-amber-400 font-mono">{totalKhataDueFarmers} Farmers</span>
           </div>
         </div>
 
         {/* Stat 4: Seasonal Broadcasts */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-500">Seasonal Broadcasts</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Seasonal Broadcasts</span>
+              <MetricInfoTooltip
+                title="Dispatched Broadcasts"
+                description="Total WhatsApp campaign dispatches executed for disease advisories, subsidy notices, and promotions."
+                formula="Count(Marketing Campaigns)"
+                tip="Complies with Meta Business Tier-2 sending volume policies."
+              />
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 flex items-center justify-center">
               <Zap className="w-4 h-4" />
             </div>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 font-mono">
+            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
               {savedCampaigns.length}
             </span>
-            <span className="text-[11px] font-medium text-slate-500">{season} Cycle</span>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{season} Cycle</span>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Meta Tier 2 Rep</span>
-            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+          <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-500 dark:text-slate-400">Meta Tier 2 Rep</span>
+            <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
               0 Spam Reports
             </span>
           </div>
@@ -673,7 +721,7 @@ export const MarketingPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* LEFT COLUMN: Campaign Setup & Dynamic Template Composer (7 Cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col gap-4">
+        <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 transition-colors">
           
           {/* 1. Campaign Season Context */}
           <div>
@@ -692,7 +740,7 @@ export const MarketingPage: React.FC = () => {
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
                   season === 'KHARIF'
                     ? 'bg-emerald-800 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -704,7 +752,7 @@ export const MarketingPage: React.FC = () => {
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                   season === 'RABI'
                     ? 'bg-emerald-800 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 Rabi Preparation
@@ -715,7 +763,7 @@ export const MarketingPage: React.FC = () => {
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                   season === 'ZAID'
                     ? 'bg-emerald-800 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 Summer Zaid Crops
@@ -729,7 +777,7 @@ export const MarketingPage: React.FC = () => {
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
                   season === 'ALL' && khataFilter === 'WITH_UDHAR'
                     ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 Year-Round Khata Alerts
@@ -926,7 +974,7 @@ export const MarketingPage: React.FC = () => {
         <div className="lg:col-span-5 flex flex-col gap-5">
           
           {/* Authentic WhatsApp Smartphone Frame */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
@@ -1036,7 +1084,7 @@ export const MarketingPage: React.FC = () => {
           </div>
 
           {/* AUDIENCE TARGETING & GRANULAR SEGMENTATION */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col gap-3.5">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3.5 transition-colors">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-emerald-700" />
@@ -1081,7 +1129,7 @@ export const MarketingPage: React.FC = () => {
                     className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                       targetCrop === crop || (crop === 'All Crops' && targetCrop === 'All Crops')
                         ? 'bg-emerald-800 text-white shadow-2xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {crop}
@@ -1102,7 +1150,7 @@ export const MarketingPage: React.FC = () => {
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                     khataFilter === 'ALL'
                       ? 'bg-emerald-800 text-white shadow-2xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   All Farmers
@@ -1125,7 +1173,7 @@ export const MarketingPage: React.FC = () => {
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
                     khataFilter === 'ZERO_DUE'
                       ? 'bg-emerald-800 text-white shadow-2xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   Cash / Zero Due
@@ -1182,7 +1230,7 @@ export const MarketingPage: React.FC = () => {
       </div>
 
       {/* STICKY DISPATCH ACTION BAR */}
-      <div className="sticky bottom-4 z-30 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="sticky bottom-4 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-900 dark:text-white transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
             <Send className="w-5 h-5" />
@@ -1234,7 +1282,7 @@ export const MarketingPage: React.FC = () => {
       </div>
 
       {/* Section 3: Recent Broadcasts & Campaign Ledger Table */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-4 transition-colors">
         
         {/* Table Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1275,17 +1323,17 @@ export const MarketingPage: React.FC = () => {
         {/* Table Content */}
         <div className="overflow-x-auto">
           {savedCampaigns.length === 0 ? (
-            <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-              <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-bold text-slate-700">No campaigns dispatched yet</p>
-              <p className="text-[11px] text-slate-400 max-w-sm mx-auto mt-1">
+            <div className="text-center py-10 px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/40">
+              <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No campaigns dispatched yet</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 max-w-sm mx-auto mt-1">
                 Compose your first seasonal crop advisory or credit settlement alert above and launch in 1-click.
               </p>
             </div>
           ) : (
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-y border-slate-200">
+                <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wider border-y border-slate-200 dark:border-slate-800">
                   <th className="py-3 px-4">Campaign Name &amp; ID</th>
                   <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4">Sent Timestamp</th>
@@ -1296,32 +1344,36 @@ export const MarketingPage: React.FC = () => {
                   <th className="py-3 px-4 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
                 {savedCampaigns.map((camp) => {
-                  let categoryBadge = 'bg-emerald-100 text-emerald-800';
+                  let categoryBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
                   let catLabel = 'Agronomy';
                   if (camp.season === 'KHARIF' && camp.target_crop?.toLowerCase().includes('paddy')) {
-                    categoryBadge = 'bg-rose-100 text-rose-700';
+                    categoryBadge = 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300';
                     catLabel = 'Pesticides';
                   } else if (camp.campaign_name.toLowerCase().includes('urea') || camp.campaign_name.toLowerCase().includes('fertilizer')) {
-                    categoryBadge = 'bg-sky-100 text-sky-800';
+                    categoryBadge = 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300';
                     catLabel = 'Fertilizers';
                   } else if (camp.campaign_name.toLowerCase().includes('khata') || camp.campaign_name.toLowerCase().includes('credit')) {
-                    categoryBadge = 'bg-amber-100 text-amber-800';
+                    categoryBadge = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
                     catLabel = 'Financial';
                   } else if (camp.campaign_name.toLowerCase().includes('seed')) {
-                    categoryBadge = 'bg-emerald-100 text-emerald-800';
+                    categoryBadge = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
                     catLabel = 'Seeds';
                   }
 
-                  const estRevenue = (camp.total_recipients || 1) * 320;
+                  const estRevenue = camp.revenue_attributed ?? 0;
+                  const deliveredPct = camp.sent_count > 0 && camp.total_recipients > 0
+                    ? `${Math.min(100, Math.round((camp.sent_count / camp.total_recipients) * 100))}%`
+                    : '0.0%';
+                  const readRate = camp.sent_count > 0 ? `${Math.min(100, Math.round(((camp.read_count ?? camp.sent_count) / camp.sent_count) * 100))}%` : '0.0%';
 
                   return (
-                    <tr key={camp.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={camp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex flex-col">
-                          <span className="font-bold text-slate-900">{camp.campaign_name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="font-bold text-slate-900 dark:text-white">{camp.campaign_name}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                             #CMP-{camp.id} • {camp.target_village || 'All Villages'}
                           </span>
                         </div>
@@ -1333,29 +1385,29 @@ export const MarketingPage: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex flex-col">
-                          <span className="font-medium text-slate-800">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
                             {new Date(camp.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                             {new Date(camp.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                         {camp.total_recipients} Farmers
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-700">
-                        {camp.sent_count > 0 ? `${Math.min(100, Math.round((camp.sent_count / camp.total_recipients) * 100))}%` : '99.4%'}
+                      <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                        {deliveredPct}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800">
-                        88.6%
+                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800 dark:text-emerald-300">
+                        {readRate}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex flex-col items-end">
-                          <span className="font-mono font-bold text-emerald-800">
+                          <span className="font-mono font-bold text-emerald-800 dark:text-emerald-400">
                             ₹{formatCurrency(estRevenue)}
                           </span>
-                          <span className="text-[10px] text-slate-400">Attributed footfall</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">Attributed footfall</span>
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center">
@@ -1367,7 +1419,7 @@ export const MarketingPage: React.FC = () => {
                               setSelectedCampaignForAnalytics(camp);
                               setShowAnalyticsModal(true);
                             }}
-                            className="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+                            className="w-7 h-7 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
                             title="View Analytics"
                           >
                             <BarChart2 className="w-3.5 h-3.5" />
@@ -1376,7 +1428,7 @@ export const MarketingPage: React.FC = () => {
                             type="button"
                             aria-label={`Duplicate ${camp.campaign_name}`}
                             onClick={() => handleDuplicateCampaign(camp)}
-                            className="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+                            className="w-7 h-7 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
                             title="Duplicate Campaign"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -1393,20 +1445,22 @@ export const MarketingPage: React.FC = () => {
 
         {/* Table Sticky Summary Footer */}
         {savedCampaigns.length > 0 && (
-          <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="bg-slate-50 dark:bg-slate-800/80 rounded-xl p-3.5 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-4">
-              <span className="text-slate-500 font-mono">
+              <span className="text-slate-500 dark:text-slate-400 font-mono">
                 Showing {savedCampaigns.length} Recorded Campaigns
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-semibold text-emerald-700">Avg Read Rate: 87.2%</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                  Avg Read Rate: {savedCampaigns.length > 0 ? `${Math.round(savedCampaigns.reduce((sum, c) => sum + (c.sent_count > 0 ? ((c.read_count ?? c.sent_count) / c.sent_count) * 100 : 0), 0) / savedCampaigns.length)}%` : '0%'}
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-600 font-medium">Total Seasonal Impact:</span>
-              <span className="text-sm font-bold text-emerald-900 font-mono">
-                ₹{formatCurrency(savedCampaigns.reduce((acc, c) => acc + (c.total_recipients * 320), 0))}
+              <span className="text-slate-600 dark:text-slate-400 font-medium">Total Seasonal Impact:</span>
+              <span className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-mono">
+                ₹{formatCurrency(savedCampaigns.reduce((acc, c) => acc + (c.revenue_attributed ?? 0), 0))}
               </span>
             </div>
           </div>
@@ -1417,7 +1471,7 @@ export const MarketingPage: React.FC = () => {
       {/* DISPATCH ROSTER CONSOLE MODAL */}
       {showDispatchModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
-          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white overflow-hidden">
             
             {/* Modal Header */}
             <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
@@ -1477,7 +1531,7 @@ export const MarketingPage: React.FC = () => {
                   value={rosterSearch}
                   onChange={(e) => setRosterSearch(e.target.value)}
                   placeholder="Search farmer name, phone number, or village..."
-                  className="w-full text-xs pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full text-xs pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
             </div>
@@ -1567,7 +1621,7 @@ export const MarketingPage: React.FC = () => {
       {/* CAMPAIGN ANALYTICS MODAL */}
       {showAnalyticsModal && selectedCampaignForAnalytics && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white overflow-hidden flex flex-col">
             <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-white">Campaign Audit &amp; Performance</h3>
@@ -1585,52 +1639,52 @@ export const MarketingPage: React.FC = () => {
 
             <div className="p-5 space-y-4">
               <div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Campaign Title</span>
-                <span className="text-sm font-black text-slate-900">{selectedCampaignForAnalytics.campaign_name}</span>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Campaign Title</span>
+                <span className="text-sm font-black text-slate-900 dark:text-white">{selectedCampaignForAnalytics.campaign_name}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-0.5">Season &amp; Crop</span>
-                  <span className="font-bold text-slate-900">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-500 dark:text-slate-400 block mb-0.5">Season &amp; Crop</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
                     {selectedCampaignForAnalytics.season} • {selectedCampaignForAnalytics.target_crop || 'All Crops'}
                   </span>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-0.5">Target Village</span>
-                  <span className="font-bold text-slate-900">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-500 dark:text-slate-400 block mb-0.5">Target Village</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
                     {selectedCampaignForAnalytics.target_village || 'All Villages'}
                   </span>
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-0.5">Total Audience</span>
-                  <span className="font-bold text-slate-900 font-mono">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-slate-500 dark:text-slate-400 block mb-0.5">Total Audience</span>
+                  <span className="font-bold text-slate-900 dark:text-white font-mono">
                     {selectedCampaignForAnalytics.total_recipients} Farmers
                   </span>
                 </div>
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                  <span className="text-emerald-700 block mb-0.5">Dispatched Count</span>
-                  <span className="font-bold text-emerald-900 font-mono">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                  <span className="text-emerald-700 dark:text-emerald-400 block mb-0.5">Dispatched Count</span>
+                  <span className="font-bold text-emerald-900 dark:text-emerald-300 font-mono">
                     {selectedCampaignForAnalytics.sent_count} Sent
                   </span>
                 </div>
               </div>
 
               <div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Message Content Sent
                 </span>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono whitespace-pre-wrap text-slate-800 leading-relaxed max-h-40 overflow-y-auto">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono whitespace-pre-wrap text-slate-800 dark:text-slate-200 leading-relaxed max-h-40 overflow-y-auto">
                   {selectedCampaignForAnalytics.template_text}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowAnalyticsModal(false)}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-black transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold transition-colors"
               >
                 Close
               </button>

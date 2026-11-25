@@ -181,17 +181,19 @@ export const PriceListsPage: React.FC = () => {
     // Find custom khata and wholesale rules if configured
     const khataRule = priceLists.find(
       (pl) =>
+        pl &&
         pl.is_active &&
-        (pl.name.toLowerCase().includes('khata') ||
-          pl.name.toLowerCase().includes('credit') ||
-          pl.name.toLowerCase().includes('farmer'))
+        ((pl.name || '').toLowerCase().includes('khata') ||
+          (pl.name || '').toLowerCase().includes('credit') ||
+          (pl.name || '').toLowerCase().includes('farmer'))
     );
     const wholesaleRule = priceLists.find(
       (pl) =>
+        pl &&
         pl.is_active &&
-        (pl.name.toLowerCase().includes('wholesale') ||
-          pl.name.toLowerCase().includes('dealer') ||
-          pl.name.toLowerCase().includes('b2b'))
+        ((pl.name || '').toLowerCase().includes('wholesale') ||
+          (pl.name || '').toLowerCase().includes('dealer') ||
+          (pl.name || '').toLowerCase().includes('b2b'))
     );
 
     return {
@@ -207,12 +209,12 @@ export const PriceListsPage: React.FC = () => {
 
   // Selected sample SKUs for live simulator
   const samplePesticide = useMemo(() => {
-    const found = allProducts.find((p) => (p.category || '').toLowerCase().includes('pesticide')) || allProducts[0];
+    const found = allProducts.find((p) => p && (p.category || '').toLowerCase().includes('pesticide')) || allProducts[0];
     return {
       id: found?.id ?? 1,
       name: found?.name || found?.product_name || 'Bayer Regent 0.3G (Fipronil 1kg)',
       product_name: found?.product_name || found?.name || 'Bayer Regent 0.3G (Fipronil 1kg)',
-      category: found?.category || 'Pesticide',
+      category: String(found?.category || 'Pesticide'),
       batch_number: found?.batch_number || 'BYR-8849-24',
       hsn_code: found?.hsn_code || '38089190',
       mrp: found?.mrp || 298.0,
@@ -222,12 +224,12 @@ export const PriceListsPage: React.FC = () => {
   }, [allProducts]);
 
   const sampleFertilizer = useMemo(() => {
-    const found = allProducts.find((p) => (p.category || '').toLowerCase().includes('fertilizer')) || allProducts[1] || allProducts[0];
+    const found = allProducts.find((p) => p && (p.category || '').toLowerCase().includes('fertilizer')) || allProducts[1] || allProducts[0];
     return {
       id: found?.id ?? 2,
       name: found?.name || found?.product_name || 'IFFCO Neem Coated Urea (45kg Bag)',
       product_name: found?.product_name || found?.name || 'IFFCO Neem Coated Urea (45kg Bag)',
-      category: found?.category || 'Fertilizer',
+      category: String(found?.category || 'Fertilizer'),
       batch_number: found?.batch_number || 'IFF-UREA-45',
       hsn_code: found?.hsn_code || '31021000',
       mrp: found?.mrp || 266.5,
@@ -1337,7 +1339,7 @@ export const PriceListsPage: React.FC = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="font-label-badge text-label-badge bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-bold uppercase">
-                        {(samplePesticide.category || 'Pesticide').toUpperCase()}
+                        {String(samplePesticide?.category || 'Pesticide').toUpperCase()}
                       </span>
                       <h3 className="font-title-sm text-body-md text-on-surface font-bold mt-1">
                         {samplePesticide.name || samplePesticide.product_name}

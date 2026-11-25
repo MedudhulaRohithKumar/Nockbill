@@ -173,24 +173,107 @@
 
 /* Print styles for invoices and receipts */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    size: auto;
+    margin: 8mm;
   }
-  #printable-invoice, #printable-invoice * {
-    visibility: visible;
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  #printable-invoice {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 16px;
-    background: white;
-    color: black;
-  }
-  .no-print {
+
+  /* Global UI chrome to hide on print */
+  .no-print,
+  nav,
+  aside,
+  header,
+  #app-sidebar,
+  .sidebar-rail,
+  button:not(.allow-print),
+  .toast-container,
+  [role="tooltip"] {
     display: none !important;
+  }
+
+  /* ── Dedicated Invoice Modal Printing ── */
+  body:has(#printable-invoice) {
+    overflow: visible !important;
+  }
+
+  /* When #printable-invoice is present, hide all other siblings completely (collapsing height to 0) */
+  body:has(#printable-invoice) > *:not(:has(#printable-invoice)) {
+    display: none !important;
+  }
+
+  /* Remove modal constraints and fixed overlay when printing */
+  body:has(#printable-invoice) .fixed,
+  body:has(#printable-invoice) .overflow-y-auto,
+  body:has(#printable-invoice) .overflow-hidden {
+    position: static !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    width: 100% !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #printable-invoice {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 4mm 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: auto !important;
+  }
+
+  /* ── General Report & Table Printing (When #printable-invoice is NOT present) ── */
+  body:not(:has(#printable-invoice)) main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:not(:has(#printable-invoice)) table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+    border-collapse: collapse !important;
+  }
+
+  body:not(:has(#printable-invoice)) tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  body:not(:has(#printable-invoice)) thead {
+    display: table-header-group !important;
+  }
+
+  body:not(:has(#printable-invoice)) tfoot {
+    display: table-footer-group !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 

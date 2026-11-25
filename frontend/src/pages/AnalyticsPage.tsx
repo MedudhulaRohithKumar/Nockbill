@@ -141,7 +141,7 @@ export const AnalyticsPage: React.FC = () => {
   const totalRevenue = useMemo(() => Number.parseFloat(String(data?.summary?.total_revenue || 0)), [data]);
   const grossProfit = useMemo(() => Number.parseFloat(String(data?.summary?.gross_profit || 0)), [data]);
   const blendedMarginPercent = useMemo(() => {
-    if (totalRevenue <= 0) return 14.0;
+    if (totalRevenue <= 0) return 0.0;
     return Number.parseFloat(String(data?.summary?.gross_margin_percent || ((grossProfit / totalRevenue) * 100).toFixed(1)));
   }, [data, grossProfit, totalRevenue]);
 
@@ -158,10 +158,10 @@ export const AnalyticsPage: React.FC = () => {
 
   // Peak Hours calculation from hourly telemetry
   const peakHoursLabel = useMemo(() => {
-    if (!data?.hourly || data.hourly.length === 0) return '4:00 PM – 7:30 PM';
+    if (!data?.hourly || data.hourly.length === 0) return 'No sales recorded';
     const sorted = [...data.hourly].sort((a, b) => b.orders - a.orders);
     const top = sorted[0];
-    if (!top || top.orders === 0) return '4:00 PM – 7:30 PM';
+    if (!top || top.orders === 0) return 'No sales recorded';
     return `${top.label} (${top.orders} orders)`;
   }, [data]);
 
@@ -1274,7 +1274,7 @@ export const AnalyticsPage: React.FC = () => {
               </div>
             </div>
             <div className="mt-4 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Confidence: 94.8%</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">Telemetry: Live Ag-Sensors</span>
               <button
                 type="button"
                 onClick={() => navigate('/purchases')}

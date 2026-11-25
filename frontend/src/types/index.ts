@@ -562,6 +562,8 @@ export interface MarketingCampaign {
   template_text: string;
   total_recipients: number;
   sent_count: number;
+  read_count?: number;
+  revenue_attributed?: number;
   created_at: string;
 }
 

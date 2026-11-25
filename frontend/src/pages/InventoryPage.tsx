@@ -1021,8 +1021,7 @@ export const InventoryPage: React.FC = () => {
       ===================================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
         {/* Card 1: Valuation */}
-        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 dark:bg-emerald-900/20 pointer-events-none" />
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1062,8 +1061,7 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Card 2: Adequate Stock Health */}
-        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-sprout-tint/60 pointer-events-none" />
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1101,8 +1099,7 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Card 3: Reorder Level Alerts */}
-        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-khata-amber-bg/70 pointer-events-none" />
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1144,8 +1141,7 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Card 4: Near Expiry Radar */}
-        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-critical-rose-bg/70 pointer-events-none" />
+        <div className="bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border border-outline-variant/30 relative flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">

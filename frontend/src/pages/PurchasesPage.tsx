@@ -22,6 +22,7 @@ import {
   Barcode,
 } from 'lucide-react';
 import { purchasesApi, productsApi, getErrorMessage } from '../api';
+import api from '../api/client';
 import { Purchase, Product, PurchaseItem } from '../types';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
@@ -267,6 +268,23 @@ export const PurchasesPage: React.FC = () => {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownloadPurchasePdf = async (purId: number, billNo: string) => {
+    try {
+      const res = await api.get(`/purchases/${purId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Purchase_${billNo || purId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(`/api/purchases/${purId}/pdf`, '_blank');
     }
   };
 
@@ -635,15 +653,14 @@ export const PurchasesPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <a
-                          href={purchasesApi.getPdfUrl(pur.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadPurchasePdf(pur.id, pur.bill_number)}
                           className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 text-slate-700 dark:text-slate-300 hover:text-emerald-800 dark:hover:text-emerald-300 rounded-lg border border-slate-200 dark:border-slate-700 transition"
                           title="Download Inward Invoice PDF"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                        </a>
+                        </button>
                       </div>
                     </td>
                   </tr>

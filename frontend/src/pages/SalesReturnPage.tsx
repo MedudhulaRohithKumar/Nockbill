@@ -26,6 +26,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { returnsApi, khataApi, getErrorMessage } from '../api';
+import api from '../api/client';
 import { InvoiceReturnLookup, SalesReturn, ReturnEligibleItem } from '../types';
 import { safeNumber, formatCurrency } from '../utils/formatters';
 import { useShop } from '../context/ShopContext';
@@ -246,8 +247,21 @@ export const SalesReturnPage: React.FC = () => {
     }
   };
 
-  const handleDownloadPdf = (returnId: number) => {
-    window.open(returnsApi.getPdfUrl(returnId), '_blank');
+  const handleDownloadPdf = async (returnId: number) => {
+    try {
+      const res = await api.get(`/returns/${returnId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CreditNote_CN-${returnId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(returnsApi.getPdfUrl(returnId), '_blank');
+    }
   };
 
   const recentThreeCreditNotes = useMemo(() => {
@@ -666,8 +680,8 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('Khata')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'Khata'
-                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 ring-2 ring-emerald-500/20 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/80 ring-2 ring-emerald-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -675,15 +689,15 @@ export const SalesReturnPage: React.FC = () => {
                           <User className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           Farmer Credit
                         </span>
-                        <span className="rounded-full bg-emerald-600 dark:bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-white uppercase">
+                        <span className="rounded-full bg-emerald-600 dark:bg-emerald-400 px-2 py-0.5 text-[9px] font-black text-white dark:text-slate-950 uppercase">
                           Recommended
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Adjust ledger balance</p>
+                      <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Adjust ledger balance</p>
                       {customerOutstandingCredit !== null && (
                         <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between font-mono text-[11px] font-bold">
-                          <span className="text-slate-500 dark:text-slate-400">₹{formatCurrency(customerOutstandingCredit, 0)}</span>
-                          <ArrowRight className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                          <span className="text-slate-600 dark:text-slate-300">₹{formatCurrency(customerOutstandingCredit, 0)}</span>
+                          <ArrowRight className="h-3 w-3 text-slate-400 dark:text-slate-400" />
                           <span className="text-emerald-800 dark:text-emerald-300">
                             ₹{formatCurrency(Math.max(0, customerOutstandingCredit - calculations.calculatedTotalRefund), 0)}
                           </span>
@@ -697,21 +711,21 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('Cash')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'Cash'
-                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 ring-2 ring-emerald-500/20 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          ? 'border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/80 ring-2 ring-emerald-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <IndianRupee className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+                          <IndianRupee className="h-4 w-4 text-slate-700 dark:text-slate-200" />
                           Cash Drawer
                         </span>
                         <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[9px] font-bold text-slate-700 dark:text-slate-200">
                           TILL #01
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Direct cash payout from counter</p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                      <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Direct cash payout from counter</p>
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-600 dark:text-slate-300">
                         <span>Till Status:</span>
                         <span className="font-bold text-slate-900 dark:text-white">Ready</span>
                       </div>
@@ -723,8 +737,8 @@ export const SalesReturnPage: React.FC = () => {
                       onClick={() => setRefundPaymentMethod('UPI')}
                       className={`rounded-2xl p-3.5 text-left transition-all border ${
                         refundPaymentMethod === 'UPI'
-                          ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/70 ring-2 ring-blue-500/20 shadow-sm'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          ? 'border-blue-500 bg-blue-50/90 dark:bg-blue-950/80 ring-2 ring-blue-500/20 shadow-sm'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -736,8 +750,8 @@ export const SalesReturnPage: React.FC = () => {
                           NPCI AUTO
                         </span>
                       </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Instant bank reversal via VPA</p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                      <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Instant bank reversal via VPA</p>
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-[11px] font-mono text-slate-600 dark:text-slate-300 truncate">
                         <span className="truncate">{lookupData?.customer_phone ? `+91 ${lookupData.customer_phone}` : 'Bank VPA'}</span>
                       </div>
                     </button>
