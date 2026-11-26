@@ -137,8 +137,23 @@ async function runFrontendSuite() {
   assert.ok(indexHtml.includes('viewport-fit=cover'), 'index.html must enable viewport-fit=cover for notched mobile safe areas');
   const indexCss = fs.readFileSync(path.join(SRC_DIR, 'index.css'), 'utf8');
   assert.ok(indexCss.includes('100dvh') && indexCss.includes('.mobile-tab-strip'), 'index.css must define dvh viewport fallback and mobile-tab-strip');
-  totalAssertions += 11;
-  console.log('✓ [Test 3d] Lighthouse CSP, bfcache, WebP, <main> landmark, <video> captions & mobile dvh/safe-area checks passed');
+  assert.ok(indexHtml.includes('name="color-scheme" content="light dark"'), 'index.html must declare <meta name="color-scheme" content="light dark">');
+  assert.ok(indexCss.includes('[data-keep-light="true"]'), 'index.css must preserve light color-scheme on [data-keep-light="true"] surfaces');
+  totalAssertions += 13;
+  console.log('✓ [Test 3d] Lighthouse CSP, bfcache, WebP, <main> landmark, <video> captions, color-scheme & mobile dvh/safe-area checks passed');
+
+  // Test 3e: Zero screen-printing window.print() or CSP-breaking document.write() calls in executable source
+  for (const file of srcFiles) {
+    const raw = fs.readFileSync(file, 'utf8');
+    const stripped = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    const rel = path.relative(FRONTEND_DIR, file);
+    assert.ok(!/\bwindow\.print\s*\(/.test(stripped), `Disallowed window.print() screen print in ${rel}`);
+    assert.ok(!/\bdocument\.write\s*\(/.test(stripped), `Disallowed document.write() call in ${rel}`);
+    totalAssertions += 2;
+  }
+  console.log('✓ [Test 3e] Zero window.print() screen dumps or document.write() CSP violations across frontend');
 
   const runtimeAssertions = await runRuntimeUnitTests();
   totalAssertions += runtimeAssertions;

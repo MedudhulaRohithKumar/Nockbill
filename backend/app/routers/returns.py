@@ -19,7 +19,7 @@ from app.schemas.schemas import (
 from app.utils.auth import get_current_user, require_owner
 from app.utils.errors import internal_server_error
 from app.utils.helpers import sanitize_download_filename
-from app.utils.stock_sync import sync_batch_stock_delta, sync_variant_stock
+from app.utils.stock_sync import sync_batch_stock_delta, sync_product_priority_batch, sync_variant_stock
 from app.reports.return_pdf import generate_sales_return_pdf
 
 logger = logging.getLogger(__name__)
@@ -316,6 +316,10 @@ def process_sales_return(
                     named_batch.current_stock = (named_batch.current_stock or Decimal("0")) + ret_qty
                 else:
                     sync_batch_stock_delta(db, matched_product, ret_qty)
+
+            if matched_product:
+                db.flush()
+                sync_product_priority_batch(db, matched_product)
 
             return_item = SalesReturnItem(
                 sale_item_id=sale_item.id,

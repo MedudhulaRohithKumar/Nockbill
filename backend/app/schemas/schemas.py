@@ -479,7 +479,7 @@ class ProductCreate(BaseModel):
     cost_price: Optional[Decimal] = None
     selling_price: Decimal = Decimal("0")
     mrp: Optional[Decimal] = None
-    gst_rate: Decimal = Decimal("18")
+    gst_rate: Optional[Decimal] = None
     manufacture_date: Optional[str] = None  # YYYY-MM or YYYY-MM-DD
     expiry_date: Optional[str] = None        # YYYY-MM or YYYY-MM-DD
     batch_number: Optional[str] = None
@@ -508,12 +508,17 @@ class ProductCreate(BaseModel):
 
     @model_validator(mode="after")
     def sanitize_and_validate_product(self) -> "ProductCreate":
+        from app.utils.stock_sync import normalize_category_name, resolve_category_gst_rate
+
         self.product_name = sanitize_text(self.product_name or self.name, 200) or ""
         if not self.product_name:
             raise ValueError("Product name cannot be empty")
         self.name = self.product_name
         self.company_name = sanitize_text(self.company_name, 200)
-        self.category = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
+        raw_cat = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
+        self.category = normalize_category_name(raw_cat)
+        if self.gst_rate is None:
+            self.gst_rate = resolve_category_gst_rate(self.category)
         self.trade_name = resolve_trade_name(self.product_name, self.company_name, self.trade_name)
         self.product_code = sanitize_code(self.product_code, 50, uppercase=True) if self.product_code else None
         self.batch_number = sanitize_code(self.batch_number, 100) if self.batch_number else None
@@ -590,7 +595,10 @@ class ProductUpdate(BaseModel):
         if self.company_name is not None:
             self.company_name = sanitize_text(self.company_name, 200)
         if self.category is not None:
-            self.category = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
+            from app.utils.stock_sync import normalize_category_name
+
+            raw_cat = sanitize_text(self.category, 100) or _DEFAULT_CATEGORY
+            self.category = normalize_category_name(raw_cat)
         if self.trade_name is not None:
             self.trade_name = sanitize_text(self.trade_name, 200)
         if self.batch_number is not None:
@@ -618,7 +626,7 @@ class ProductBatchResponse(BaseModel):
     trade_name: Optional[str] = None
     company_name: Optional[str] = None
     manufacture_date: Optional[str] = None
-    expiry_date: str
+    expiry_date: Optional[str] = None
     purchase_price: Decimal = Decimal("0")
     selling_price: Decimal = Decimal("0")
     mrp: Optional[Decimal] = None

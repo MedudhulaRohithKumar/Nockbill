@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Printer, Download, X, CheckCircle, Share2, QrCode, Truck } from 'lucide-react';
 import { Sale, ShopSettings, InvoiceTemplateId } from '../../types';
 import { salesApi, settingsApi } from '../../api';
-import api from '../../api/client';
+import { downloadPdfFromApi, openPdfForPrintFromApi } from '../../utils/pdfExport';
 import { safeNumber, formatCurrency, buildWhatsAppInvoiceUrl } from '../../utils/formatters';
 import { EWayBillModal } from './EWayBillModal';
 
@@ -586,23 +586,22 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
   if (!isOpen || !sale) return null;
 
   const handlePrint = () => {
-    window.print();
+    // Opens the backend-generated standalone invoice PDF (never prints the live web screen)
+    void openPdfForPrintFromApi(
+      `/invoices/${sale.id}/pdf`,
+      `Invoice_${sale.invoice_number || sale.id}.pdf`
+    ).catch(() => window.open(salesApi.getPdfUrl(sale.id), '_blank', 'noopener'));
   };
 
   const handleDownloadPdf = async () => {
     try {
-      const res = await api.get(`/invoices/${sale.id}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Invoice_${sale.invoice_number || sale.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await downloadPdfFromApi(
+        `/invoices/${sale.id}/pdf`,
+        `Invoice_${sale.invoice_number || sale.id}.pdf`,
+        { inline: false }
+      );
     } catch {
-      window.open(salesApi.getPdfUrl(sale.id), '_blank');
+      window.open(salesApi.getPdfUrl(sale.id), '_blank', 'noopener');
     }
   };
 

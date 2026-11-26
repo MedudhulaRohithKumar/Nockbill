@@ -23,7 +23,7 @@ from app.utils.helpers import (
     validate_gstin,
     resolve_trade_name,
 )
-from app.utils.stock_sync import sync_variant_stock
+from app.utils.stock_sync import sync_product_priority_batch, sync_variant_stock
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/purchases", tags=["Purchases"])
@@ -274,6 +274,8 @@ def create_purchase(
                             is_active=True,
                         )
                         db.add(new_batch)
+                    db.flush()
+                    sync_product_priority_batch(db, product)
 
                 inv_tx = InventoryTransaction(
                     shop_id=shop_id,

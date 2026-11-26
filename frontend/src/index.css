@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --color-surface: 250 248 255;
   --color-surface-container-lowest: 255 255 255;
   --color-surface-container-low: 242 243 255;
@@ -22,6 +23,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --color-surface: 11 17 32; /* slate-950 #0b1120 */
   --color-surface-container-lowest: 15 23 42; /* slate-900 #0f172a */
   --color-surface-container-low: 30 41 59; /* slate-800 #1e293b */
@@ -48,6 +50,10 @@
 }
 
 /* Universal Dark Mode Systemic Rules across all pages */
+[data-keep-light="true"] {
+  color-scheme: only light;
+  color: #0f172a;
+}
 .dark .bg-white:not([data-keep-light="true"]) {
   background-color: #0f172a; /* slate-900 */
 }
@@ -363,6 +369,12 @@ textarea:user-invalid {
   border-color: #ef4444 !important;
   background-color: #fef2f2;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
+}
+.dark input:user-invalid,
+.dark select:user-invalid,
+.dark textarea:user-invalid {
+  background-color: rgba(127, 29, 29, 0.25);
+  color: #f8fafc;
 }
 
 input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):user-valid {

@@ -2,7 +2,10 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
+import io
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import extract, func, text
 from sqlalchemy.orm import Session
 
@@ -11,14 +14,18 @@ from app.models.models import (
     Expense,
     GstTransaction,
     Product,
+    Purchase,
     Sale,
     SaleItem,
     SalesReturn,
     SalesReturnItem,
+    ShopSettings,
     User,
 )
+from app.reports.ledger_pdfs import generate_structured_table_pdf
 from app.schemas.schemas import GstReportRow, GstReportSummary
 from app.utils.auth import get_current_user
+from app.utils.helpers import sanitize_download_filename
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
@@ -39,6 +46,7 @@ _STANDARD_CATEGORIES: Tuple[str, ...] = (
     "Seeds",
     "Micronutrients",
     "Bio-Fertilizer",
+    "Microgreens",
     "Organic",
     "Others",
 )
@@ -1089,3 +1097,230 @@ def get_analytics(
         "category_breakdown": category_breakdown,
         "top_products": top_products,
     }
+
+
+@router.get("/export/pdf")
+def export_report_pdf(
+    report_type: str = Query(default="sales", description="sales | purchases | gst | stock | pnl"),
+    from_date: Optional[date] = None,
+    to_date: Optional[date] = None,
+    inline: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a standalone statutory/financial PDF report (never screen-printing web UI)."""
+    shop_id = getattr(current_user, "shop_id", 1) or 1
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first() or ShopSettings(
+        shop_name="NockBill Agro Kendra"
+    )
+    rtype = (report_type or "sales").strip().lower()
+    period_label = f"Period: {from_date} to {to_date}" if (from_date and to_date) else "Period: All Active Records"
+
+    if rtype == "purchases":
+        q = db.query(Purchase).filter(Purchase.shop_id == shop_id)
+        if from_date and to_date:
+            q = q.filter(
+                Purchase.purchase_date >= _ist_start_to_utc_naive(from_date),
+                Purchase.purchase_date <= _ist_end_to_utc_naive(to_date),
+            )
+        purchases = q.order_by(Purchase.purchase_date.desc()).limit(500).all()
+        tot_sub = sum(Decimal(str(p.subtotal or 0)) for p in purchases)
+        tot_gst = sum(Decimal(str(p.gst_amount or 0)) for p in purchases)
+        tot_grand = sum(Decimal(str(p.grand_total or 0)) for p in purchases)
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="INWARD PURCHASES & ITC REGISTER",
+            subtitle=period_label,
+            summary_metrics=[
+                ("Consignments", str(len(purchases))),
+                ("Taxable Inward", f"Rs.{tot_sub:,.2f}"),
+                ("Eligible ITC (GST)", f"Rs.{tot_gst:,.2f}"),
+                ("Total Inward Value", f"Rs.{tot_grand:,.2f}"),
+            ],
+            headers=["#", "Bill / Inv No", "Date", "Supplier", "Taxable (Rs.)", "GST (Rs.)", "Total (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    p.invoice_number or f"PO-{p.id}",
+                    p.purchase_date.strftime("%d/%m/%Y") if p.purchase_date else "-",
+                    p.supplier_name or "Supplier Depot",
+                    f"{Decimal(str(p.subtotal or 0)):,.2f}",
+                    f"{Decimal(str(p.gst_amount or 0)):,.2f}",
+                    f"{Decimal(str(p.grand_total or 0)):,.2f}",
+                ]
+                for idx, p in enumerate(purchases, 1)
+            ],
+            col_widths_mm=[10, 32, 24, 52, 24, 22, 26],
+            right_align_cols=[4, 5, 6],
+        )
+        fname = f"Purchases_Register_{from_date or 'All'}.pdf"
+    elif rtype == "gst":
+        gst_data = gst_report(
+            month=None,
+            year=None,
+            from_date=from_date,
+            to_date=to_date,
+            skip=0,
+            limit=500,
+            db=db,
+            current_user=current_user,
+        )
+        slab_rows = gst_data.get("gst_breakdown") or []
+        tx_rows = gst_data.get("rows") or []
+        combined_rows: List[List[str]] = [
+            [
+                f"Slab {s['gst_rate']:g}%",
+                "-",
+                f"{Decimal(str(s['taxable_value'])):,.2f}",
+                f"{Decimal(str(s['cgst'])):,.2f}",
+                f"{Decimal(str(s['sgst'])):,.2f}",
+                f"{Decimal(str(s['total_tax'])):,.2f}",
+            ]
+            for s in slab_rows
+        ]
+        for tx in tx_rows[:250]:
+            half_gst = Decimal(str(tx["gst_amount"])) / Decimal("2")
+            combined_rows.append(
+                [
+                    f"Inv ({tx['gst_rate']:g}%)",
+                    str(tx["invoice_number"]),
+                    f"{Decimal(str(tx['taxable_amount'])):,.2f}",
+                    f"{half_gst:,.2f}",
+                    f"{half_gst:,.2f}",
+                    f"{Decimal(str(tx['gst_amount'])):,.2f}",
+                ]
+            )
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="STATUTORY GST / GSTR-1 SUMMARY REPORT",
+            subtitle=period_label,
+            summary_metrics=[
+                ("Gross Sales", f"Rs.{Decimal(str(gst_data['total_sales'])):,.2f}"),
+                ("Taxable Value", f"Rs.{Decimal(str(gst_data['total_taxable'])):,.2f}"),
+                ("CGST + SGST", f"Rs.{Decimal(str(gst_data['total_gst'])):,.2f}"),
+                ("Invoices Logged", str(len(tx_rows))),
+            ],
+            headers=["Slab / Entry", "Invoice Ref", "Taxable (Rs.)", "CGST (Rs.)", "SGST (Rs.)", "Total Tax (Rs.)"],
+            rows=combined_rows,
+            col_widths_mm=[32, 42, 34, 26, 26, 30],
+            right_align_cols=[2, 3, 4, 5],
+        )
+        fname = f"GST_GSTR1_Report_{from_date or 'All'}.pdf"
+    elif rtype == "stock":
+        stk = stock_report(from_date=from_date, to_date=to_date, skip=0, limit=500, db=db, current_user=current_user)
+        items = stk.get("items") or []
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="GODOWN STOCK BALANCE & VALUATION REGISTER",
+            subtitle=period_label,
+            summary_metrics=[
+                ("Active SKUs", str(stk.get("total_products", len(items)))),
+                ("Total Units", f"{Decimal(str(stk.get('total_stock_units', 0))):,.2f}"),
+                ("Cost Valuation", f"Rs.{Decimal(str(stk.get('total_cost_value', 0))):,.2f}"),
+                ("Retail Valuation", f"Rs.{Decimal(str(stk.get('total_retail_value', 0))):,.2f}"),
+            ],
+            headers=["#", "Product & Brand", "Category", "Batch", "Stock", "Rate (Rs.)", "Value (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    f"{it.get('product_name', '')} ({it.get('company_name') or '-'})",
+                    str(it.get("category") or "Fertilizer"),
+                    str(it.get("batch_number") or "-"),
+                    f"{it.get('current_stock', 0)} {it.get('unit', '')}",
+                    f"{Decimal(str(it.get('selling_price', 0))):,.2f}",
+                    f"{Decimal(str(it.get('stock_value', 0))):,.2f}",
+                ]
+                for idx, it in enumerate(items, 1)
+            ],
+            col_widths_mm=[10, 56, 26, 26, 24, 22, 26],
+            right_align_cols=[4, 5, 6],
+        )
+        fname = f"Stock_Valuation_Report_{from_date or 'All'}.pdf"
+    elif rtype == "pnl":
+        q_sales = db.query(Sale).filter(Sale.shop_id == shop_id)
+        q_exp = db.query(Expense).filter(Expense.shop_id == shop_id)
+        if from_date and to_date:
+            q_sales = q_sales.filter(
+                Sale.sale_date >= _ist_start_to_utc_naive(from_date),
+                Sale.sale_date <= _ist_end_to_utc_naive(to_date),
+            )
+            q_exp = q_exp.filter(Expense.expense_date >= from_date, Expense.expense_date <= to_date)
+        sales_rows = q_sales.all()
+        exp_rows = q_exp.all()
+        rev = sum(Decimal(str(s.subtotal or 0)) for s in sales_rows)
+        gross_sales = sum(Decimal(str(s.grand_total or 0)) for s in sales_rows)
+        tot_exp = sum(Decimal(str(e.amount or 0)) for e in exp_rows)
+        cogs = Decimal("0.00")
+        for s in sales_rows:
+            for it in s.items:
+                cogs += Decimal(str(it.quantity or 0)) * Decimal(str(it.cost_price or 0))
+        gross_prof = rev - cogs
+        net_prof = gross_prof - tot_exp
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="PROFIT & LOSS (P&L) FINANCIAL STATEMENT",
+            subtitle=period_label,
+            summary_metrics=[
+                ("Gross Revenue", f"Rs.{gross_sales:,.2f}"),
+                ("Net Taxable Sales", f"Rs.{rev:,.2f}"),
+                ("Gross Profit", f"Rs.{gross_prof:,.2f}"),
+                ("Net Profit", f"Rs.{net_prof:,.2f}"),
+            ],
+            headers=["Account Head", "Category", "Description", "Amount (Rs.)"],
+            rows=[
+                ["Operating Revenue", "Income", "Net Taxable Retail Sales", f"{rev:,.2f}"],
+                ["Cost of Goods Sold (COGS)", "Direct Cost", "Batch-snapshot purchase cost of sold items", f"{cogs:,.2f}"],
+                ["Gross Margin", "Subtotal", "Revenue minus COGS", f"{gross_prof:,.2f}"],
+                ["Operating Expenses", "Indirect Cost", f"{len(exp_rows)} recorded store expense entries", f"{tot_exp:,.2f}"],
+                ["Net Operating Profit", "Bottom Line", "Gross Profit minus Operating Expenses", f"{net_prof:,.2f}"],
+            ],
+            col_widths_mm=[48, 32, 74, 36],
+            right_align_cols=[3],
+        )
+        fname = f"Profit_Loss_Statement_{from_date or 'All'}.pdf"
+    else:
+        q = db.query(Sale).filter(Sale.shop_id == shop_id)
+        if from_date and to_date:
+            q = q.filter(
+                Sale.sale_date >= _ist_start_to_utc_naive(from_date),
+                Sale.sale_date <= _ist_end_to_utc_naive(to_date),
+            )
+        sales_list = q.order_by(Sale.sale_date.desc()).limit(500).all()
+        tot_taxable = sum(Decimal(str(s.subtotal or 0)) for s in sales_list)
+        tot_gst = sum(Decimal(str(s.gst_amount or 0)) for s in sales_list)
+        tot_grand = sum(Decimal(str(s.grand_total or 0)) for s in sales_list)
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="RETAIL SALES & TAX INVOICE REGISTER",
+            subtitle=period_label,
+            summary_metrics=[
+                ("Invoices", str(len(sales_list))),
+                ("Taxable Value", f"Rs.{tot_taxable:,.2f}"),
+                ("Included GST", f"Rs.{tot_gst:,.2f}"),
+                ("Net Sales Total", f"Rs.{tot_grand:,.2f}"),
+            ],
+            headers=["#", "Invoice No", "Date", "Farmer / Customer", "Mode", "Taxable (Rs.)", "Total (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    s.invoice_number,
+                    s.sale_date.strftime("%d/%m/%Y") if s.sale_date else "-",
+                    s.customer_name or "Walk-in Farmer",
+                    s.payment_method.value if hasattr(s.payment_method, "value") else str(s.payment_method or "CASH"),
+                    f"{Decimal(str(s.subtotal or 0)):,.2f}",
+                    f"{Decimal(str(s.grand_total or 0)):,.2f}",
+                ]
+                for idx, s in enumerate(sales_list, 1)
+            ],
+            col_widths_mm=[10, 34, 22, 48, 22, 26, 28],
+            right_align_cols=[5, 6],
+        )
+        fname = f"Sales_Register_{from_date or 'All'}.pdf"
+
+    clean_fname = sanitize_download_filename(fname, fallback="NockBill_Report.pdf")
+    disposition = "inline" if inline else "attachment"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{clean_fname}"'},
+    )

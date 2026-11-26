@@ -38,6 +38,8 @@ class UnitType(str, enum.Enum):
     SETS = "Sets"
     METERS = "Meters"
     ROLLS = "Rolls"
+    PUNNETS = "Punnets"
+    TRAYS = "Trays"
 
     def __str__(self) -> str:
         return self.value

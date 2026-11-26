@@ -26,7 +26,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { returnsApi, khataApi, getErrorMessage } from '../api';
-import api from '../api/client';
+import { downloadPdfFromApi, openPdfForPrintFromApi } from '../utils/pdfExport';
 import { InvoiceReturnLookup, SalesReturn, ReturnEligibleItem } from '../types';
 import { safeNumber, formatCurrency } from '../utils/formatters';
 import { useShop } from '../context/ShopContext';
@@ -171,10 +171,11 @@ export const SalesReturnPage: React.FC = () => {
     updateQuantity(saleItemId, maxVal, maxVal);
   };
 
-  // ─── REFUND TOTALS & GST BREAKDOWN ─────────────────────────────────────────
+  // ─── REFUND TOTALS & GST BREAKDOWN (TAX-INCLUSIVE UNIT PRICE) ──────────────
   const calculations = useMemo(() => {
     let calculatedTaxableRefund = 0;
     let calculatedGstRefund = 0;
+    let calculatedTotalRefund = 0;
     let totalUnitsToReturn = 0;
     let itemsToReturnCount = 0;
 
@@ -184,17 +185,25 @@ export const SalesReturnPage: React.FC = () => {
         if (qty > 0) {
           totalUnitsToReturn += qty;
           itemsToReturnCount += 1;
-          const taxable = qty * safeNumber(item.unit_price);
-          const gst = taxable * (safeNumber(item.gst_rate) / 100);
+          const lineTotal = Math.round(qty * safeNumber(item.unit_price) * 100) / 100;
+          const gstRate = safeNumber(item.gst_rate);
+          const taxable =
+            gstRate > 0
+              ? Math.round((lineTotal / (1 + gstRate / 100)) * 100) / 100
+              : lineTotal;
+          const gst = Math.round((lineTotal - taxable) * 100) / 100;
           calculatedTaxableRefund += taxable;
           calculatedGstRefund += gst;
+          calculatedTotalRefund += lineTotal;
         }
       });
     }
 
-    const calculatedTotalRefund = Math.round((calculatedTaxableRefund + calculatedGstRefund) * 100) / 100;
+    calculatedTaxableRefund = Math.round(calculatedTaxableRefund * 100) / 100;
+    calculatedGstRefund = Math.round(calculatedGstRefund * 100) / 100;
+    calculatedTotalRefund = Math.round(calculatedTotalRefund * 100) / 100;
     const cgstAmount = Math.round((calculatedGstRefund / 2) * 100) / 100;
-    const sgstAmount = Math.round((calculatedGstRefund / 2) * 100) / 100;
+    const sgstAmount = Math.round((calculatedGstRefund - cgstAmount) * 100) / 100;
 
     return {
       calculatedTaxableRefund,
@@ -249,19 +258,16 @@ export const SalesReturnPage: React.FC = () => {
 
   const handleDownloadPdf = async (returnId: number) => {
     try {
-      const res = await api.get(`/returns/${returnId}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `CreditNote_CN-${returnId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await downloadPdfFromApi(`/returns/${returnId}/pdf`, `CreditNote_CN-${returnId}.pdf`, { inline: false });
     } catch {
-      window.open(returnsApi.getPdfUrl(returnId), '_blank');
+      setSubmitError('Could not generate the credit note PDF. Please retry.');
     }
+  };
+
+  const handlePrintCreditNote = (returnId: number) => {
+    void openPdfForPrintFromApi(`/returns/${returnId}/pdf`, `CreditNote_CN-${returnId}.pdf`).catch(() =>
+      setSubmitError('Could not open the credit note PDF. Please retry.')
+    );
   };
 
   const recentThreeCreditNotes = useMemo(() => {
@@ -362,7 +368,7 @@ export const SalesReturnPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => window.open(returnsApi.getPdfUrl(completedReturn.id), '_blank')}
+                onClick={() => handlePrintCreditNote(completedReturn.id)}
                 className="flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-950 font-bold px-4 py-2 text-xs shadow-sm transition active:scale-95"
               >
                 <Printer className="h-4 w-4 text-emerald-700" />
@@ -958,7 +964,7 @@ export const SalesReturnPage: React.FC = () => {
                           </span>
                           <button
                             type="button"
-                            onClick={() => handleDownloadPdf(cn.id)}
+                            onClick={() => handlePrintCreditNote(cn.id)}
                             className="mt-1 flex h-7 w-7 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-emerald-800 shadow-sm transition active:scale-95"
                             title="Print Credit Note"
                           >

@@ -6,10 +6,12 @@ Strictly tenant-isolated by current_user.shop_id.
 """
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+import io
 import re
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
@@ -27,8 +29,9 @@ from app.models.models import (
     ShopSettings,
     User,
 )
+from app.reports.ledger_pdfs import generate_structured_table_pdf
 from app.utils.auth import get_current_user, require_owner
-from app.utils.helpers import sanitize_code, sanitize_text, validate_phone
+from app.utils.helpers import sanitize_code, sanitize_download_filename, sanitize_text, validate_phone
 
 router = APIRouter(prefix="/api/khata", tags=["Khata, Onboarding & Compliance"])
 
@@ -508,7 +511,7 @@ def list_supplier_khata(
         if not entry:
             entry = {
                 "supplier_name": sname,
-                "supplier_phone": p.supplier_phone,
+                "supplier_phone": getattr(p, "supplier_phone", None),
                 "supplier_gstin": getattr(p, "supplier_gstin", None),
                 "bill_count": 0,
                 "total_purchased": _DEC_ZERO,
@@ -947,3 +950,195 @@ def get_agri_inspector_compliance_register(
         "stock_cum_price_board": stock_board,
         "batch_sale_register": batch_sale_register,
     }
+
+
+@router.get("/export/pdf")
+def export_khata_or_compliance_pdf(
+    tab: str = Query(
+        default="compliance",
+        description="farmers | farmer_statement | suppliers | compliance | form_m | price_board",
+    ),
+    customer_phone: Optional[str] = Query(default=None, max_length=20),
+    customer_name: Optional[str] = Query(default=None, max_length=150),
+    inline: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate official standalone PDF for Farmer Khata, Supplier Payables, Form O, Form M, or Price Board."""
+    shop_id = current_user.shop_id
+    shop = db.query(ShopSettings).filter(ShopSettings.id == shop_id).first() or ShopSettings(
+        shop_name="NockBill Agro Kendra"
+    )
+    doc_tab = (tab or "compliance").strip().lower()
+
+    if doc_tab == "farmers":
+        data = list_customer_khata(search=None, only_due=False, db=db, current_user=current_user)
+        custs = data.get("customers") or []
+        due_count = sum(1 for c in custs if Decimal(str(c.get("outstanding_balance", 0))) > Decimal("0"))
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="FARMER CREDIT (KHATA) RECOVERY LEDGER",
+            summary_metrics=[
+                ("Registered Growers", str(data.get("total_customers", len(custs)))),
+                ("Accounts With Due", str(due_count)),
+                ("Outstanding Udhar", f"Rs.{Decimal(str(data.get('total_outstanding_udhar', 0))):,.2f}"),
+            ],
+            headers=["#", "Farmer Name", "Mobile", "Total Billed (Rs.)", "Credit (Rs.)", "Repaid (Rs.)", "Pending Due (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    c.get("customer_name") or "Farmer",
+                    c.get("customer_phone") or "-",
+                    f"{Decimal(str(c.get('total_billed', 0))):,.2f}",
+                    f"{Decimal(str(c.get('total_credit_billed', 0))):,.2f}",
+                    f"{Decimal(str(c.get('total_repaid', 0))):,.2f}",
+                    f"{Decimal(str(c.get('outstanding_balance', 0))):,.2f}",
+                ]
+                for idx, c in enumerate(custs, 1)
+            ],
+            col_widths_mm=[10, 44, 26, 28, 26, 26, 30],
+            right_align_cols=[3, 4, 5, 6],
+        )
+        fname = "Farmer_Khata_Ledger.pdf"
+    elif doc_tab == "farmer_statement":
+        clean_ph = (customer_phone or "").strip()
+        clean_nm = (customer_name or "Farmer").strip()
+        q_sales = db.query(Sale).filter(Sale.shop_id == shop_id)
+        if clean_ph:
+            q_sales = q_sales.filter(Sale.customer_phone == clean_ph)
+        elif clean_nm:
+            q_sales = q_sales.filter(func.lower(Sale.customer_name) == clean_nm.lower())
+        f_sales = q_sales.order_by(Sale.sale_date.desc()).limit(200).all()
+        tot_billed = sum(Decimal(str(s.grand_total or 0)) for s in f_sales)
+        tot_cred = sum(_extract_credit_component(s) for s in f_sales)
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title=f"FARMER ACCOUNT STATEMENT — {clean_nm.upper()}",
+            subtitle=f"Mobile: {clean_ph or 'N/A'}",
+            summary_metrics=[
+                ("Invoices", str(len(f_sales))),
+                ("Total Billed", f"Rs.{tot_billed:,.2f}"),
+                ("Credit Component", f"Rs.{tot_cred:,.2f}"),
+            ],
+            headers=["#", "Invoice No", "Date", "Mode", "Credit (Rs.)", "Bill Total (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    s.invoice_number,
+                    s.sale_date.strftime("%d/%m/%Y") if s.sale_date else "-",
+                    s.payment_method.value if hasattr(s.payment_method, "value") else str(s.payment_method or "CASH"),
+                    f"{_extract_credit_component(s):,.2f}",
+                    f"{Decimal(str(s.grand_total or 0)):,.2f}",
+                ]
+                for idx, s in enumerate(f_sales, 1)
+            ],
+            col_widths_mm=[12, 46, 32, 32, 34, 34],
+            right_align_cols=[4, 5],
+        )
+        fname = f"Farmer_Statement_{clean_ph or clean_nm}.pdf"
+    elif doc_tab == "suppliers":
+        s_data = list_supplier_khata(db=db, current_user=current_user)
+        supps = s_data.get("suppliers") or []
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="SUPPLIER ACCOUNTS PAYABLE REGISTER",
+            summary_metrics=[
+                ("Suppliers", str(s_data.get("total_suppliers", len(supps)))),
+                ("Pending Payables", f"Rs.{Decimal(str(s_data.get('total_outstanding_payable', 0))):,.2f}"),
+            ],
+            headers=["#", "Supplier / Manufacturer", "GSTIN", "Inward Value (Rs.)", "Paid (Rs.)", "Pending (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    s.get("supplier_name") or "Supplier",
+                    s.get("supplier_gstin") or "Unregistered",
+                    f"{Decimal(str(s.get('total_purchased', 0))):,.2f}",
+                    f"{Decimal(str(s.get('total_paid', 0))):,.2f}",
+                    f"{Decimal(str(s.get('outstanding_payable', 0))):,.2f}",
+                ]
+                for idx, s in enumerate(supps, 1)
+            ],
+            col_widths_mm=[10, 56, 34, 30, 30, 30],
+            right_align_cols=[3, 4, 5],
+        )
+        fname = "Supplier_Payables_Register.pdf"
+    elif doc_tab == "form_m":
+        pesticides = (
+            db.query(Product)
+            .filter(
+                Product.shop_id == shop_id,
+                Product.is_active == True,
+                func.lower(Product.category).like("%pesticide%"),
+            )
+            .order_by(Product.product_name.asc())
+            .all()
+        )
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title="STATUTORY FORM M — INSECTICIDES STOCK & CIB-RC REGISTER",
+            subtitle="Maintained under Rule 15 of the Insecticides Rules, 1971 & Insecticides Act, 1968",
+            summary_metrics=[
+                ("Registered Formulations", str(len(pesticides))),
+                ("CIB License", getattr(shop, "pesticide_license_no", None) or "Active"),
+            ],
+            headers=["#", "Formulation & Brand", "Manufacturer", "Batch No", "Expiry", "Stock", "Rate (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    p.product_name,
+                    p.company_name or "-",
+                    p.batch_number or "-",
+                    p.expiry_date or "-",
+                    f"{Decimal(str(p.current_stock or 0)):g} {p.unit or ''}",
+                    f"{Decimal(str(p.selling_price or 0)):,.2f}",
+                ]
+                for idx, p in enumerate(pesticides, 1)
+            ],
+            col_widths_mm=[10, 52, 34, 26, 22, 24, 22],
+            right_align_cols=[5, 6],
+            footer_notice="Certified Insecticides Act 1968 Form M Stock Register. Expired batches are segregated from counter sale under strict FEFO.",
+        )
+        fname = "Form_M_Pesticide_Register.pdf"
+    else:
+        comp = get_agri_inspector_compliance_register(db=db, current_user=current_user)
+        board = comp.get("stock_cum_price_board") or []
+        doc_title = (
+            "APMC / FORM O RETAIL STOCK-CUM-PRICE DISPLAY BOARD"
+            if doc_tab == "price_board"
+            else "STATUTORY FORM O & STOCK-CUM-PRICE COMPLIANCE REGISTER"
+        )
+        pdf_bytes = generate_structured_table_pdf(
+            shop=shop,
+            document_title=doc_title,
+            subtitle="Maintained under Clause 4 & Clause 8 of Fertilizer (Control) Order, 1985",
+            summary_metrics=[
+                ("Listed SKUs", str(len(board))),
+                ("FCO License", comp.get("fertilizer_license_no") or "Active"),
+                ("Batch Sales Logged", str(len(comp.get("batch_sale_register") or []))),
+            ],
+            headers=["#", "Product & Grade", "Manufacturer", "Category", "Batch / Lot", "Available Stock", "Retail Rate (Rs.)"],
+            rows=[
+                [
+                    str(idx),
+                    str(p.get("product_name") or ""),
+                    str(p.get("company_name") or "-"),
+                    str(p.get("category") or "Fertilizer"),
+                    str(p.get("batch_number") or "-"),
+                    f"{p.get('current_stock', 0)} {p.get('unit') or 'Bags'}",
+                    f"{Decimal(str(p.get('selling_price', 0))):,.2f}",
+                ]
+                for idx, p in enumerate(board, 1)
+            ],
+            col_widths_mm=[10, 48, 32, 24, 26, 24, 26],
+            right_align_cols=[5, 6],
+            footer_notice="Statutory Notice: Selling above printed MRP is prohibited under the Essential Commodities Act, 1955.",
+        )
+        fname = "APMC_Form_O_Price_Board.pdf" if doc_tab == "price_board" else "Form_O_Compliance_Register.pdf"
+
+    clean_fname = sanitize_download_filename(fname, fallback="Statutory_Register.pdf")
+    disposition = "inline" if inline else "attachment"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{clean_fname}"'},
+    )

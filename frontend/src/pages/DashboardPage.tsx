@@ -55,6 +55,14 @@ import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
 import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
+  getCategoryConfig,
+  sortBatchesByCategoryRule,
+} from '../config/inventoryCategories';
+import {
+  downloadPdfFromApi,
+  openPdfForPrintFromApi,
+} from '../utils/pdfExport';
+import {
   formatCurrency,
   formatCompactINR,
   safeNumber,
@@ -64,6 +72,7 @@ import {
 
 interface StagedFastTillItem {
   product_id: number;
+  batch_id?: number;
   product_name: string;
   company_name?: string;
   trade_name?: string;
@@ -198,43 +207,68 @@ export const DashboardPage: React.FC = () => {
     const matches = allProducts.filter((p) => {
       const name = safeString(p.name || p.product_name).toLowerCase();
       const trade = safeString(p.trade_name).toLowerCase();
-      const code = safeString(p.barcode || p.product_code || p.batch_number).toLowerCase();
+      const company = safeString(p.company_name).toLowerCase();
+      const cat = safeString(p.category).toLowerCase();
+      const barcode = safeString(p.barcode).toLowerCase();
+      const code = safeString(p.product_code).toLowerCase();
+      const batchNo = safeString(p.batch_number).toLowerCase();
       const hsn = safeString(p.hsn_code).toLowerCase();
+      const batchMatch = (p.batches ?? []).some((b) =>
+        safeString(b.batch_number).toLowerCase().includes(query)
+      );
       return (
-        name.includes(query) || trade.includes(query) || code.includes(query) || hsn.includes(query)
+        name.includes(query) ||
+        trade.includes(query) ||
+        company.includes(query) ||
+        cat.includes(query) ||
+        barcode.includes(query) ||
+        code.includes(query) ||
+        batchNo.includes(query) ||
+        hsn.includes(query) ||
+        batchMatch
       );
     });
-    setSearchResults(matches.slice(0, 6));
+    setSearchResults(matches.slice(0, 8));
   }, [searchQuery, allProducts]);
 
-  // ─── FAST-TILL CART MANAGEMENT ─────────────────────────────────────────────
+  // ─── FAST-TILL CART MANAGEMENT (Category-aware FEFO/FIFO batch selection) ───
   const stageProduct = (product: Product, discountPct = 0) => {
+    const priorityBatch = sortBatchesByCategoryRule(product.batches, product.category)[0];
+    const resolvedBatchNo =
+      priorityBatch?.batch_number || product.batch_number || product.product_code || 'DEFAULT';
+    const price = safeNumber(
+      priorityBatch?.selling_price || product.selling_price || product.mrp,
+      0
+    );
+    const mrpVal = safeNumber(priorityBatch?.mrp || product.mrp, price);
+    const categoryGst = getCategoryConfig(product.category).defaultGstRate;
+
     setStagedItems((prev) => {
       const existingIdx = prev.findIndex(
-        (i) => i.product_id === product.id && i.batch_number === (product.batch_number || 'DEFAULT')
+        (i) => i.product_id === product.id && i.batch_number === resolvedBatchNo
       );
       if (existingIdx >= 0) {
         const next = [...prev];
         next[existingIdx].quantity += 1;
         return next;
       }
-      const price = safeNumber(product.selling_price || product.mrp, 100);
       return [
         ...prev,
         {
           product_id: product.id,
+          batch_id: priorityBatch?.id || undefined,
           product_name: product.name || product.product_name || 'Agri Input Product',
           company_name: product.company_name,
-          trade_name: product.trade_name,
-          category: product.category || 'General',
-          batch_number: product.batch_number || 'DEFAULT',
-          expiry_date: product.expiry_date,
+          trade_name: priorityBatch?.trade_name || product.trade_name,
+          category: product.category || 'Fertilizer',
+          batch_number: resolvedBatchNo,
+          expiry_date: priorityBatch?.expiry_date || product.expiry_date,
           hsn_code: product.hsn_code || '310210',
           unit: product.unit || 'Bags',
           quantity: 1,
           unit_price: price,
-          mrp: safeNumber(product.mrp, price),
-          gst_rate: safeNumber(product.gst_rate, 5),
+          mrp: mrpVal,
+          gst_rate: safeNumber(product.gst_rate, categoryGst),
           discount_percent: discountPct,
         },
       ];
@@ -260,24 +294,21 @@ export const DashboardPage: React.FC = () => {
     setStagedItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // ─── FINANCIAL CALCULATIONS ────────────────────────────────────────────────
+  // ─── FINANCIAL CALCULATIONS (Retail selling price is final — never add GST on top) ──
   const fastTillTotals = useMemo(() => {
-    let preGstTotal = 0;
-    let payableTotal = 0;
+    let itemsSubtotal = 0;
 
     for (const item of stagedItems) {
       const lineBase = item.unit_price * item.quantity;
       const discount = (lineBase * item.discount_percent) / 100;
       const netLine = lineBase - discount;
-      const gstRate = item.gst_rate;
-      const itemTax = (netLine * gstRate) / 100;
-      preGstTotal += netLine;
-      payableTotal += netLine + itemTax;
+      itemsSubtotal += netLine;
     }
 
+    const roundedPayable = Math.round(itemsSubtotal * 100) / 100;
     return {
-      preGstTotal,
-      payableTotal: Math.round(payableTotal * 100) / 100,
+      itemsSubtotal: roundedPayable,
+      payableTotal: roundedPayable,
     };
   }, [stagedItems]);
 
@@ -288,6 +319,7 @@ export const DashboardPage: React.FC = () => {
     }
     const stagedCartItems = stagedItems.map((item) => ({
       product_id: item.product_id,
+      batch_id: item.batch_id,
       product_name: item.product_name,
       company_name: item.company_name,
       trade_name: item.trade_name,
@@ -387,53 +419,18 @@ export const DashboardPage: React.FC = () => {
     setIsReceiptOpen(true);
   };
 
-  // ─── TEST PRINT SLIP ────────────────────────────────────────────────────────
+  // ─── TEST PRINT SLIP (Backend ReportLab 80mm PDF — never prints screen) ────
   const handlePrintTestSlip = () => {
-    const printWindow = window.open('', '_blank', 'width=350,height=500');
-    if (!printWindow) return;
-    const shopTitle = settings.shop_name || `${user?.full_name || 'Dealer'}'s Shop`;
-    const gstin = settings.gstin || '29AAAAA0000A1Z5';
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>ESC/POS 80mm Test Slip</title>
-          <style>
-            @page { size: 80mm auto; margin: 0; }
-            body {
-              font-family: 'Courier New', monospace;
-              width: 72mm;
-              margin: 0 auto;
-              padding: 10px 0;
-              font-size: 11px;
-              color: #000;
-            }
-            .center { text-align: center; }
-            .divider { border-top: 1px dashed #000; margin: 6px 0; }
-            .bold { font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="center bold">*** ${shopTitle} ***</div>
-          <div class="center">GSTIN: ${gstin}</div>
-          <div class="center">80mm Direct Thermal POS</div>
-          <div class="divider"></div>
-          <div>TEST PRINT: ESC/POS ENGINE OK</div>
-          <div>DATE: ${new Date().toLocaleString('en-IN')}</div>
-          <div>TERMINAL: COUNTER #01</div>
-          <div>AUTO-CUTTER: TEST OK (PARTIAL)</div>
-          <div class="divider"></div>
-          <div class="center bold">SYSTEM READY FOR FAST BILLING</div>
-          <br/><br/>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
+    setThermalFeedbackMsg('Generating 80mm ESC/POS Calibration Slip PDF...');
+    void openPdfForPrintFromApi('/settings/test-slip.pdf', 'ESC_POS_80mm_Test_Slip.pdf')
+      .then(() => {
+        setThermalFeedbackMsg('80mm ESC/POS Test Slip PDF ready');
+        setTimeout(() => setThermalFeedbackMsg(null), 3000);
+      })
+      .catch(() => {
+        setThermalFeedbackMsg('Could not generate test slip PDF');
+        setTimeout(() => setThermalFeedbackMsg(null), 3000);
+      });
   };
 
   const handleFeedPaper = () => {
@@ -441,9 +438,21 @@ export const DashboardPage: React.FC = () => {
     setTimeout(() => setThermalFeedbackMsg(null), 3000);
   };
 
-  // ─── FORM O EXPORT ──────────────────────────────────────────────────────────
+  // ─── FORM O & FORM M STATUTORY PDF EXPORTS ─────────────────────────────────
   const handleDownloadFormO = () => {
-    navigate('/khata?tab=compliance');
+    void downloadPdfFromApi(
+      '/khata/export/pdf',
+      'Form_O_Compliance_Register.pdf',
+      { tab: 'compliance' }
+    ).catch(() => navigate('/khata?tab=compliance'));
+  };
+
+  const handleDownloadFormM = () => {
+    void downloadPdfFromApi(
+      '/khata/export/pdf',
+      'Form_M_Pesticide_Register.pdf',
+      { tab: 'form_m' }
+    ).catch(() => navigate('/khata?tab=compliance'));
   };
 
   return (
@@ -496,11 +505,12 @@ export const DashboardPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2 sm:self-start">
                 <button
                   type="button"
+                  data-keep-light="true"
                   onClick={() => navigate('/billing')}
-                  className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-black text-emerald-950 shadow-lg transition hover:bg-emerald-50 active:scale-95"
+                  className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs sm:text-sm font-black text-slate-950 ring-2 ring-white/90 shadow-xl shadow-black/25 transition hover:bg-amber-50 active:scale-95"
                 >
-                  <ShoppingCart className="h-4 w-4 text-emerald-700" />
-                  <span>+ New POS Bill</span>
+                  <ShoppingCart className="h-4 w-4 text-emerald-700 stroke-[2.5]" />
+                  <span className="text-slate-950">+ New POS Bill</span>
                 </button>
                 <button
                   type="button"
@@ -858,11 +868,11 @@ export const DashboardPage: React.FC = () => {
               <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">
                 <span>STAGED ITEMS {selectedCustomerName ? `FOR ${String(selectedCustomerName).toUpperCase()}` : ''} ({stagedItems.length} ITEMS)</span>
                 <div className="flex items-center gap-1 font-mono text-slate-700 dark:text-slate-300">
-                  <span>PRE-GST: ₹{formatCurrency(fastTillTotals.preGstTotal, 2)}</span>
+                  <span>SUBTOTAL: ₹{formatCurrency(fastTillTotals.itemsSubtotal, 2)}</span>
                   <MetricInfoTooltip
-                    title="Pre-GST Staged Total"
-                    description="Aggregate raw product value before applying statutory GST slabs."
-                    formula="Sum(Item Quantity × Item Price)"
+                    title="Staged Items Subtotal"
+                    description="Total selling value of staged items (inclusive of applicable category tax)."
+                    formula="Sum(Item Quantity × Selling Price - Discounts)"
                     align="right"
                   />
                 </div>
@@ -889,7 +899,7 @@ export const DashboardPage: React.FC = () => {
                               </span>
                             </div>
                             <div className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                              Batch: <strong className="text-slate-700 dark:text-slate-300">{item.batch_number}</strong> • MRP: ₹{formatCurrency(item.mrp)} • GST: {item.gst_rate}%
+                              Batch: <strong className="text-slate-700 dark:text-slate-300">{item.batch_number}</strong> • Rate: ₹{formatCurrency(item.unit_price)} / {item.unit}
                             </div>
                           </div>
                         </div>
@@ -1002,8 +1012,8 @@ export const DashboardPage: React.FC = () => {
                     <span>Payable Total</span>
                     <MetricInfoTooltip
                       title="Payable Total"
-                      description="Final invoice amount due from the customer including statutory GST, discounts, and rounding."
-                      formula="Payable = Pre-GST + Taxes - Discounts ± Round-off"
+                      description="Final amount payable by the customer based on product selling price (GST is already included in category pricing)."
+                      formula="Payable = Sum(Quantity × Selling Price - Discounts)"
                       align="right"
                     />
                   </div>
@@ -1315,7 +1325,7 @@ export const DashboardPage: React.FC = () => {
                 <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">B2B E-Way: 14 Syncs OK</span>
                 <button
                   type="button"
-                  onClick={() => navigate('/khata?tab=catalog')}
+                  onClick={handleDownloadFormM}
                   className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold px-3 py-1.5 text-xs transition active:scale-95"
                 >
                   <FileText className="h-3.5 w-3.5" />

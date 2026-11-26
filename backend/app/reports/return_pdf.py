@@ -101,7 +101,7 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))
 
     # ── Returned Items Table ─────────────────────────────────
-    headers = ["#", "Returned Product", "Net Content", "Qty Ret", "Rate ₹", "GST%", "GST ₹", "Refund ₹"]
+    headers = ["#", "Returned Product", "Net Content", "Qty Ret", "Rate (Rs.)", "GST%", "GST (Rs.)", "Refund (Rs.)"]
     rows = [headers]
     computed_subtotal = Decimal("0")
     computed_gst = Decimal("0")
@@ -135,10 +135,10 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
             f"{item.product_name}{comp}{batch}",
             item.net_content or "-",
             str(item.returned_quantity),
-            f"₹{unit_p:,.2f}",
+            f"Rs. {unit_p:,.2f}",
             f"{gst_r}%",
-            f"₹{line_gst:,.2f}",
-            f"₹{line_total:,.2f}",
+            f"Rs. {line_gst:,.2f}",
+            f"Rs. {line_total:,.2f}",
         ])
 
     col_widths = [8 * mm, 58 * mm, 22 * mm, 16 * mm, 22 * mm, 14 * mm, 20 * mm, 20 * mm]
@@ -172,11 +172,11 @@ def generate_sales_return_pdf(sales_return, shop) -> bytes:
     sgst = effective_gst - cgst
 
     totals = [
-        ["", "", "", "", "", "", "Taxable Value Returned:", f"₹{effective_subtotal:,.2f}"],
-        ["", "", "", "", "", "", "CGST Reversal (50%):", f"₹{cgst:,.2f}"],
-        ["", "", "", "", "", "", "SGST Reversal (50%):", f"₹{sgst:,.2f}"],
-        ["", "", "", "", "", "", "Total GST Credit:", f"₹{effective_gst:,.2f}"],
-        ["", "", "", "", "", "", "TOTAL REFUND PAID:", f"₹{effective_grand_total:,.2f}"],
+        ["", "", "", "", "", "", "Taxable Value Returned:", f"Rs. {effective_subtotal:,.2f}"],
+        ["", "", "", "", "", "", "CGST Reversal (50%):", f"Rs. {cgst:,.2f}"],
+        ["", "", "", "", "", "", "SGST Reversal (50%):", f"Rs. {sgst:,.2f}"],
+        ["", "", "", "", "", "", "Total GST Credit:", f"Rs. {effective_gst:,.2f}"],
+        ["", "", "", "", "", "", "TOTAL REFUND PAID:", f"Rs. {effective_grand_total:,.2f}"],
     ]
     totals_table = Table(totals, colWidths=col_widths)
     totals_table.setStyle(TableStyle([

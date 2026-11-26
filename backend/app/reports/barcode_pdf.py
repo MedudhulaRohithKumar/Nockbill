@@ -94,7 +94,7 @@ def generate_barcode_label_pdf(
 
             info_parts = []
             if include_price and price:
-                info_parts.append(f"MRP: ₹{price:,.2f}")
+                info_parts.append(f"MRP: Rs. {price:,.2f}")
             if include_batch and batch_number:
                 info_parts.append(f"B: {_esc(batch_number)}")
             if info_parts:
@@ -171,9 +171,7 @@ def generate_barcode_label_pdf(
         # 4. Price & Details
         details = []
         if include_price and price:
-            details.append(f"MRP: ₹{price:,.2f}")
-        if gst_rate and gst_rate > 0:
-            details.append(f"GST {gst_rate}%")
+            details.append(f"MRP: Rs. {price:,.2f}")
         if include_batch and batch_number:
             details.append(f"B:{_esc(batch_number)}")
 

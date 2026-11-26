@@ -10,10 +10,10 @@ interface CategoryExtraFieldsSectionProps {
 }
 
 const TOXICITY_DOT_CLASSES: Record<string, string> = {
-  Red: 'bg-red-600 ring-red-200',
-  Yellow: 'bg-amber-400 ring-amber-200',
-  Blue: 'bg-blue-600 ring-blue-200',
-  Green: 'bg-emerald-600 ring-emerald-200',
+  Red: 'bg-red-600 ring-red-200 dark:ring-red-900',
+  Yellow: 'bg-amber-400 ring-amber-200 dark:ring-amber-900',
+  Blue: 'bg-blue-600 ring-blue-200 dark:ring-blue-900',
+  Green: 'bg-emerald-600 ring-emerald-200 dark:ring-emerald-900',
 };
 
 export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProps> = ({
@@ -42,12 +42,12 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
     <div className={`rounded-xl border p-3.5 space-y-3 ${config.accentBgClass}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-slate-700 shrink-0" />
+          <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           <div>
-            <h4 className="font-bold text-slate-900 text-xs">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
               {config.label} Compliance &amp; Technical Specifications
             </h4>
-            <p className="text-[10px] text-slate-600">
+            <p className="text-[10px] text-slate-600 dark:text-slate-400">
               {config.shortDescription}
             </p>
           </div>
@@ -66,7 +66,7 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
             const toxDot = field.key === 'toxicity_color' ? TOXICITY_DOT_CLASSES[currentValue] : undefined;
             return (
               <div key={field.key}>
-                <label className="block font-semibold text-slate-700">
+                <label className="block font-semibold text-slate-700 dark:text-slate-200">
                   <span className="flex items-center gap-1.5 mb-1">
                     <span>{field.label}</span>
                     {toxDot && (
@@ -81,13 +81,13 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
                     onChange={(val) => updateField(field.key, val)}
                     placeholder={field.placeholder || `Select ${field.label}`}
                     options={[
-                      { value: '', label: `— None / Not Specified —` },
+                      { value: '', label: '— None / Not Specified —' },
                       ...field.options.map((opt) => ({ value: opt.value, label: opt.label })),
                     ]}
                   />
                 </label>
                 {field.helperText && (
-                  <p className="text-[10px] text-slate-500 mt-1">{field.helperText}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{field.helperText}</p>
                 )}
               </div>
             );
@@ -95,7 +95,7 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
 
           return (
             <div key={field.key} className={field.quickChips && visibleFields.length === 1 ? 'col-span-full' : ''}>
-              <label htmlFor={inputId} className="block font-semibold text-slate-700 mb-1">
+              <label htmlFor={inputId} className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                 {field.label}
               </label>
               <input
@@ -105,10 +105,10 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
                 value={currentValue}
                 onChange={(e) => updateField(field.key, e.target.value)}
                 placeholder={field.placeholder || ''}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs"
+                className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs"
               />
               {field.helperText && (
-                <p className="text-[10px] text-slate-500 mt-1">{field.helperText}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{field.helperText}</p>
               )}
               {field.quickChips && field.quickChips.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
@@ -119,10 +119,10 @@ export const CategoryExtraFieldsSection: React.FC<CategoryExtraFieldsSectionProp
                         key={chip}
                         type="button"
                         onClick={() => updateField(field.key, chip)}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition ${
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border transition ${
                           isSelected
-                            ? 'bg-slate-900 text-white border-slate-900'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                            ? 'bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
                       >
                         {chip}

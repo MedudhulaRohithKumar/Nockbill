@@ -12,6 +12,7 @@ from app.config.settings import settings
 from app.database.base import get_db
 from app.models.models import Sale, Purchase, ShopSettings, User
 from app.reports.invoice_pdf import generate_invoice_pdf, generate_purchase_pdf
+from app.reports.ledger_pdfs import generate_thermal_invoice_pdf
 from app.reports.excel_export import export_gst_report_excel, export_stock_report_excel
 from app.services.s3_service import (
     upload_report_to_s3,
@@ -32,6 +33,7 @@ def download_invoice_pdf(
     redirect_s3: bool = Query(False, description="Redirect to S3 presigned URL if S3 is enabled"),
     inline: bool = Query(True, description="Display inline in browser if true, or download if false"),
     regenerate: bool = Query(False, description="Force regenerate PDF to apply updated tax-inclusive calculations"),
+    format: Optional[str] = Query(default=None, description="Optional layout format: 'a4' or 'thermal'"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -41,6 +43,20 @@ def download_invoice_pdf(
     shop = db.query(ShopSettings).filter(ShopSettings.id == current_user.shop_id).first()
     if not shop:
         shop = ShopSettings(shop_name="NockBill Solutions")
+
+    use_thermal = (format or "").strip().lower() == "thermal"
+    if use_thermal:
+        filename = sanitize_download_filename(f"ThermalSlip_{sale.invoice_number}.pdf", f"ThermalSlip_{sale.id}.pdf")
+        disposition = "inline" if inline else "attachment"
+        pdf_bytes = generate_thermal_invoice_pdf(sale, shop)
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'{disposition}; filename="{filename}"',
+                "Cache-Control": "private, max-age=300",
+            },
+        )
 
     filename = sanitize_download_filename(f"Invoice_{sale.invoice_number}.pdf", f"Invoice_{sale.id}.pdf")
     file_date = sale.sale_date or datetime.now(timezone.utc)

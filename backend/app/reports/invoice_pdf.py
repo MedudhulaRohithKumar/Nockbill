@@ -180,7 +180,7 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))
 
     # ── Line Items ───────────────────────────────────────────
-    headers = ["#", "Product Description", "Net Content", "Qty", "Price ₹", "GST%", "GST ₹", "Total ₹"]
+    headers = ["#", "Product Description", "Net Content", "Qty", "Price (Rs.)", "GST%", "GST (Rs.)", "Total (Rs.)"]
     rows = [headers]
     computed_subtotal = Decimal("0")
     computed_gst = Decimal("0")
@@ -214,10 +214,10 @@ def generate_invoice_pdf(sale, shop) -> bytes:
             f"{item.product_name}{comp}",
             item.net_content or "-",
             str(item.quantity),
-            f"₹{unit_p:,.2f}",
+            f"Rs. {unit_p:,.2f}",
             f"{gst_r}%",
-            f"₹{line_gst:,.2f}",
-            f"₹{line_total:,.2f}",
+            f"Rs. {line_gst:,.2f}",
+            f"Rs. {line_total:,.2f}",
         ])
 
     item_table = Table(
@@ -253,11 +253,11 @@ def generate_invoice_pdf(sale, shop) -> bytes:
     sgst = effective_gst - cgst
 
     totals = [
-        ["", "", "", "", "", "", "Taxable Amount:", f"₹{effective_subtotal:,.2f}"],
-        ["", "", "", "", "", "", "CGST (50%):", f"₹{cgst:,.2f}"],
-        ["", "", "", "", "", "", "SGST (50%):", f"₹{sgst:,.2f}"],
-        ["", "", "", "", "", "", "Total GST:", f"₹{effective_gst:,.2f}"],
-        ["", "", "", "", "", "", "GRAND TOTAL:", f"₹{effective_grand_total:,.2f}"],
+        ["", "", "", "", "", "", "Taxable Amount:", f"Rs. {effective_subtotal:,.2f}"],
+        ["", "", "", "", "", "", "CGST (50%):", f"Rs. {cgst:,.2f}"],
+        ["", "", "", "", "", "", "SGST (50%):", f"Rs. {sgst:,.2f}"],
+        ["", "", "", "", "", "", "Total GST:", f"Rs. {effective_gst:,.2f}"],
+        ["", "", "", "", "", "", "GRAND TOTAL:", f"Rs. {effective_grand_total:,.2f}"],
     ]
     totals_table = Table(
         totals,
@@ -381,7 +381,7 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
     elements.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey, spaceAfter=4))
 
     # ── Items Table ───────────────────────────────────────────
-    headers = ["#", "Product Name", "Unit / Batch", "Qty", "Cost Price", "GST%", "Total ₹"]
+    headers = ["#", "Product Name", "Unit / Batch", "Qty", "Cost Price", "GST%", "Total (Rs.)"]
     rows = [headers]
     for i, item in enumerate(purchase.items, 1):
         p_name = item.product_name or (item.product.product_name if getattr(item, "product", None) else f"Product #{item.product_id}")
@@ -396,9 +396,9 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
             p_name,
             u_info.strip() or "-",
             str(item.quantity),
-            f"₹{item.purchase_price:,.2f}",
+            f"Rs. {item.purchase_price:,.2f}",
             f"{item.gst_rate}%",
-            f"₹{item.total:,.2f}",
+            f"Rs. {item.total:,.2f}",
         ])
 
     item_table = Table(
@@ -422,9 +422,9 @@ def generate_purchase_pdf(purchase, shop) -> bytes:
 
     # ── Totals ───────────────────────────────────────────────
     totals = [
-        ["", "", "", "", "", "Subtotal:", f"₹{purchase.subtotal:,.2f}"],
-        ["", "", "", "", "", "GST Amount:", f"₹{purchase.gst_amount:,.2f}"],
-        ["", "", "", "", "", "GRAND TOTAL:", f"₹{purchase.grand_total:,.2f}"],
+        ["", "", "", "", "", "Subtotal:", f"Rs. {purchase.subtotal:,.2f}"],
+        ["", "", "", "", "", "GST Amount:", f"Rs. {purchase.gst_amount:,.2f}"],
+        ["", "", "", "", "", "GRAND TOTAL:", f"Rs. {purchase.grand_total:,.2f}"],
     ]
     totals_table = Table(
         totals,

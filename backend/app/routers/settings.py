@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from reportlab.graphics import renderSVG
 from reportlab.graphics.barcode.qr import QrCodeWidget
@@ -15,6 +15,7 @@ from app.config.settings import settings
 from app.database.base import get_db
 from app.models.models import ShopSettings, AuditLog, AuditAction, User
 from app.schemas.schemas import ShopSettingsUpdate, ShopSettingsResponse
+from app.reports.ledger_pdfs import generate_thermal_test_slip_pdf, generate_upi_standee_pdf
 from app.utils.auth import get_current_user, require_owner
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
@@ -258,6 +259,41 @@ def get_dynamic_upi_qr(
         shop_name=shop.shop_name or "My Shop",
         amount=amount,
         invoice_number=invoice_number,
+    )
+
+
+@router.get("/test-slip.pdf")
+def download_thermal_test_slip_pdf(
+    port: str = Query(default="USB001 (80mm Direct Thermal)", max_length=80),
+    inline: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a standalone 80mm thermal printer calibration slip PDF."""
+    shop = _get_or_create_settings(db, current_user)
+    pdf_bytes = generate_thermal_test_slip_pdf(shop, printer_port=port)
+    disp = "inline" if inline else "attachment"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disp}; filename="ESC_POS_80mm_Test_Slip.pdf"'},
+    )
+
+
+@router.get("/upi-standee.pdf")
+def download_upi_standee_pdf(
+    inline: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate a printable counter-top Merchant UPI QR Standee PDF."""
+    shop = _get_or_create_settings(db, current_user)
+    pdf_bytes = generate_upi_standee_pdf(shop)
+    disp = "inline" if inline else "attachment"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disp}; filename="Merchant_UPI_Standee.pdf"'},
     )
 
 

@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Backend & Frontend Test Dependencies
         run: |
-          pip install --no-cache-dir --only-binary :all: -r backend/requirements.txt
+          pip install --only-binary :all: -r backend/requirements.txt
           npm --prefix frontend ci --ignore-scripts
 
       - name: Run Backend Tests & Generate Coverage XML

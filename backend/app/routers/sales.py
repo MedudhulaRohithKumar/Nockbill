@@ -28,7 +28,11 @@ from app.schemas.schemas import SaleCreate, SaleResponse
 from app.utils.auth import get_current_user, is_owner
 from app.utils.errors import internal_server_error
 from app.utils.helpers import generate_invoice_number, resolve_trade_name
-from app.utils.stock_sync import sync_variant_stock
+from app.utils.stock_sync import (
+    batch_rotation_sort_key,
+    sync_product_priority_batch,
+    sync_variant_stock,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
@@ -97,16 +101,27 @@ def _match_batch(
 ) -> Optional[ProductBatch]:
     if not product:
         return None
+    product_batches = batches_by_product.get(product.id, [])
+    in_stock_batches = [b for b in product_batches if (b.current_stock or Decimal("0")) > Decimal("0")]
+
     if item_data.batch_id and item_data.batch_id in batches_by_id:
         candidate = batches_by_id[item_data.batch_id]
-        if candidate.product_id == product.id:
+        if candidate.product_id == product.id and (
+            (candidate.current_stock or Decimal("0")) > Decimal("0") or not in_stock_batches
+        ):
             return candidate
+
     if item_data.batch_number:
-        return next(
-            (b for b in batches_by_product.get(product.id, []) if b.batch_number == item_data.batch_number),
+        matched_by_no = next(
+            (b for b in product_batches if b.batch_number == item_data.batch_number),
             None,
         )
-    return None
+        if matched_by_no and (
+            (matched_by_no.current_stock or Decimal("0")) > Decimal("0") or not in_stock_batches
+        ):
+            return matched_by_no
+
+    return in_stock_batches[0] if in_stock_batches else (product_batches[0] if product_batches else None)
 
 
 def _resolve_authoritative_pricing(
@@ -114,6 +129,7 @@ def _resolve_authoritative_pricing(
     product: Optional[Product],
     batch: Optional[ProductBatch],
     caller_is_owner: bool,
+    product_batches: Optional[List[ProductBatch]] = None,
 ) -> Tuple[Decimal, Decimal, Decimal, Optional[str]]:
     """
     Derive authoritative selling price, GST rate, and snapshot cost_price from the DB (C5/B6).
@@ -150,6 +166,9 @@ def _resolve_authoritative_pricing(
         else Decimal(str(product.selling_price or 0))
     )
     allowed_prices = {db_default_price, Decimal(str(product.selling_price or 0))}
+    for b in (product_batches or []):
+        if getattr(b, "is_active", True) and b.selling_price is not None and b.selling_price > 0:
+            allowed_prices.add(Decimal(str(b.selling_price)))
     for v in (product.variants or []):
         if getattr(v, "is_active", True) and v.selling_price is not None:
             allowed_prices.add(Decimal(str(v.selling_price)))
@@ -285,11 +304,11 @@ def create_sale(
                 f"Available: {product.current_stock}, Requested: {total_req_qty}",
             )
 
-    # Pre-lock all active ProductBatch rows in deterministic order
+    # Pre-lock all active ProductBatch rows in deterministic order, then sort per product by FEFO/FIFO
     locked_batches = (
         db.query(ProductBatch)
         .filter(ProductBatch.product_id.in_(product_ids), ProductBatch.is_active == True)
-        .order_by(ProductBatch.product_id.asc(), ProductBatch.expiry_date.asc(), ProductBatch.id.asc())
+        .order_by(ProductBatch.product_id.asc(), ProductBatch.id.asc())
         .with_for_update()
         .all()
     ) if product_ids else []
@@ -298,6 +317,10 @@ def create_sale(
     for b in locked_batches:
         batches_by_product.setdefault(b.product_id, []).append(b)
         batches_by_id[b.id] = b
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for pid, blist in batches_by_product.items():
+        p_cat = products_by_id[pid].category if pid in products_by_id else None
+        blist.sort(key=lambda b, c=p_cat: batch_rotation_sort_key(b, c, today_str))
 
     # Resolve & validate authoritative prices/taxes BEFORE acquiring ShopSettings counter lock (C5 + B8)
     prepared_lines = []
@@ -310,9 +333,10 @@ def create_sale(
 
     for item_data in payload.items:
         product = products_by_id.get(item_data.product_id) if item_data.product_id else None
+        p_batches = batches_by_product.get(product.id, []) if product else []
         batch = _match_batch(item_data, product, batches_by_id, batches_by_product)
         eff_price, eff_gst, eff_cost, override_note = _resolve_authoritative_pricing(
-            item_data, product, batch, caller_is_owner
+            item_data, product, batch, caller_is_owner, p_batches
         )
         if override_note:
             override_notes.append(override_note)
@@ -384,8 +408,13 @@ def create_sale(
                 else (item_data.unit or "Bags")
             )
             effective_mrp = (
-                batch.mrp if (batch and batch.mrp is not None)
-                else (item_data.mrp if item_data.mrp is not None else eff_price)
+                item_data.mrp
+                if (caller_is_owner and item_data.mrp is not None)
+                else (
+                    batch.mrp
+                    if (batch and batch.mrp is not None)
+                    else (item_data.mrp if item_data.mrp is not None else eff_price)
+                )
             )
             sale_item = SaleItem(
                 sale_id=sale.id,
@@ -417,18 +446,26 @@ def create_sale(
                 qty_to_deduct = Decimal(str(item_data.quantity))
                 product.current_stock = max(Decimal("0"), prev_stock - qty_to_deduct)
 
-                if batch:
-                    batch.current_stock = max(Decimal("0"), (batch.current_stock or Decimal("0")) - qty_to_deduct)
-                else:
-                    rem = qty_to_deduct
-                    for b in batches_by_product.get(product.id, []):
-                        if rem <= 0:
-                            break
-                        avail = b.current_stock or Decimal("0")
-                        if avail > 0:
-                            ded = min(avail, rem)
-                            b.current_stock = avail - ded
-                            rem -= ded
+                # Deduct from matched priority batch first, then cascade any remainder across FEFO/FIFO batches
+                rem = qty_to_deduct
+                ordered_batches = []
+                if batch is not None:
+                    ordered_batches.append(batch)
+                for b in batches_by_product.get(product.id, []):
+                    if b not in ordered_batches:
+                        ordered_batches.append(b)
+
+                for b in ordered_batches:
+                    if rem <= Decimal("0"):
+                        break
+                    avail = b.current_stock or Decimal("0")
+                    if avail > Decimal("0"):
+                        ded = min(avail, rem)
+                        b.current_stock = avail - ded
+                        rem -= ded
+
+                db.flush()
+                sync_product_priority_batch(db, product)
 
                 # Synchronize ProductVariant.stock with Product/Batch deductions (SD3)
                 sync_variant_stock(db, product, -qty_to_deduct, matched_price=eff_price)

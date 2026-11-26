@@ -47,6 +47,7 @@ import {
   formatCurrency
 } from '../utils/formatters';
 import { authApi, settingsApi, getErrorMessage } from '../api';
+import { openPdfForPrintFromApi } from '../utils/pdfExport';
 
 export const SettingsPage: React.FC = () => {
   const { settings, updateSettings } = useShop();
@@ -235,10 +236,22 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  // Print Test Slip
+  // Print Test Slip (standalone 80mm backend PDF — never prints the settings screen)
   const handlePrintTestSlip = () => {
-    window.print();
-    showNotification(`Test 80mm slip dispatched to ${printerPort} (F9).`);
+    void openPdfForPrintFromApi('/settings/test-slip.pdf', 'ESC_POS_80mm_Test_Slip.pdf', {
+      port: printerPort,
+    })
+      .then(() => showNotification(`80mm test slip PDF generated for ${printerPort} (F9).`))
+      .catch(() => showNotification('Could not generate the 80mm test slip PDF.', 'error'));
+  };
+
+  // Print Merchant UPI QR Standee (standalone A5 backend PDF)
+  const handlePrintUpiStandee = () => {
+    void openPdfForPrintFromApi('/settings/upi-standee.pdf', 'Merchant_UPI_Standee.pdf')
+      .then(() => showNotification('Merchant UPI QR standee PDF generated.'))
+      .catch(() =>
+        showNotification('Could not generate the UPI standee. Add your UPI ID in settings and save first.', 'error')
+      );
   };
 
   // Calibrate Cutter
@@ -878,7 +891,7 @@ export const SettingsPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handlePrintTestSlip}
+                onClick={handlePrintUpiStandee}
                 className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs"
               >
                 Print Standee

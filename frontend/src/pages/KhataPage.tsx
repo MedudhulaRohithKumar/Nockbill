@@ -24,6 +24,7 @@ import { khataApi, getErrorMessage } from '../api';
 import { useShop } from '../context/ShopContext';
 import { useAuth } from '../context/AuthContext';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
+import { downloadPdfFromApi } from '../utils/pdfExport';
 import {
   formatCurrency,
   safeNumber,
@@ -343,7 +344,26 @@ export const KhataPage: React.FC = () => {
   };
 
   const handlePrintRegister = () => {
-    window.print();
+    const pdfTab = activeTab === 'farmers' ? 'farmers' : activeTab === 'suppliers' ? 'suppliers' : 'compliance';
+    void downloadPdfFromApi('/khata/export/pdf', `Khata_${pdfTab}_register.pdf`, { tab: pdfTab })
+      .then(() => {
+        setSuccessMsg('Official PDF register downloaded.');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch(() => setError('Could not generate the PDF register. Please retry.'));
+  };
+
+  const handlePrintFarmerStatement = (name: string, phone?: string | null) => {
+    void downloadPdfFromApi('/khata/export/pdf', `Farmer_Statement_${phone || name}.pdf`, {
+      tab: 'farmer_statement',
+      customer_name: name,
+      customer_phone: phone || undefined,
+    })
+      .then(() => {
+        setSuccessMsg(`Account statement PDF downloaded for ${name}.`);
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch(() => setError('Could not generate the farmer statement PDF. Please retry.'));
   };
 
   const currentModule =
@@ -887,10 +907,7 @@ export const KhataPage: React.FC = () => {
                           )}
                           <button
                             type="button"
-                            onClick={() => {
-                              setSuccessMsg(`Statement receipt generated for ${c.customer_name}.`);
-                              setTimeout(() => setSuccessMsg(null), 3000);
-                            }}
+                            onClick={() => handlePrintFarmerStatement(c.customer_name, c.customer_phone)}
                             className="p-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700 transition"
                             title="Print account ledger statement"
                           >

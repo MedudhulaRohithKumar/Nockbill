@@ -39,6 +39,7 @@ import { useAuth } from '../context/AuthContext';
 import { useShop } from '../context/ShopContext';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
+import { downloadPdfFromApi } from '../utils/pdfExport';
 
 const CATEGORIES = [
   'All Categories',
@@ -536,97 +537,13 @@ export const PriceListsPage: React.FC = () => {
     showNotification('success', 'Exported Rate Card CSV successfully.');
   };
 
-  // Printable Form O Statutory Display Notice Board
+  // Official Form O / APMC Stock-cum-Price Board — generated as a standalone backend PDF (never prints the screen)
   const handlePrintFormOPriceBoard = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Pop-up was blocked. Please allow pop-ups for NockBill to view the printable Form O board.');
-      return;
-    }
-
-    const shopName = settings?.shop_name || 'GREEN VALLEY AGRO KENDRA';
-    const license = settings?.fertilizer_license_no || settings?.gstin || 'KA-BLR-KND-042';
-    const address = `${settings?.address_line1 || ''} ${settings?.city || ''} ${settings?.state || ''}`.trim() || 'Central Agricultural Market Yard';
-    const todayStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-    // Pick top fertilizers and seeds for notice board
-    const boardItems = allProducts.slice(0, 15);
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Form O Statutory Price Board - ${shopName}</title>
-        <style>
-          @page { size: A4 portrait; margin: 15mm; }
-          body { font-family: system-ui, sans-serif; color: #111; margin: 0; padding: 10px; }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-          .badge { display: inline-block; background: #eee; padding: 2px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; }
-          h1 { margin: 4px 0; font-size: 20px; font-weight: 800; text-transform: uppercase; }
-          .sub { font-size: 11px; color: #444; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-          th, td { border: 1px solid #444; padding: 6px 8px; text-align: left; }
-          th { background-color: #f2f2f2; font-weight: bold; }
-          .text-right { text-align: right; }
-          .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; }
-          .seal-box { border: 1px dashed #666; padding: 8px 16px; text-align: center; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <span class="badge">MANDATORY NOTICE BOARD DISPLAY • CLAUSE 14(1) FCO 1985</span>
-          <h1>${shopName}</h1>
-          <div class="sub">Govt Reg. Lic: ${license} | Address: ${address}</div>
-          <div class="sub" style="margin-top: 4px; font-weight: bold;">STATUTORY RETAIL PRICE & STOCK STATUS • DATED: ${todayStr}</div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 30px;">#</th>
-              <th>Product Name & Active Formulation</th>
-              <th>Batch / Lot</th>
-              <th>Available Stock</th>
-              <th class="text-right">Govt MRP (₹)</th>
-              <th class="text-right">Kendra Retail Rate (₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${boardItems
-              .map(
-                (p, idx) => `
-              <tr>
-                <td>${idx + 1}</td>
-                <td><strong>${p.name || p.product_name}</strong> ${p.trade_name ? `(${p.trade_name})` : ''}</td>
-                <td>${p.batch_number || 'BAT-01'}</td>
-                <td>${p.current_stock} ${p.unit}</td>
-                <td class="text-right">₹${Number(p.mrp || p.selling_price).toFixed(2)}</td>
-                <td class="text-right" style="font-weight: bold;">₹${Number(p.selling_price).toFixed(2)}</td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-
-        <div class="footer">
-          <div>
-            <p><strong>* Statutory Notice:</strong> Selling above MRP is strictly punishable under the Essential Commodities Act, 1955.</p>
-            <p>All subsidized fertilizers are Aadhaar DBT synchronized with Central MFMS.</p>
-          </div>
-          <div class="seal-box">
-            OFFICIAL KENDRA SEAL<br/><br/>
-            Authorized Signatory
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 400);
+    void downloadPdfFromApi('/khata/export/pdf', 'APMC_Form_O_Price_Board.pdf', {
+      tab: 'price_board',
+    })
+      .then(() => showNotification('success', 'Form O Price Board PDF downloaded.'))
+      .catch(() => showNotification('error', 'Could not generate the Form O Price Board PDF.'));
   };
 
   // Filtered Price Lists for table

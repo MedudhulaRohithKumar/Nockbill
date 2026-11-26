@@ -18,7 +18,14 @@ from app.schemas.schemas import ProductCreate, ProductUpdate, ProductResponse, P
 from app.utils.auth import get_current_user, require_owner
 from app.utils.errors import internal_server_error
 from app.utils.helpers import resolve_trade_name, sanitize_download_filename, AGRO_TRADE_NAME_CATALOG
-from app.utils.stock_sync import sync_variant_stock
+from app.utils.stock_sync import (
+    batch_rotation_sort_key,
+    get_ordered_active_batches,
+    normalize_category_name,
+    resolve_category_gst_rate,
+    sync_product_priority_batch,
+    sync_variant_stock,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/products", tags=["Products"])
@@ -70,6 +77,10 @@ _UNIT_CANONICAL_MAP: Dict[str, str] = {
     "metres": "Meters",
     "roll": "Rolls",
     "rolls": "Rolls",
+    "punnet": "Punnets",
+    "punnets": "Punnets",
+    "tray": "Trays",
+    "trays": "Trays",
 }
 
 
@@ -251,7 +262,14 @@ def serialize_product(p: Product) -> dict:
             "current_stock": float(p.current_stock or 0),
             "is_active": True,
         })
-    active_batches.sort(key=lambda x: x.get("expiry_date") or "9999-99")
+    cat_val = getattr(p, "category", None)
+    if not cat_val or (p.company_name and cat_val == p.company_name):
+        cat_val = "Fertilizer"
+    else:
+        cat_val = normalize_category_name(cat_val)
+
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    active_batches.sort(key=lambda x: batch_rotation_sort_key(x, cat_val, today_str))
 
     pl = getattr(p, "price_list", None)
     base_selling = float(
@@ -259,12 +277,21 @@ def serialize_product(p: Product) -> dict:
         if getattr(p, "base_selling_price", None) is not None and float(p.base_selling_price or 0) > 0
         else (p.selling_price or 0)
     )
-    cat_val = getattr(p, "category", None)
-    if not cat_val or (p.company_name and cat_val == p.company_name):
-        cat_val = "Fertilizer"
-    elif cat_val.strip().lower() == "bio-fertilizer":
-        cat_val = "Bio-Fertilizer"
-    batch_val = getattr(p, "batch_number", None) or (active_batches[0]["batch_number"] if active_batches else "")
+    priority_batch = active_batches[0] if active_batches else None
+    batch_val = (
+        priority_batch["batch_number"]
+        if (priority_batch and priority_batch.get("current_stock", 0) > 0)
+        else (getattr(p, "batch_number", None) or (priority_batch["batch_number"] if priority_batch else ""))
+    )
+    priority_expiry = (
+        ""
+        if cat_val == "Others"
+        else (
+            priority_batch["expiry_date"]
+            if (priority_batch and priority_batch.get("current_stock", 0) > 0 and priority_batch.get("expiry_date"))
+            else (p.expiry_date or (priority_batch["expiry_date"] if priority_batch else "") or "")
+        )
+    )
 
     return {
         "id": p.id,
@@ -289,7 +316,7 @@ def serialize_product(p: Product) -> dict:
         "mrp": base_selling if base_selling > float(p.selling_price or 0) else float(p.selling_price or 0),
         "gst_rate": float(p.gst_rate or 0),
         "manufacture_date": p.manufacture_date,
-        "expiry_date": p.expiry_date,
+        "expiry_date": priority_expiry or None,
         "batch_number": batch_val,
         "hsn_code": hsn_val,
         "barcode": barcode_val,
@@ -520,6 +547,7 @@ def get_barcode_label_pdf(
 
     batch_number = None
     expiry_date = None
+    price = product.selling_price or Decimal("0")
     if batch_id:
         batch = db.query(ProductBatch).filter(
             ProductBatch.id == batch_id,
@@ -528,12 +556,17 @@ def get_barcode_label_pdf(
         if batch:
             batch_number = batch.batch_number
             expiry_date = batch.expiry_date
+            if batch.selling_price and batch.selling_price > 0:
+                price = batch.selling_price
     elif product.batches:
-        batch_number = product.batches[0].batch_number
-        expiry_date = product.batches[0].expiry_date
+        ordered_batches = get_ordered_active_batches(db, product, lock=False)
+        top_batch = ordered_batches[0] if ordered_batches else product.batches[0]
+        batch_number = top_batch.batch_number
+        expiry_date = top_batch.expiry_date
+        if top_batch.selling_price and top_batch.selling_price > 0:
+            price = top_batch.selling_price
 
     barcode_val = product.barcode or str(10000 + product.id)
-    price = product.selling_price or Decimal("0")
 
     from app.reports.barcode_pdf import generate_barcode_label_pdf
     pdf_bytes = generate_barcode_label_pdf(
@@ -754,15 +787,31 @@ def refill_stock(
     if effective_trade_name:
         product.trade_name = effective_trade_name
 
-    batch_no = (payload.new_batch_number or payload.batch_number or "").strip() or product.batch_number or product.product_code or f"BAT-{product.id}"
-    product.batch_number = batch_no
-    mfg_dt = (payload.manufacture_date or "").strip() or product.manufacture_date
-    if mfg_dt:
-        product.manufacture_date = mfg_dt
-    expiry_dt = (payload.new_expiry_date or payload.expiry_date or "").strip() or product.expiry_date or None
+    supplied_batch = (payload.new_batch_number or payload.batch_number or "").strip()
+    existing_batches = (
+        db.query(ProductBatch)
+        .filter(ProductBatch.product_id == product.id)
+        .order_by(ProductBatch.id.asc())
+        .with_for_update()
+        .all()
+    )
+    if supplied_batch:
+        batch_no = supplied_batch
+    elif prev_stock > Decimal("0") and existing_batches:
+        # Product still has existing stock on shelf: create a distinct inward batch so older/expiring stock sells first (FIFO/FEFO)
+        next_seq = len(existing_batches) + 1
+        base_code = product.product_code or f"SKU{product.id}"
+        batch_no = f"{base_code}-B{next_seq:02d}"
+        while any(b.batch_number == batch_no for b in existing_batches):
+            next_seq += 1
+            batch_no = f"{base_code}-B{next_seq:02d}"
+    else:
+        batch_no = product.batch_number or product.product_code or f"BAT-{product.id}"
 
-    if expiry_dt:
-        product.expiry_date = expiry_dt
+    mfg_dt = (payload.manufacture_date or "").strip() or None
+    canonical_cat = normalize_category_name(product.category)
+    raw_exp = (payload.new_expiry_date or payload.expiry_date or "").strip()
+    expiry_dt = None if canonical_cat == "Others" else (raw_exp or (product.expiry_date if not existing_batches else None))
 
     # Update or create ProductBatch for multi-batch tracking
     p_price = Decimal(str(payload.purchase_price)) if (payload.purchase_price is not None and Decimal(str(payload.purchase_price)) > 0) else (product.purchase_price or Decimal("0"))
@@ -776,16 +825,14 @@ def refill_stock(
         s_price = p_price if p_price > 0 else Decimal("1")
     mrp_val = Decimal(str(payload.mrp)) if (payload.mrp is not None and Decimal(str(payload.mrp)) > 0) else s_price
 
-    batch = db.query(ProductBatch).filter(
-        ProductBatch.product_id == product.id,
-        ProductBatch.batch_number == batch_no
-    ).with_for_update().first()
+    batch = next((b for b in existing_batches if b.batch_number == batch_no), None)
 
     if batch:
         batch.current_stock = (batch.current_stock or Decimal("0")) + qty
         if mfg_dt:
             batch.manufacture_date = mfg_dt
-        batch.expiry_date = expiry_dt
+        if expiry_dt is not None or canonical_cat == "Others":
+            batch.expiry_date = expiry_dt
         batch.purchase_price = p_price
         batch.selling_price = s_price
         batch.mrp = mrp_val
@@ -798,7 +845,7 @@ def refill_stock(
             batch_number=batch_no,
             trade_name=effective_trade_name,
             company_name=effective_company,
-            manufacture_date=mfg_dt,
+            manufacture_date=mfg_dt or product.manufacture_date,
             expiry_date=expiry_dt,
             purchase_price=p_price,
             selling_price=s_price,
@@ -807,6 +854,9 @@ def refill_stock(
             is_active=True
         )
         db.add(batch)
+
+    db.flush()
+    sync_product_priority_batch(db, product)
 
     # Create Inventory Transaction
     inv_tx = InventoryTransaction(
@@ -910,6 +960,7 @@ def search_products(
             Product.barcode.ilike(search),
             Product.batch_number.ilike(search),
             Product.category_attributes.ilike(search),
+            Product.batches.any(ProductBatch.batch_number.ilike(search)),
         )
     )
     products = query.limit(100).all()
@@ -945,6 +996,7 @@ def list_products(
                 Product.product_code.ilike(like),
                 Product.batch_number.ilike(like),
                 Product.category_attributes.ilike(like),
+                Product.batches.any(ProductBatch.batch_number.ilike(like)),
             )
         )
     total_count = base_query.count()
@@ -1029,8 +1081,13 @@ def create_product(
         k: v for k, v in raw_dict.items()
         if k in valid_cols and k not in {"id", "created_at", "updated_at"}
     }
+    canonical_cat = normalize_category_name(payload.category or "Fertilizer")
     base_dict["shop_id"] = shop_id
-    base_dict["category"] = payload.category or "Fertilizer"
+    base_dict["category"] = canonical_cat
+    if base_dict.get("gst_rate") is None:
+        base_dict["gst_rate"] = resolve_category_gst_rate(canonical_cat)
+    if canonical_cat == "Others":
+        base_dict["expiry_date"] = None
     base_dict["batch_number"] = payload.batch_number
     base_dict["base_selling_price"] = payload.selling_price
     base_dict["category_attributes"] = _dump_category_attributes(payload.category_attributes)
@@ -1158,6 +1215,13 @@ def update_product(
         k: v for k, v in payload.model_dump(exclude_unset=True).items()
         if k in valid_cols and k not in {"id", "created_at", "updated_at", "shop_id"}
     }
+    if "category" in update_data and update_data["category"] is not None:
+        canonical_cat = normalize_category_name(update_data["category"])
+        update_data["category"] = canonical_cat
+        if "gst_rate" not in update_data or update_data["gst_rate"] is None:
+            update_data["gst_rate"] = resolve_category_gst_rate(canonical_cat)
+        if canonical_cat == "Others":
+            update_data["expiry_date"] = None
     if "unit" in update_data and update_data["unit"] is not None:
         update_data["unit"] = _normalize_unit(update_data["unit"])
     if "category_attributes" in update_data:

@@ -22,7 +22,7 @@ import {
   Barcode,
 } from 'lucide-react';
 import { purchasesApi, productsApi, getErrorMessage } from '../api';
-import api from '../api/client';
+import { downloadPdfFromApi } from '../utils/pdfExport';
 import { Purchase, Product, PurchaseItem } from '../types';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
@@ -273,18 +273,9 @@ export const PurchasesPage: React.FC = () => {
 
   const handleDownloadPurchasePdf = async (purId: number, billNo: string) => {
     try {
-      const res = await api.get(`/purchases/${purId}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Purchase_${billNo || purId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      await downloadPdfFromApi(`/purchases/${purId}/pdf`, `Purchase_${billNo || purId}.pdf`, { inline: false });
     } catch {
-      window.open(`/api/purchases/${purId}/pdf`, '_blank');
+      setErrorMsg('Could not generate the inward purchase PDF. Please retry.');
     }
   };
 
@@ -561,12 +552,16 @@ export const PurchasesPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() => {
+                void downloadPdfFromApi('/reports/export/pdf', 'Purchases_Register.pdf', {
+                  report_type: 'purchases',
+                }).catch(() => setErrorMsg('Could not generate the purchase register PDF.'));
+              }}
               className="h-11 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
-              title="Print purchase register"
+              title="Download purchase register PDF"
             >
               <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-              <span>Print</span>
+              <span>PDF</span>
             </button>
           </div>
         </div>

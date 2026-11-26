@@ -47,6 +47,7 @@ import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
   INVENTORY_CATEGORIES,
   INVENTORY_CATEGORY_CONFIGS,
+  CategoryPackPreset,
   InventoryCategoryId,
   normalizeCategory,
   normalizeUnit,
@@ -54,6 +55,7 @@ import {
   getAllowedVariantUnits,
   getCategoryAttributeBadges,
 } from '../config/inventoryCategories';
+import { downloadPdfFromApi } from '../utils/pdfExport';
 
 function toDateInputValue(raw?: string | null): string {
   if (!raw) return '';
@@ -564,18 +566,19 @@ export const InventoryPage: React.FC = () => {
     setRefillTradeName(resolved);
     setRefillTradeManuallyEdited(false);
     setRefillUnit(normalizeUnit(prod.unit));
-    setRefillPurchasePrice(prod.purchase_price ?? prod.cost_price ?? 0);
-    setRefillSellingPrice(prod.selling_price ?? 0);
-    setRefillMrp(prod.mrp ?? prod.selling_price ?? 0);
-    setRefillBatch(prod.batch_number || '');
-    setRefillMfgDate(toDateInputValue(prod.manufacture_date));
-    setRefillExpiry(toDateInputValue(prod.expiry_date));
-    setRefillSupplier(prod.company_name || 'Stock Refill Supplier');
+    setRefillPurchasePrice(safeNumber(prod.purchase_price ?? prod.cost_price, 0));
+    setRefillSellingPrice(safeNumber(prod.selling_price, 0));
+    setRefillMrp(safeNumber(prod.mrp ?? prod.selling_price, 0));
+    setRefillBatch('');
+    setRefillMfgDate('');
+    setRefillExpiry('');
+    setRefillSupplier(compName);
   };
 
   const openRefillModal = (prod?: Product | null, suggestedQty: number = 20) => {
-    if (prod) {
-      selectProductForRefill(prod);
+    const autoTarget = prod || (products.length === 1 ? products[0] : null);
+    if (autoTarget) {
+      selectProductForRefill(autoTarget);
       setRefillQty(suggestedQty);
     } else {
       setRefillProductId(null);
@@ -593,8 +596,8 @@ export const InventoryPage: React.FC = () => {
       setRefillSupplier('');
     }
     setRefillProductSearch('');
-    setRefillInvoice(`INV-${Math.floor(100000 + Math.random() * 900000)}`);
-    setRefillNotes('Periodic replenishment');
+    setRefillInvoice('');
+    setRefillNotes('');
     setIsRefillModalOpen(true);
   };
 
@@ -708,6 +711,7 @@ export const InventoryPage: React.FC = () => {
       company_name: compName,
       trade_name: tradeName,
       category: catConfig.id,
+      gst_rate: catConfig.defaultGstRate,
       unit: normalizeUnit(editingProduct.unit || catConfig.defaultUnit),
       hsn_code: sanitizeCodeInput(editingProduct.hsn_code || '', 30),
       batch_number: cleanBatch,
@@ -717,6 +721,7 @@ export const InventoryPage: React.FC = () => {
       purchase_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
       cost_price: clampNonNegative(editingProduct.cost_price ?? (editingProduct as any).purchase_price ?? 0),
       selling_price: clampNonNegative(editingProduct.selling_price ?? 0),
+      mrp: clampNonNegative(editingProduct.mrp ?? editingProduct.selling_price ?? 0),
       current_stock: clampNonNegative(editingProduct.current_stock ?? 0),
       minimum_stock: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
       min_stock_level: clampNonNegative(editingProduct.min_stock_level ?? (editingProduct as any).minimum_stock ?? 20),
@@ -808,18 +813,23 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const addVariantRow = () => {
-    const defaultVariantUnit = allowedEditVariantUnits[0] || normalizeUnit(editingProduct?.unit);
+  const addVariantRow = (preset?: CategoryPackPreset) => {
+    const defaultVariantUnit =
+      preset?.unit && allowedEditVariantUnits.includes(preset.unit)
+        ? preset.unit
+        : allowedEditVariantUnits[0] || normalizeUnit(editingProduct?.unit);
+    const defaultSize = preset?.size ?? 1;
+    const defaultLabel = preset?.label ?? `${defaultSize} ${defaultVariantUnit}`;
     setProductVariants([
       ...productVariants,
       {
-        variant_name: '',
-        unit_size: 1,
+        variant_name: defaultLabel,
+        unit_size: defaultSize,
         unit: defaultVariantUnit,
         purchase_price: editingProduct?.cost_price || 0,
         selling_price: editingProduct?.selling_price || 0,
-        mrp: editingProduct?.mrp || 0,
-        stock: 0,
+        mrp: editingProduct?.mrp || editingProduct?.selling_price || 0,
+        stock: editingProduct?.current_stock || 0,
       },
     ]);
   };
@@ -1697,7 +1707,13 @@ export const InventoryPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/khata?tab=compliance')}
+                onClick={() => {
+                  void downloadPdfFromApi(
+                    '/khata/export/pdf',
+                    'Form_O_Compliance_Register.pdf',
+                    { tab: 'compliance' }
+                  ).catch(() => navigate('/khata?tab=compliance'));
+                }}
                 className="px-space-md py-2.5 rounded-xl bg-forest-emerald text-white hover:bg-canopy-deep font-semibold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
               >
                 <Download className="w-4 h-4" />
@@ -1878,25 +1894,26 @@ export const InventoryPage: React.FC = () => {
       ===================================================================== */}
       {/* Refill Stock Modal */}
       {isRefillModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            <div className="px-5 py-4 bg-forest-emerald text-white flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[92vh] flex flex-col text-slate-900 dark:text-slate-100">
+            <div className="px-5 py-4 bg-emerald-800 dark:bg-emerald-950 border-b border-emerald-700/60 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <RotateCcw className="w-5 h-5 text-emerald-200" />
                 <h3 className="font-bold text-sm">Refill Existing Stock &amp; Inward Goods</h3>
               </div>
               <button
                 type="button"
+                aria-label="Close refill modal"
                 onClick={() => setIsRefillModalOpen(false)}
-                className="text-emerald-200 hover:text-white"
+                className="text-emerald-200 hover:text-white p-1 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={(e) => { void handleRefillSubmit(e); }} className="p-5 space-y-4 text-xs">
+            <form onSubmit={(e) => { void handleRefillSubmit(e); }} className="p-5 space-y-4 text-xs overflow-y-auto">
               <div>
-                <label htmlFor="refill-product-search" className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="refill-product-search" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                   Product to Refill *
                 </label>
                 {refillProductId ? (
@@ -1904,24 +1921,25 @@ export const InventoryPage: React.FC = () => {
                     const sel = products.find((p) => p.id === refillProductId);
                     if (!sel) return null;
                     return (
-                      <div className="bg-emerald-50/80 border border-emerald-300 rounded-xl p-3 flex items-center justify-between">
-                        <div>
+                      <div className="bg-emerald-50/80 dark:bg-slate-800/90 border border-emerald-300 dark:border-emerald-800/70 rounded-xl p-3 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-slate-900 text-xs">
+                            <span className="font-bold text-slate-900 dark:text-white text-xs">
                               {sel.name || sel.product_name}
                             </span>
                             {sel.trade_name && (
-                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-300">
+                              <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-800">
                                 Trade: {sel.trade_name}
                               </span>
                             )}
-                            <span className="font-mono text-[10px] font-bold bg-white text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <span className="font-mono text-[10px] font-bold bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-slate-700">
                               Code: {sel.barcode || sel.product_code}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-600 mt-0.5">
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
                             {sel.company_name ? `${sel.company_name} • ` : ''}
-                            Current Stock: <strong className="text-emerald-800">{sel.current_stock} {sel.unit}</strong>
+                            Current Stock: <strong className="text-emerald-800 dark:text-emerald-400">{sel.current_stock} {sel.unit}</strong>
+                            {' • '}Active Batch: <span className="font-mono">{sel.batch_number || 'BAT-01'}</span>
                           </p>
                         </div>
                         <button
@@ -1930,9 +1948,9 @@ export const InventoryPage: React.FC = () => {
                             setRefillProductId(null);
                             setRefillProductSearch('');
                           }}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline px-2 py-1"
+                          className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline px-2 py-1 shrink-0"
                         >
-                          Change Product
+                          Change
                         </button>
                       </div>
                     );
@@ -1947,11 +1965,14 @@ export const InventoryPage: React.FC = () => {
                         value={refillProductSearch}
                         onChange={(e) => setRefillProductSearch(e.target.value)}
                         placeholder="Search products by name, trade name, company, or code..."
-                        className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
+                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs"
                       />
                     </div>
+                    <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                      Click a product below to load its current pricing, unit &amp; brand details:
+                    </p>
 
-                    <div className="border border-slate-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 bg-white shadow-md">
+                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 shadow-md">
                       {products
                         .filter((p) => {
                           if (!refillProductSearch.trim()) return true;
@@ -1973,28 +1994,33 @@ export const InventoryPage: React.FC = () => {
                               selectProductForRefill(p);
                               setRefillProductSearch('');
                             }}
-                            className="w-full text-left p-2.5 hover:bg-emerald-50/70 transition flex items-center justify-between text-xs"
+                            className="w-full text-left p-2.5 hover:bg-emerald-50/70 dark:hover:bg-slate-800 transition flex items-center justify-between gap-2 text-xs"
                           >
-                            <div>
+                            <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-slate-800">{p.name || p.product_name}</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-100">{p.name || p.product_name}</span>
                                 {p.trade_name && (
-                                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                     Trade: {p.trade_name}
                                   </span>
                                 )}
-                                <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1 rounded">
+                                <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded">
                                   {p.barcode || p.product_code}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500">
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                                 {p.company_name ? `${p.company_name} • ` : ''}
-                                Stock: <strong className="text-emerald-700">{p.current_stock} {p.unit}</strong>
+                                Stock: <strong className="text-emerald-700 dark:text-emerald-400">{p.current_stock} {p.unit}</strong>
                               </p>
                             </div>
-                            <span className="text-[11px] font-bold text-emerald-700 font-mono">
-                              ₹{formatCurrency(p.selling_price)}
-                            </span>
+                            <div className="text-right shrink-0">
+                              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 font-mono block">
+                                ₹{formatCurrency(p.selling_price)}
+                              </span>
+                              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 underline">
+                                Select →
+                              </span>
+                            </div>
                           </button>
                         ))}
                     </div>
@@ -2003,10 +2029,10 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               {/* Company / Brand & Trade Name */}
-              <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl p-3 space-y-2.5">
+              <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2.5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="refill-company-name" className="block font-semibold text-slate-700 mb-1">
+                    <label htmlFor="refill-company-name" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                       Company / Brand Name
                     </label>
                     <input
@@ -2025,11 +2051,11 @@ export const InventoryPage: React.FC = () => {
                         }
                       }}
                       placeholder="e.g. Bayer, Syngenta, IFFCO"
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label htmlFor="refill-trade-name" className="block font-semibold text-emerald-900 mb-1">
+                    <label htmlFor="refill-trade-name" className="block font-semibold text-emerald-900 dark:text-emerald-300 mb-1">
                       Trade Name (Product + Brand)
                     </label>
                     <input
@@ -2042,7 +2068,7 @@ export const InventoryPage: React.FC = () => {
                         setRefillTradeManuallyEdited(true);
                       }}
                       placeholder="e.g. Confidor, Actara, Coragen"
-                      className="w-full px-2.5 py-1.5 bg-white font-bold text-emerald-900 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 font-bold text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700/70 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -2051,7 +2077,7 @@ export const InventoryPage: React.FC = () => {
               {/* Quantity and Unit */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="refill-qty" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="refill-qty" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     Inward Quantity to Add *
                   </label>
                   <input
@@ -2062,112 +2088,121 @@ export const InventoryPage: React.FC = () => {
                     required
                     value={refillQty}
                     onChange={(e) => setRefillQty(Number.parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 font-black text-sm text-emerald-800 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 font-black text-sm text-emerald-800 dark:text-emerald-300 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-unit-select" className="block font-semibold text-slate-700 mb-1">
-                    Unit of Measure
+                  <label className="block font-semibold text-slate-700 dark:text-slate-200">
+                    <span className="block mb-1">Unit of Measure</span>
+                    <CustomSelect
+                      value={normalizeUnit(refillUnit)}
+                      onChange={(val) => setRefillUnit(val)}
+                      options={(() => {
+                        const allowed = selectedRefillProduct
+                          ? refillCategoryConfig.allowedUnits
+                          : ['Bags', 'Kg', 'Grams', 'Litre', 'ml', 'Packets', 'Pouches', 'Punnets', 'Trays', 'Tons', 'Pieces', 'Nos', 'Sets', 'Meters', 'Rolls'];
+                        const current = normalizeUnit(refillUnit);
+                        const list = allowed.includes(current) ? allowed : [current, ...allowed];
+                        return list.map((u) => ({ value: u, label: u }));
+                      })()}
+                    />
                   </label>
-                  <CustomSelect
-                    value={normalizeUnit(refillUnit)}
-                    onChange={(val) => setRefillUnit(val)}
-                    options={(() => {
-                      const allowed = selectedRefillProduct
-                        ? refillCategoryConfig.allowedUnits
-                        : ['Bags', 'Kg', 'Grams', 'Litre', 'ml', 'Packets', 'Pouches', 'Tons', 'Pieces', 'Nos', 'Sets', 'Meters', 'Rolls'];
-                      const current = normalizeUnit(refillUnit);
-                      const list = allowed.includes(current) ? allowed : [current, ...allowed];
-                      return list.map((u) => ({ value: u, label: u }));
-                    })()}
-                  />
                 </div>
               </div>
 
-              {/* Batch & Dates */}
-              <div className={`grid grid-cols-1 ${refillCategoryConfig.dateFields.showExpiryDate ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
-                <div>
-                  <label htmlFor="refill-batch" className="block font-semibold text-slate-700 mb-1">
-                    New / Current {refillCategoryConfig.batchField.label}
-                  </label>
-                  <input
-                    id="refill-batch"
-                    type="text"
-                    value={refillBatch}
-                    onChange={(e) => setRefillBatch(e.target.value)}
-                    placeholder={refillCategoryConfig.batchField.placeholder}
-                    className="w-full px-2.5 py-1.5 font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
+              {/* Batch & Dates + Selling Priority Indicator */}
+              <div className="space-y-1.5">
+                <div className={`grid grid-cols-1 ${refillCategoryConfig.dateFields.showExpiryDate ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3`}>
+                  <div>
+                    <label htmlFor="refill-batch" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                      Inward {refillCategoryConfig.batchField.label}
+                    </label>
+                    <input
+                      id="refill-batch"
+                      type="text"
+                      value={refillBatch}
+                      onChange={(e) => setRefillBatch(e.target.value)}
+                      placeholder="Auto new batch if blank"
+                      className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  {refillCategoryConfig.dateFields.showMfgDate && (
+                    <div>
+                      <label htmlFor="refill-mfg-date" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                        {refillCategoryConfig.dateFields.mfgLabel}
+                      </label>
+                      <input
+                        id="refill-mfg-date"
+                        type="date"
+                        value={refillMfgDate}
+                        onChange={(e) => setRefillMfgDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  {refillCategoryConfig.dateFields.showExpiryDate && (
+                    <div>
+                      <label htmlFor="refill-expiry" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                        {refillCategoryConfig.dateFields.expiryLabel}
+                      </label>
+                      <input
+                        id="refill-expiry"
+                        type="date"
+                        value={refillExpiry}
+                        onChange={(e) => setRefillExpiry(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
                 </div>
-                {refillCategoryConfig.dateFields.showMfgDate && (
-                  <div>
-                    <label htmlFor="refill-mfg-date" className="block font-semibold text-slate-700 mb-1">
-                      {refillCategoryConfig.dateFields.mfgLabel}
-                    </label>
-                    <input
-                      id="refill-mfg-date"
-                      type="date"
-                      value={refillMfgDate}
-                      onChange={(e) => setRefillMfgDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                )}
-                {refillCategoryConfig.dateFields.showExpiryDate && (
-                  <div>
-                    <label htmlFor="refill-expiry" className="block font-semibold text-slate-700 mb-1">
-                      {refillCategoryConfig.dateFields.expiryLabel}
-                    </label>
-                    <input
-                      id="refill-expiry"
-                      type="date"
-                      value={refillExpiry}
-                      onChange={(e) => setRefillExpiry(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                )}
+                <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                  <ArrowUpDown className="w-3 h-3 shrink-0" />
+                  <span>{refillCategoryConfig.rotationRuleLabel}</span>
+                </p>
               </div>
 
               {/* Pricing */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="refill-purchase-price" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="refill-purchase-price" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     Inward Cost Price (₹)
                   </label>
                   <input
                     id="refill-purchase-price"
                     type="number"
                     step="0.5"
+                    min="0"
                     value={refillPurchasePrice}
                     onChange={(e) => setRefillPurchasePrice(Number.parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-selling-price" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="refill-selling-price" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     Selling Price (₹)
                   </label>
                   <input
                     id="refill-selling-price"
                     type="number"
                     step="0.5"
+                    min="0"
                     value={refillSellingPrice}
                     onChange={(e) => setRefillSellingPrice(Number.parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 font-bold text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-mrp" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="refill-mrp" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     MRP (₹)
                   </label>
                   <input
                     id="refill-mrp"
                     type="number"
                     step="0.5"
+                    min="0"
                     value={refillMrp}
                     onChange={(e) => setRefillMrp(Number.parseFloat(e.target.value) || 0)}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -2175,7 +2210,7 @@ export const InventoryPage: React.FC = () => {
               {/* Supplier & Inward Bill No */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="refill-supplier" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="refill-supplier" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                     Supplier / Depot Name
                   </label>
                   <input
@@ -2184,50 +2219,50 @@ export const InventoryPage: React.FC = () => {
                     value={refillSupplier}
                     onChange={(e) => setRefillSupplier(e.target.value)}
                     placeholder="e.g. IFFCO Central Depot"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label htmlFor="refill-invoice" className="block font-semibold text-slate-700 mb-1">
-                    Supplier Invoice / Bill No.
+                  <label htmlFor="refill-invoice" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                    Supplier Invoice / Bill No. (Optional)
                   </label>
                   <input
                     id="refill-invoice"
                     type="text"
                     value={refillInvoice}
                     onChange={(e) => setRefillInvoice(e.target.value)}
-                    placeholder="e.g. INV-9921"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    placeholder="Auto-generated if left blank"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="refill-notes" className="block font-semibold text-slate-700 mb-1">
-                  Inward Notes
+                <label htmlFor="refill-notes" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                  Inward Notes (Optional)
                 </label>
                 <input
                   id="refill-notes"
                   type="text"
                   value={refillNotes}
                   onChange={(e) => setRefillNotes(e.target.value)}
-                  placeholder="e.g. Arrived via truck, bags checked"
-                  className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  placeholder="Optional delivery or consignment remarks"
+                  className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsRefillModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
+                  className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-semibold transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={refillSubmitting}
-                  className="bg-forest-emerald hover:bg-canopy-deep text-white px-5 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-all"
+                  disabled={refillSubmitting || !refillProductId}
+                  className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-all"
                 >
                   {refillSubmitting ? 'Refilling...' : 'Confirm Refill & Add Stock'}
                 </button>
@@ -2282,8 +2317,8 @@ export const InventoryPage: React.FC = () => {
       {/* Stock Adjustment Modal */}
       {isAdjustModalOpen && adjustingProduct && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-5 py-4 bg-slate-900 dark:bg-slate-950 text-white flex items-center justify-between border-b border-slate-800">
               <h3 className="font-bold text-sm">
                 Adjust Stock: {adjustingProduct.name || adjustingProduct.product_name}
               </h3>
@@ -2297,30 +2332,30 @@ export const InventoryPage: React.FC = () => {
             </div>
 
             <form onSubmit={(e) => { void handleAdjustStock(e); }} className="p-5 space-y-3.5 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-500 block">Current Warehouse Stock:</span>
-                <span className="text-lg font-black text-forest-emerald font-mono block">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-slate-500 dark:text-slate-400 block">Current Warehouse Stock:</span>
+                <span className="text-lg font-black text-forest-emerald dark:text-emerald-400 font-mono block">
                   {adjustingProduct.current_stock} {adjustingProduct.unit}
                 </span>
               </div>
 
               <div>
-                <label htmlFor="adjust-type-select" className="block font-semibold text-slate-700 mb-1">
-                  Adjustment Type
+                <label className="block font-semibold text-slate-700 dark:text-slate-200">
+                  <span className="block mb-1">Adjustment Type</span>
+                  <CustomSelect
+                    value={adjustType}
+                    onChange={(val) => setAdjustType(val as 'AUDIT_CORRECTION' | 'DAMAGE' | 'RETURN')}
+                    options={[
+                      { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
+                      { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
+                      { value: 'RETURN', label: 'Customer Return (+)' },
+                    ]}
+                  />
                 </label>
-                <CustomSelect
-                  value={adjustType}
-                  onChange={(val) => setAdjustType(val as any)}
-                  options={[
-                    { value: 'AUDIT_CORRECTION', label: 'Audit Count Correction (+/-)' },
-                    { value: 'DAMAGE', label: 'Damaged / Leaked Bags (-)' },
-                    { value: 'RETURN', label: 'Customer Return (+)' },
-                  ]}
-                />
               </div>
 
               <div>
-                <label htmlFor="adjust-stock-qty" className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="adjust-stock-qty" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                   Quantity Adjustment (positive or negative number)
                 </label>
                 <input
@@ -2330,12 +2365,12 @@ export const InventoryPage: React.FC = () => {
                   value={adjustQty}
                   onChange={(e) => setAdjustQty(Number.parseInt(e.target.value, 10) || 0)}
                   placeholder="e.g. -5 or +10"
-                  className="w-full px-3 py-2 font-black text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
+                  className="w-full px-3 py-2 font-black text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
                 />
               </div>
 
               <div>
-                <label htmlFor="adjust-stock-reason" className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="adjust-stock-reason" className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
                   Reason / Note
                 </label>
                 <input
@@ -2345,15 +2380,15 @@ export const InventoryPage: React.FC = () => {
                   value={adjustReason}
                   onChange={(e) => setAdjustReason(e.target.value)}
                   placeholder="e.g. Monthly godown physical verification"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-forest-emerald focus:outline-none"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAdjustModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
+                  className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-semibold"
                 >
                   Cancel
                 </button>

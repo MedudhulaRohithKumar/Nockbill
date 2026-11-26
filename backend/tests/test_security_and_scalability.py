@@ -1949,6 +1949,338 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
                 self.assertNotIn("no-store", cc)
                 self.assertIn("must-revalidate", cc)
 
+    # ── Category GST Defaults (Others 0%, Microgreens 5%) & Tax-Inclusive POS Pricing ──
+    def test_category_gst_defaults_and_tax_inclusive_billing(self):
+        # 1. Others defaults to 0% GST and clears expiry_date
+        others_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Battery Knapsack Sprayer 16L",
+                "company_name": "KisanKraft",
+                "category": "Others",
+                "unit": "Pieces",
+                "purchase_price": "2200.00",
+                "selling_price": "2800.00",
+                "current_stock": "6",
+                "expiry_date": "2029-12",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(others_res.status_code, 201, others_res.text)
+        others_prod = others_res.json()
+        self.assertEqual(others_prod["category"], "Others")
+        self.assertEqual(others_prod["gst_rate"], 0.0)
+        self.assertIsNone(others_prod["expiry_date"])
+
+        # 2. Microgreens defaults to 5% GST and supports Punnets/Trays units
+        mg_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Sunflower Microgreens Live Punnet",
+                "company_name": "GreenShoots",
+                "category": "microgreens",
+                "unit": "Punnets",
+                "purchase_price": "80.00",
+                "selling_price": "150.00",
+                "current_stock": "12",
+                "batch_number": "MG-SUN-01",
+                "expiry_date": "2028-05-15",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(mg_res.status_code, 201, mg_res.text)
+        mg_prod = mg_res.json()
+        self.assertEqual(mg_prod["category"], "Microgreens")
+        self.assertEqual(mg_prod["unit"], "Punnets")
+        self.assertEqual(mg_prod["gst_rate"], 5.0)
+
+        # 3. Fertilizer (20.20.0.30) defaults to 5% GST and bills at exact selling price (2150.00, never 2257.50)
+        fert_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "20.20.0.30 Complex",
+                "company_name": "Gromor",
+                "category": "Fertilizer",
+                "unit": "Bags",
+                "purchase_price": "1850.00",
+                "selling_price": "2150.00",
+                "current_stock": "20",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(fert_res.status_code, 201, fert_res.text)
+        fert_prod = fert_res.json()
+        self.assertEqual(fert_prod["gst_rate"], 5.0)
+
+        sale_res = self.client.post(
+            "/api/sales",
+            json={
+                "payment_method": "UPI",
+                "items": [
+                    {
+                        "product_id": fert_prod["id"],
+                        "product_name": fert_prod["product_name"],
+                        "quantity": 1,
+                        "price": 2150.00,
+                        "gst_rate": 5.0,
+                    }
+                ],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(sale_res.status_code, 201, sale_res.text)
+        sale = sale_res.json()
+        self.assertAlmostEqual(float(sale["grand_total"]), 2150.00, places=2)
+        self.assertAlmostEqual(float(sale["subtotal"]) + float(sale["gst_amount"]), 2150.00, places=2)
+
+        # 4. Updating category to Others auto-updates gst_rate to 0%
+        upd_res = self.client.put(
+            f"/api/products/{mg_prod['id']}",
+            json={"category": "Others"},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(upd_res.status_code, 200, upd_res.text)
+        self.assertEqual(upd_res.json()["gst_rate"], 0.0)
+
+    # ── Refill -> Billing Across Categories: FEFO vs FIFO & Multi-Batch Cascade ──
+    def test_refill_batch_rotation_fefo_fifo_and_cascade_billing(self):
+        # A. FEFO Category (Pesticide): earlier-expiring refilled batch must sell 1st, then cascade
+        pest_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Coragen 18.5 SC",
+                "company_name": "FMC",
+                "category": "Pesticide",
+                "unit": "ml",
+                "purchase_price": "650.00",
+                "selling_price": "850.00",
+                "current_stock": "5",
+                "batch_number": "COR-LATE-2028",
+                "manufacture_date": "2026-06",
+                "expiry_date": "2028-11",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(pest_res.status_code, 201, pest_res.text)
+        pest = pest_res.json()
+
+        # Refill with an earlier-expiring batch and selling_price=0 (must preserve 850.00!)
+        refill_pest = self.client.post(
+            "/api/products/refill",
+            json={
+                "product_id": pest["id"],
+                "quantity": 5,
+                "batch_number": "COR-SOON-2027",
+                "expiry_date": "2027-05",
+                "purchase_price": 640,
+                "selling_price": 0,
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(refill_pest.status_code, 200, refill_pest.text)
+        refilled_pest = refill_pest.json()["product"]
+        self.assertEqual(refilled_pest["current_stock"], 10.0)
+        self.assertEqual(refilled_pest["batch_number"], "COR-SOON-2027")
+        self.assertEqual(refilled_pest["batches"][0]["batch_number"], "COR-SOON-2027")
+        self.assertEqual(refilled_pest["batches"][0]["selling_price"], 850.0)
+
+        # Search by secondary batch number must still find the product
+        srch = self.client.get("/api/products/search?q=COR-LATE-2028", headers=self.owner_a_headers)
+        self.assertEqual(srch.status_code, 200)
+        self.assertTrue(any(p["id"] == pest["id"] for p in srch.json()))
+
+        # Staff bills 6 units without specifying batch_id -> 5 deducted from COR-SOON-2027 + 1 from COR-LATE-2028
+        staff_sale = self.client.post(
+            "/api/sales",
+            json={
+                "payment_method": "Cash",
+                "items": [
+                    {
+                        "product_id": pest["id"],
+                        "product_name": pest["product_name"],
+                        "quantity": 6,
+                        "price": 850.0,
+                        "gst_rate": 18.0,
+                    }
+                ],
+            },
+            headers=self.staff_a_headers,
+        )
+        self.assertEqual(staff_sale.status_code, 201, staff_sale.text)
+
+        after_pest = self.client.get(f"/api/products/{pest['id']}", headers=self.owner_a_headers).json()
+        self.assertEqual(after_pest["current_stock"], 4.0)
+        self.assertEqual(after_pest["batch_number"], "COR-LATE-2028")
+        self.assertEqual(len(after_pest["batches"]), 1)
+        self.assertEqual(after_pest["batches"][0]["batch_number"], "COR-LATE-2028")
+        self.assertEqual(after_pest["batches"][0]["current_stock"], 4.0)
+
+        # B. FIFO Category (Others / Non-expiring): oldest opening batch must sell 1st before auto-batched refill
+        oth_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Safety Goggles Pro",
+                "company_name": "AgriSafe",
+                "category": "Others",
+                "unit": "Pieces",
+                "purchase_price": "120.00",
+                "selling_price": "200.00",
+                "current_stock": "3",
+                "batch_number": "SG-OPEN-01",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(oth_res.status_code, 201, oth_res.text)
+        oth = oth_res.json()
+
+        # Refill without supplying batch_number while stock > 0 -> creates distinct inward batch B02
+        refill_oth = self.client.post(
+            "/api/products/refill",
+            json={
+                "product_id": oth["id"],
+                "quantity": 5,
+                "purchase_price": 125,
+                "selling_price": 200,
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(refill_oth.status_code, 200, refill_oth.text)
+        refilled_oth = refill_oth.json()["product"]
+        self.assertEqual(refilled_oth["current_stock"], 8.0)
+        self.assertEqual(len(refilled_oth["batches"]), 2)
+        self.assertEqual(refilled_oth["batches"][0]["batch_number"], "SG-OPEN-01")
+        self.assertTrue(refilled_oth["batches"][1]["batch_number"].endswith("-B02"))
+
+        # Validate ProductResponse & ProductBatchResponse schema validation when expiry_date=None
+        from app.schemas.schemas import ProductResponse
+        validated_schema = ProductResponse.model_validate(refilled_oth)
+        self.assertEqual(len(validated_schema.batches or []), 2)
+        self.assertIsNone(validated_schema.batches[0].expiry_date)
+
+        # Bill 4 units -> exhausts all 3 of SG-OPEN-01 first, plus 1 from -B02
+        fifo_sale = self.client.post(
+            "/api/sales",
+            json={
+                "payment_method": "Cash",
+                "items": [
+                    {
+                        "product_id": oth["id"],
+                        "product_name": oth["product_name"],
+                        "quantity": 4,
+                        "price": 200.0,
+                        "gst_rate": 0.0,
+                    }
+                ],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(fifo_sale.status_code, 201, fifo_sale.text)
+        after_oth = self.client.get(f"/api/products/{oth['id']}", headers=self.owner_a_headers).json()
+        self.assertEqual(after_oth["current_stock"], 4.0)
+        self.assertTrue(after_oth["batch_number"].endswith("-B02"))
+
+    # ── Standalone Structured PDF Endpoints Across All Screens ──
+    def test_all_standalone_pdf_export_endpoints(self):
+        # Seed a product, refill purchase, credit sale (creates customer khata), and sales return
+        prod_res = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "IFFCO Nano DAP",
+                "company_name": "IFFCO",
+                "category": "Fertilizer",
+                "unit": "Bottles",
+                "purchase_price": "480.00",
+                "selling_price": "600.00",
+                "current_stock": "25",
+                "batch_number": "NDAP-2026",
+                "expiry_date": "2028-09",
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(prod_res.status_code, 201)
+        prod = prod_res.json()
+
+        refill_res = self.client.post(
+            "/api/products/refill",
+            json={"product_id": prod["id"], "quantity": 5, "purchase_price": 480, "selling_price": 600},
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(refill_res.status_code, 200)
+        purchase_id = refill_res.json()["purchase_id"]
+
+        sale_res = self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Rameshwar Patil",
+                "customer_phone": "9876543219",
+                "village": "Nizamabad",
+                "payment_method": "Credit",
+                "items": [
+                    {
+                        "product_id": prod["id"],
+                        "product_name": prod["product_name"],
+                        "quantity": 2,
+                        "price": 600.0,
+                        "gst_rate": 5.0,
+                    }
+                ],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(sale_res.status_code, 201)
+        sale = sale_res.json()
+
+        lookup_res = self.client.get(
+            f"/api/returns/lookup?invoice_number={sale['invoice_number']}", headers=self.owner_a_headers
+        )
+        self.assertEqual(lookup_res.status_code, 200, lookup_res.text)
+        lookup = lookup_res.json()
+        ret_res = self.client.post(
+            "/api/returns",
+            json={
+                "sale_id": sale["id"],
+                "invoice_number": sale["invoice_number"],
+                "refund_payment_method": "Khata",
+                "reason": "Damaged seal",
+                "items": [{"sale_item_id": lookup["items"][0]["sale_item_id"], "returned_quantity": 1}],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(ret_res.status_code, 201, ret_res.text)
+        ret = ret_res.json()
+
+        customers_res = self.client.get("/api/khata/customers", headers=self.owner_a_headers)
+        self.assertEqual(customers_res.status_code, 200, customers_res.text)
+        cust_phone = customers_res.json()["customers"][0]["customer_phone"]
+
+        pdf_urls = [
+            f"/api/invoices/{sale['id']}/pdf",
+            f"/api/invoices/{sale['id']}/pdf?format=thermal",
+            f"/api/purchases/{purchase_id}/pdf",
+            f"/api/returns/{ret['id']}/pdf",
+            f"/api/products/{prod['id']}/barcode-label.pdf?label_size=50x25&copies=2&include_batch=true",
+            f"/api/products/{prod['id']}/barcode-label.pdf?label_size=a4_sheet",
+            "/api/reports/export/pdf?report_type=sales",
+            "/api/reports/export/pdf?report_type=purchases",
+            "/api/reports/export/pdf?report_type=gst",
+            "/api/reports/export/pdf?report_type=stock",
+            "/api/reports/export/pdf?report_type=pnl",
+            "/api/khata/export/pdf?tab=farmers",
+            f"/api/khata/export/pdf?tab=farmer_statement&customer_phone={cust_phone}&customer_name=Rameshwar+Patil",
+            "/api/khata/export/pdf?tab=suppliers",
+            "/api/khata/export/pdf?tab=compliance",
+            "/api/khata/export/pdf?tab=form_m",
+            "/api/khata/export/pdf?tab=price_board",
+            "/api/settings/test-slip.pdf?port=USB001",
+            "/api/settings/upi-standee.pdf",
+        ]
+
+        for url in pdf_urls:
+            res = self.client.get(url, headers=self.owner_a_headers)
+            self.assertEqual(res.status_code, 200, f"PDF endpoint failed for {url}: {res.text}")
+            self.assertEqual(res.headers.get("content-type"), "application/pdf", f"Wrong MIME for {url}")
+            self.assertTrue(res.content.startswith(b"%PDF-"), f"Invalid PDF header for {url}")
+            self.assertGreater(len(res.content), 400, f"Suspiciously small PDF for {url}")
 
 
 if __name__ == "__main__":

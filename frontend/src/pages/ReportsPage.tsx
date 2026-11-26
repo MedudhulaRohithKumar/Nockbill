@@ -24,6 +24,7 @@ import { reportsApi, salesApi, purchasesApi } from '../api';
 import { Sale, Purchase } from '../types';
 import { safeNumber, safeString, formatCurrency } from '../utils/formatters';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
+import { downloadPdfFromApi } from '../utils/pdfExport';
 
 const toLocalDateStr = (d: Date = new Date()) => {
   const year = d.getFullYear();
@@ -271,12 +272,22 @@ export const ReportsPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => {
+              setStatusMsg('Generating official PDF report...');
+              void downloadPdfFromApi(
+                '/reports/export/pdf',
+                `NockBill_${activeTab}_report_${fromDate}_to_${toDate}.pdf`,
+                { report_type: activeTab === 'pnl' ? 'pnl' : activeTab, from_date: fromDate, to_date: toDate }
+              )
+                .then(() => setStatusMsg('PDF report downloaded.'))
+                .catch(() => setStatusMsg('Could not generate PDF report. Please retry.'))
+                .finally(() => setTimeout(() => setStatusMsg(null), 3500));
+            }}
             className="h-10 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs inline-flex items-center gap-1.5 shadow-sm transition-all"
-            title="Print Tax Summary"
+            title="Download printable PDF report"
           >
             <Printer className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-            <span>Print Tax Summary</span>
+            <span>Download PDF Report</span>
           </button>
         </div>
       </div>

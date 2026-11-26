@@ -337,10 +337,11 @@ _SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def escape_pdf_text(value: Any) -> str:
-    """Escape XML special characters (&, <, >, quotes) before ReportLab Paragraph rendering (S3)."""
+    """Escape XML special characters (&, <, >, quotes) and normalize ₹ for ReportLab Type-1 fonts (S3)."""
     if value is None:
         return ""
-    return _xml_escape(str(value), {'"': "&quot;", "'": "&apos;"})
+    safe_str = str(value).replace("\u20b9", "Rs. ")
+    return _xml_escape(safe_str, {'"': "&quot;", "'": "&apos;"})
 
 
 def escape_html_text(value: Any) -> str:

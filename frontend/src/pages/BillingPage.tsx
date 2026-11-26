@@ -44,6 +44,12 @@ import { InvoiceReceiptModal } from '../components/billing/InvoiceReceiptModal';
 import { AgriDoctorModal } from '../components/billing/AgriDoctorModal';
 import { MetricInfoTooltip } from '../components/common/MetricInfoTooltip';
 import {
+  INVENTORY_CATEGORIES,
+  getCategoryConfig,
+  normalizeCategory,
+  sortBatchesByCategoryRule,
+} from '../config/inventoryCategories';
+import {
   safeNumber,
   safeString,
   formatCurrency,
@@ -61,16 +67,8 @@ interface PaymentSplit {
   amount: number;
 }
 
-const getSellableBatches = (product: Product): ProductBatch[] => {
-  const batches = product.batches ?? [];
-  if (batches.length === 0) return [];
-  const sellable = batches.length === 1 ? batches : batches.filter((b) => b.current_stock > 0);
-  const expiryTime = (b: ProductBatch) => {
-    const t = b.expiry_date ? new Date(b.expiry_date).getTime() : Number.NaN;
-    return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
-  };
-  return [...sellable].sort((a, b) => expiryTime(a) - expiryTime(b));
-};
+const getSellableBatches = (product: Product): ProductBatch[] =>
+  sortBatchesByCategoryRule(product.batches ?? [], product.category);
 
 export const BillingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -287,24 +285,37 @@ export const BillingPage: React.FC = () => {
     const state = location.state as any;
     if (state?.pendingBillItem) {
       addItemToCart(state.pendingBillItem);
+      navigate(location.pathname, { replace: true, state: null });
     } else if (Array.isArray(state?.stagedCartItems) && state.stagedCartItems.length > 0) {
       state.stagedCartItems.forEach((item: any) => addItemToCart(item));
       if (state.selectedTender) {
         setSelectedTender(state.selectedTender);
       }
+      navigate(location.pathname, { replace: true, state: null });
     }
   }, [user?.id, location.state]);
 
-  // ─── LIVE OMNIBAR SEARCH & FILTERING ────────────────────────────────────────
+  // ─── LIVE OMNIBAR SEARCH & CATEGORY CHIP FILTERING ──────────────────────────
   useEffect(() => {
     const trimmed = searchQuery.trim();
+    const invList = Array.isArray(inventory) ? inventory : [];
+
     if (!trimmed) {
-      setSearchResults([]);
+      if (selectedCategoryChip !== 'ALL') {
+        const byCat = invList
+          .filter((p) => normalizeCategory(p.category) === selectedCategoryChip)
+          .slice(0, 30);
+        setSearchResults(byCat);
+      } else {
+        setSearchResults([]);
+      }
       return;
     }
     const q = trimmed.toLowerCase();
-    const invList = Array.isArray(inventory) ? inventory : [];
     const filtered = invList.filter((p) => {
+      if (selectedCategoryChip !== 'ALL' && normalizeCategory(p.category) !== selectedCategoryChip) {
+        return false;
+      }
       const pName = safeString(p.name || p.product_name).toLowerCase();
       const pTrade = safeString(p.trade_name).toLowerCase();
       const pCat = safeString(p.category).toLowerCase();
@@ -312,6 +323,9 @@ export const BillingPage: React.FC = () => {
       const pHsn = safeString(p.hsn_code).toLowerCase();
       const pBarcode = safeString(p.barcode).toLowerCase();
       const pCompany = safeString(p.company_name).toLowerCase();
+      const hasBatchMatch = (p.batches ?? []).some((b) =>
+        safeString(b.batch_number).toLowerCase().includes(q)
+      );
       return (
         pName.includes(q) ||
         pTrade.includes(q) ||
@@ -319,7 +333,8 @@ export const BillingPage: React.FC = () => {
         pBatch.includes(q) ||
         pHsn.includes(q) ||
         pBarcode.includes(q) ||
-        pCompany.includes(q)
+        pCompany.includes(q) ||
+        hasBatchMatch
       );
     });
 
@@ -334,7 +349,11 @@ export const BillingPage: React.FC = () => {
         .search(trimmed)
         .then((remoteMatches) => {
           if (!cancelled && remoteMatches.length > 0) {
-            setSearchResults(mergeProductSearchResults(localSlice, remoteMatches, 30));
+            const catFiltered =
+              selectedCategoryChip === 'ALL'
+                ? remoteMatches
+                : remoteMatches.filter((p) => normalizeCategory(p.category) === selectedCategoryChip);
+            setSearchResults(mergeProductSearchResults(localSlice, catFiltered, 30));
           }
         })
         .catch(() => {});
@@ -344,7 +363,7 @@ export const BillingPage: React.FC = () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [searchQuery, inventory]);
+  }, [searchQuery, inventory, selectedCategoryChip]);
 
   // ─── BARCODE LOOKUP HANDLER ─────────────────────────────────────────────────
   const handleBarcodeLookup = async (codeToLookup?: string) => {
@@ -363,11 +382,7 @@ export const BillingPage: React.FC = () => {
           setVariantPickerProduct(product);
         } else {
           const activeBatches = getSellableBatches(product);
-          if (activeBatches.length > 1) {
-            setBatchPickerProduct({ product });
-          } else {
-            addProductToCart(product, undefined, activeBatches[0]);
-          }
+          addProductToCart(product, undefined, activeBatches[0]);
         }
       }
     } catch {
@@ -377,43 +392,45 @@ export const BillingPage: React.FC = () => {
     }
   };
 
-  // ─── ADD PRODUCT TO CART ───────────────────────────────────────────────────
+  // ─── ADD PRODUCT TO CART (Auto-allocates priority FEFO/FIFO batch across all categories) ───
   const addProductToCart = (
     product: Product,
     variant?: ProductVariant,
     batch?: ProductBatch
   ) => {
-    const activeBatches = getSellableBatches(product);
-    if (!batch && activeBatches.length > 1) {
-      setBatchPickerProduct({ product, variant });
+    if (!variant && product.variants && product.variants.length > 1) {
+      setVariantPickerProduct(product);
       return;
     }
 
-    const selectedBatch = batch || (activeBatches.length === 1 ? activeBatches[0] : undefined);
+    const activeBatches = getSellableBatches(product);
+    const selectedBatch = batch || activeBatches[0];
     const pName = variant
       ? `${product.product_name || product.name} (${variant.variant_name || `${variant.unit_size} ${variant.unit}`})`
       : product.product_name || product.name;
 
-    const price = selectedBatch?.selling_price
-      ? selectedBatch.selling_price
-      : variant
-      ? variant.selling_price
-      : product.selling_price || 100;
+    const price = safeNumber(
+      selectedBatch?.selling_price ||
+        (variant ? variant.selling_price : undefined) ||
+        product.selling_price,
+      0
+    );
 
-    const mrp = selectedBatch?.mrp
-      ? selectedBatch.mrp
-      : variant
-      ? variant.mrp
-      : product.mrp || price;
+    const mrp = safeNumber(
+      selectedBatch?.mrp || (variant ? variant.mrp : undefined) || product.mrp,
+      price
+    );
 
     const unit = variant ? variant.unit : product.unit || 'Bags';
-    const batchNo = selectedBatch?.batch_number || product.batch_number || product.product_code || 'DEFAULT';
+    const batchNo =
+      selectedBatch?.batch_number || product.batch_number || product.product_code || 'DEFAULT';
     const expiryDate = selectedBatch?.expiry_date || product.expiry_date;
     const tradeName = selectedBatch?.trade_name || product.trade_name || undefined;
+    const categoryGst = getCategoryConfig(product.category).defaultGstRate;
 
     addItemToCart({
       product_id: product.id,
-      batch_id: selectedBatch?.id,
+      batch_id: selectedBatch?.id || undefined,
       product_name: pName,
       trade_name: tradeName,
       batch_number: batchNo,
@@ -422,69 +439,70 @@ export const BillingPage: React.FC = () => {
       unit: unit,
       unit_price: price,
       mrp: mrp,
-      gst_rate: product.gst_rate ?? 5,
+      gst_rate: product.gst_rate ?? categoryGst,
       quantity: 1,
     });
   };
 
   const addItemToCart = (item: Partial<SaleItem>) => {
-    const existingIndex = cart.findIndex(
-      (c) =>
-        c.product_id === item.product_id &&
-        c.product_name === item.product_name &&
-        c.batch_number === item.batch_number
-    );
+    const price = safeNumber(item.unit_price ?? item.mrp, 0);
+    const gstRate = safeNumber(item.gst_rate, 0);
+    const qty = safeNumber(item.quantity, 1) || 1;
+    const discount = safeNumber(item.discount_percent, 0);
 
-    const price = item.unit_price || item.mrp || 100;
-    const gstRate = item.gst_rate ?? 5;
-    const qty = item.quantity || 1;
-    const discount = item.discount_percent || 0;
-
-    const taxes = calculateItemTaxes(price, qty, discount, gstRate, isInterstate);
-
-    const newItem: SaleItem = {
-      product_id: item.product_id || 1,
-      batch_id: item.batch_id,
-      product_name: item.product_name || 'Agri Input Product',
-      trade_name: item.trade_name,
-      batch_number: item.batch_number || 'DEFAULT',
-      expiry_date: item.expiry_date,
-      hsn_code: item.hsn_code || '',
-      unit: item.unit || 'Bags',
-      quantity: qty,
-      unit_price: price,
-      mrp: item.mrp || price,
-      discount_percent: discount,
-      discount_amount: taxes.discount_amount,
-      taxable_amount: taxes.taxable_amount,
-      gst_rate: gstRate,
-      cgst_amount: taxes.cgst_amount,
-      sgst_amount: taxes.sgst_amount,
-      igst_amount: taxes.igst_amount,
-      total_amount: taxes.total_amount,
-    };
-
-    if (existingIndex >= 0) {
-      const updated = [...cart];
-      const newQty = updated[existingIndex].quantity + qty;
-      const updatedTaxes = calculateItemTaxes(
-        updated[existingIndex].unit_price,
-        newQty,
-        updated[existingIndex].discount_percent,
-        updated[existingIndex].gst_rate,
-        isInterstate
+    setCart((prevCart) => {
+      const existingIndex = prevCart.findIndex(
+        (c) =>
+          c.product_id === item.product_id &&
+          c.product_name === item.product_name &&
+          c.batch_number === (item.batch_number || 'DEFAULT')
       );
-      updated[existingIndex] = {
-        ...updated[existingIndex],
-        quantity: newQty,
-        ...updatedTaxes,
+
+      if (existingIndex >= 0) {
+        const updated = [...prevCart];
+        const newQty = updated[existingIndex].quantity + qty;
+        const updatedTaxes = calculateItemTaxes(
+          updated[existingIndex].unit_price,
+          newQty,
+          updated[existingIndex].discount_percent,
+          updated[existingIndex].gst_rate,
+          isInterstate
+        );
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: newQty,
+          ...updatedTaxes,
+        };
+        return updated;
+      }
+
+      const taxes = calculateItemTaxes(price, qty, discount, gstRate, isInterstate);
+      const newItem: SaleItem = {
+        product_id: item.product_id || 1,
+        batch_id: item.batch_id,
+        product_name: item.product_name || 'Agri Input Product',
+        trade_name: item.trade_name,
+        batch_number: item.batch_number || 'DEFAULT',
+        expiry_date: item.expiry_date,
+        hsn_code: item.hsn_code || '',
+        unit: item.unit || 'Bags',
+        quantity: qty,
+        unit_price: price,
+        mrp: item.mrp || price,
+        discount_percent: discount,
+        discount_amount: taxes.discount_amount,
+        taxable_amount: taxes.taxable_amount,
+        gst_rate: gstRate,
+        cgst_amount: taxes.cgst_amount,
+        sgst_amount: taxes.sgst_amount,
+        igst_amount: taxes.igst_amount,
+        total_amount: taxes.total_amount,
       };
-      setCart(updated);
-    } else {
-      setCart([...cart, newItem]);
-    }
+      return [...prevCart, newItem];
+    });
 
     setSearchQuery('');
+    setSelectedCategoryChip('ALL');
     setSearchResults([]);
   };
 
@@ -840,7 +858,7 @@ export const BillingPage: React.FC = () => {
                             ₹{formatCurrency(product.selling_price)}
                           </span>
                           <span className="font-mono text-[10px] text-primary font-semibold">
-                            GST {safeNumber(product.gst_rate)}%
+                            Per {product.unit || 'Unit'}
                           </span>
                         </div>
                       </button>
@@ -850,20 +868,26 @@ export const BillingPage: React.FC = () => {
 
                 {/* Categorical Filter Chips */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {['Fertilizers', 'Pesticides', 'Seeds', 'Micronutrients', 'Bio-Fertilizer', 'Organic'].map((cat) => (
-                    <button
-                      type="button"
-                      key={cat}
-                      onClick={() => {
-                        setSelectedCategoryChip(cat);
-                        setSearchQuery(cat === 'Fertilizers' ? 'Urea' : cat === 'Pesticides' ? 'Gold' : cat === 'Seeds' ? 'Seed' : cat);
-                      }}
-                      className="bg-surface-container-low hover:bg-sprout-tint hover:text-primary text-on-surface text-xs px-3.5 py-1.5 rounded-full font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
-                    >
-                      <Sprout className="w-4 h-4" />
-                      <span>{cat}</span>
-                    </button>
-                  ))}
+                  {INVENTORY_CATEGORIES.map((cat) => {
+                    const isSelected = selectedCategoryChip === cat;
+                    return (
+                      <button
+                        type="button"
+                        key={cat}
+                        onClick={() => {
+                          setSelectedCategoryChip((prev) => (prev === cat ? 'ALL' : cat));
+                        }}
+                        className={`text-xs px-3.5 py-1.5 rounded-full font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-forest-emerald text-white shadow-xs'
+                            : 'bg-surface-container-low hover:bg-sprout-tint hover:text-primary text-on-surface'
+                        }`}
+                      >
+                        <Sprout className="w-4 h-4" />
+                        <span>{cat}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1178,10 +1202,6 @@ export const BillingPage: React.FC = () => {
                               <span>•</span>
                               <span className="font-mono text-primary font-semibold">
                                 Rate: ₹{formatCurrency(item.unit_price)} / {item.unit}
-                              </span>
-                              <span>•</span>
-                              <span className="font-mono font-bold text-forest-emerald">
-                                GST {item.gst_rate}%
                               </span>
                             </div>
                           </div>
@@ -1534,7 +1554,64 @@ export const BillingPage: React.FC = () => {
         />
       )}
 
-      {/* 3. 80mm ESC/POS Thermal Receipt & A4 Tax Invoice Modal */}
+      {/* 3. Packaging Variant Selector Modal (when a product has multiple pack sizes) */}
+      {variantPickerProduct && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="variant-picker-title"
+          className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 id="variant-picker-title" className="font-bold text-sm text-slate-900 dark:text-white">
+                  Select Pack Size — {variantPickerProduct.name || variantPickerProduct.product_name}
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Choose the packaging size to add to the bill
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close pack size selector"
+                onClick={() => setVariantPickerProduct(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {(variantPickerProduct.variants || []).map((v, vIdx) => (
+                <button
+                  key={v.id || vIdx}
+                  type="button"
+                  onClick={() => {
+                    const target = variantPickerProduct;
+                    setVariantPickerProduct(null);
+                    addProductToCart(target, v);
+                  }}
+                  className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/60 dark:hover:bg-slate-800 flex items-center justify-between text-xs transition"
+                >
+                  <div>
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      {v.variant_name || `${v.unit_size} ${v.unit}`}
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Net: {v.unit_size} {v.unit}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                    ₹{formatCurrency(v.selling_price)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. 80mm ESC/POS Thermal Receipt & A4 Tax Invoice Modal */}
       {isReceiptOpen && savedSale && (
         <InvoiceReceiptModal
           isOpen={isReceiptOpen}
