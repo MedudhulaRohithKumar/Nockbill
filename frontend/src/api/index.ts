@@ -1,7 +1,7 @@
 import api from './client';
 import { buildRegisterPayload, GeneratedCredentials } from '../utils/registerPayload';
 import { INVENTORY_PAGE_SIZE, MAX_PRODUCTS_LIMIT, parseTotalCount } from '../utils/pagination';
-import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList, IamUser, AgriDoctorCrop, AgriDoctorAdvisory, SegmentSummaryResponse, CampaignTemplate, MarketingCampaign, EWayBillGeneratePayload, EWayBillGenerateResponse } from '../types';
+import { Product, Sale, Purchase, Expense, ShopSettings, OCRCandidate, DashboardSummary, RefillRecommendation, AnalyticsData, InvoiceReturnLookup, SalesReturn, SalesReturnCreatePayload, PriceList, IamUser, AgriDoctorCrop, AgriDoctorAdvisory, PublicAgriQuestionResponse, AgriDoctorDiagnosisResponse, SegmentSummaryResponse, CampaignTemplate, MarketingCampaign, EWayBillGeneratePayload, EWayBillGenerateResponse } from '../types';
 
 export type RegisterPayload = ReturnType<typeof buildRegisterPayload>;
 
@@ -773,6 +773,14 @@ export const agriDoctorApi = {
     const res = await api.get<AgriDoctorAdvisory>('/agri-doctor/recommend', {
       params: { crop, pest_disease },
     });
+    return res.data;
+  },
+  askPublic: async (question: string) => {
+    const res = await api.post<PublicAgriQuestionResponse>('/agri-doctor/ask-public', { question });
+    return res.data;
+  },
+  diagnose: async (payload: { problem_description: string; crop_name?: string }) => {
+    const res = await api.post<AgriDoctorDiagnosisResponse>('/agri-doctor/diagnose', payload);
     return res.data;
   },
 };

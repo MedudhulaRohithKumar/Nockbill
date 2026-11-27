@@ -145,6 +145,8 @@ jobs:
           NOTIFY_EMAIL: ${{ secrets.REPORT_NOTIFICATION_EMAIL || 'admin@nockbill.local' }}
           DB_BACKUP_RETENTION: ${{ vars.DB_BACKUP_RETENTION_DAYS || '1' }}
           AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ -z "${DB_PASSWORD}" ]; then
             echo "ERROR: DB_PASSWORD secret must be configured in GitHub repository secrets." >&2
@@ -171,6 +173,12 @@ jobs:
           )
           if [ -n "${DB_SNAPSHOT_ID:-}" ]; then
             PARAM_OVERRIDES+=("DbSnapshotIdentifier=${DB_SNAPSHOT_ID}")
+          fi
+          if [ -n "${GEMINI_API_KEY:-}" ]; then
+            PARAM_OVERRIDES+=("GeminiApiKey=${GEMINI_API_KEY}")
+          fi
+          if [ -n "${GROQ_API_KEY:-}" ]; then
+            PARAM_OVERRIDES+=("GroqApiKey=${GROQ_API_KEY}")
           fi
 
           sam deploy \

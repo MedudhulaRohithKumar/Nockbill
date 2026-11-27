@@ -110,6 +110,9 @@ export const DashboardPage: React.FC = () => {
   // ─── MODAL CONTROLS ─────────────────────────────────────────────────────────
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isAgriDoctorOpen, setIsAgriDoctorOpen] = useState(false);
+  const [quickSymptomQuery, setQuickSymptomQuery] = useState('');
+  const [quickSymptomError, setQuickSymptomError] = useState<string | null>(null);
+  const [pendingDiagnosisQuery, setPendingDiagnosisQuery] = useState<string | undefined>(undefined);
   const [selectedReprintSale, setSelectedReprintSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
@@ -1043,33 +1046,80 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Agri Doctor AI Lens</h3>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Agri Doctor Recommender</h3>
                     <MetricInfoTooltip
-                      title="Agri Doctor AI Lens"
-                      description="AI crop pathology engine diagnosing crop diseases and nutritional deficiencies from leaf photos and recommending CIB-approved molecules."
-                      formula="Multi-modal leaf symptom matching + FCO / CIB formulation database"
-                      tip="Prescribe molecules already in stock to speed up farmer checkout."
+                      title="Agri Doctor Crop-Safe Recommender"
+                      description="Diagnoses farmer crop problems, explains likely agronomic root cause, prescribes CIB&RC molecules, and matches only verified crop-safe bottles in your live inventory."
+                      formula="Dual AI + ICAR/CIB&RC Molecule Engine + Herbicide & Expiry Quarantine"
+                      tip="Describe symptoms below or open Diagnose to load safe in-stock medicine into your bill."
                     />
                     <span className="rounded bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
-                      v3.2
+                      Crop-Safe
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Real-Time Crop Pathology</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Root Cause + Safe Inventory Match</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setIsAgriDoctorOpen(true)}
-                className="flex items-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                onClick={() => {
+                  setPendingDiagnosisQuery(undefined);
+                  setIsAgriDoctorOpen(true);
+                }}
+                className="flex items-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
               >
                 <Sparkles className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
-                <span>Scan Leaf</span>
+                <span>Open Doctor</span>
               </button>
             </div>
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-              Diagnosed from inbound grower photos via WhatsApp bot. Click prescription to load bill instantly.
-            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = quickSymptomQuery.trim();
+                if (trimmed.length < 4) {
+                  setQuickSymptomError('Describe crop symptoms (at least 4 characters).');
+                  return;
+                }
+                setQuickSymptomError(null);
+                setPendingDiagnosisQuery(trimmed);
+                setIsAgriDoctorOpen(true);
+              }}
+              className="space-y-2 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/25 border border-emerald-200/70 dark:border-emerald-800/50 p-3"
+            >
+              <label
+                htmlFor="dashboard-agri-symptom-input"
+                className="block text-[11px] font-bold text-slate-800 dark:text-slate-200"
+              >
+                Describe Farmer&apos;s Crop Problem
+              </label>
+              <input
+                id="dashboard-agri-symptom-input"
+                name="symptom_query"
+                type="text"
+                maxLength={500}
+                value={quickSymptomQuery}
+                aria-invalid={Boolean(quickSymptomError)}
+                onChange={(e) => {
+                  setQuickSymptomQuery(e.target.value);
+                  if (quickSymptomError) setQuickSymptomError(null);
+                }}
+                placeholder="e.g., Cotton bolls have bore holes, or paddy leaves rusty brown..."
+                className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {quickSymptomError && (
+                <p role="alert" className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                  {quickSymptomError}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="w-full rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white py-2 px-3 text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Diagnose Root Cause &amp; Match Safe Stock</span>
+              </button>
+            </form>
 
             {/* Real Advisories from Database / Backend */}
             {advisories.length > 0 ? (
@@ -1584,10 +1634,15 @@ export const DashboardPage: React.FC = () => {
       {/* Agri Doctor AI Diagnostic Modal */}
       <AgriDoctorModal
         isOpen={isAgriDoctorOpen}
-        onClose={() => setIsAgriDoctorOpen(false)}
+        initialProblem={pendingDiagnosisQuery}
+        onClose={() => {
+          setIsAgriDoctorOpen(false);
+          setPendingDiagnosisQuery(undefined);
+        }}
         onAddToCart={(product: Product) => {
           stageProduct(product);
           setIsAgriDoctorOpen(false);
+          setPendingDiagnosisQuery(undefined);
         }}
       />
     </div>

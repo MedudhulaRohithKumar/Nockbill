@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Sprout, 
@@ -16,13 +16,14 @@ import {
   Award, 
   Send, 
   Sparkles, 
-  Camera, 
-  ScanLine, 
+  AlertTriangle,
   Check, 
   Zap,
   Cpu
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { agriDoctorApi, getErrorMessage } from '../api';
+import { PublicAgriQuestionResponse } from '../types';
 
 // ─── PLATFORM FEATURE ITEM CONTRACT ──────────────────────────────────────────
 export interface PlatformFeatureItem {
@@ -448,18 +449,14 @@ export const HomePage: React.FC = () => {
   const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
   const [expandedFeatureId, setExpandedFeatureId] = useState<string | null>('billing');
 
-  // Public Agri Doctor recommendation state
+  // Public Agri Doctor Q&A + Reference Directory state
   const [selectedCrop, setSelectedCrop] = useState<string>('Cotton');
   const [searchSymptom, setSearchSymptom] = useState<string>('');
-
-  // AI Diagnostic Simulation State
-  const [isScanningLeaf, setIsScanningLeaf] = useState<boolean>(false);
-  const [aiScanResult, setAiScanResult] = useState<{
-    disease: string;
-    confidence: string;
-    molecule: string;
-    dosage: string;
-  } | null>(null);
+  const [publicQuestion, setPublicQuestion] = useState<string>('');
+  const [isAskingPublic, setIsAskingPublic] = useState<boolean>(false);
+  const [publicQaError, setPublicQaError] = useState<string | null>(null);
+  const [publicQaResult, setPublicQaResult] = useState<PublicAgriQuestionResponse | null>(null);
+  const lastCompositionEndRef = useRef<number | null>(null);
 
   // Defer decorative background video until after initial page load to protect LCP & network budget
   const [enableAmbientVideo, setEnableAmbientVideo] = useState<boolean>(false);
@@ -510,18 +507,25 @@ export const HomePage: React.FC = () => {
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   };
 
-  const handleSimulateAiScan = () => {
-    setIsScanningLeaf(true);
-    setAiScanResult(null);
-    setTimeout(() => {
-      setIsScanningLeaf(false);
-      setAiScanResult({
-        disease: 'Rice Blast (Magnaporthe oryzae)',
-        confidence: '98.6% Neural Match',
-        molecule: 'Tricyclazole 75% WP',
-        dosage: '15 - 18 g / 15L spray pump',
-      });
-    }, 1800);
+  const submitPublicAgriQuestion = async (overrideQuestion?: string) => {
+    const q = (overrideQuestion ?? publicQuestion).trim();
+    if (q.length < 3) {
+      setPublicQaError('Please enter an agriculture question (at least 3 characters).');
+      return;
+    }
+    if (overrideQuestion !== undefined) {
+      setPublicQuestion(overrideQuestion);
+    }
+    setPublicQaError(null);
+    setIsAskingPublic(true);
+    try {
+      const res = await agriDoctorApi.askPublic(q);
+      setPublicQaResult(res);
+    } catch (err: unknown) {
+      setPublicQaError(getErrorMessage(err, 'Unable to reach Agri Doctor right now. Please try again.'));
+    } finally {
+      setIsAskingPublic(false);
+    }
   };
 
   return (
@@ -1153,93 +1157,195 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          {/* ─── UPCOMING AI FEATURE SHOWCASE: MULTIMODAL LEAF SCANNER ─────────── */}
+          {/* ─── LIVE PUBLIC AGRI DOCTOR INFORMATIONAL Q&A ASSISTANT ─────────────── */}
           <div className="mb-12 bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-950 rounded-3xl p-6 sm:p-9 text-white border border-emerald-500/30 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <Camera className="w-64 h-64 text-emerald-400" />
+              <Stethoscope className="w-64 h-64 text-emerald-400" />
             </div>
 
-            <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-              <div className="max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-xs font-black uppercase tracking-wider mb-3">
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Left Column: Description & Sample Agriculture Prompts (5 Cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-xs font-black uppercase tracking-wider">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Upcoming AI Feature · Neural Computer Vision</span>
+                  <span>Informational Agronomy Q&amp;A · Agriculture Only</span>
                 </div>
                 <h3 className="font-['Grandstander'] text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-                  Multimodal Leaf Photo Diagnostic Engine
+                  Ask Anything About Crops, Soil, Seeds &amp; Plant Care
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-100 mt-2.5 leading-relaxed">
-                  We are integrating on-device and cloud neural vision models directly into NockBill. Store clerks or farmers can snap a photo of an infected crop leaf with any smartphone or webcam. The AI detects the pathogen, measures infection severity, and formulates the approved CIB&amp;RC chemical spray recipe in under 2 seconds.
+                <p className="text-xs sm:text-sm text-emerald-100 leading-relaxed">
+                  Farmers, students, and growers can ask any question about crop symptoms, soil pH, NPK fertilizer scheduling, pest management, irrigation, or microgreens. Off-topic non-agricultural questions are strictly declined.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-5">
-                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
-                    <span className="font-mono text-[10px] text-emerald-300 font-bold uppercase block">Step 01</span>
-                    <span className="text-xs font-bold text-white block mt-0.5">Snap Leaf Photo</span>
-                    <span className="text-[11px] text-slate-200 block mt-0.5">Mobile camera or USB counter webcam</span>
-                  </div>
-                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
-                    <span className="font-mono text-[10px] text-teal-300 font-bold uppercase block">Step 02</span>
-                    <span className="text-xs font-bold text-white block mt-0.5">Neural Pathology Scan</span>
-                    <span className="text-[11px] text-slate-200 block mt-0.5">Identifies blast, rust, bollworm &amp; thrips</span>
-                  </div>
-                  <div className="bg-slate-900/80 rounded-xl p-3 border border-white/15">
-                    <span className="font-mono text-[10px] text-amber-300 font-bold uppercase block">Step 03</span>
-                    <span className="text-xs font-bold text-white block mt-0.5">Prescription Dispatch</span>
-                    <span className="text-[11px] text-slate-200 block mt-0.5">Exact chemical dilution sent to WhatsApp</span>
+                <div className="space-y-2 pt-1">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-300 font-bold block">
+                    Try an Agriculture Question:
+                  </span>
+                  <div className="flex flex-col gap-2">
+                    {[
+                      'Why do paddy lower leaves turn rusty brown 3 weeks after transplanting?',
+                      'Upward vs downward leaf curl in chilli — what causes each and how to treat?',
+                      'How do I prevent damping-off mold in indoor microgreen trays without chemicals?',
+                    ].map((sample) => (
+                      <button
+                        key={sample}
+                        type="button"
+                        onClick={() => {
+                          void submitPublicAgriQuestion(sample);
+                        }}
+                        className="text-left text-xs px-3.5 py-2.5 rounded-xl bg-slate-900/80 hover:bg-emerald-900/70 border border-white/15 hover:border-emerald-400/50 text-slate-100 transition-all cursor-pointer flex items-center justify-between gap-2"
+                      >
+                        <span className="line-clamp-2">{sample}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Interactive AI Scanner Simulation Box */}
-              <div className="lg:w-80 w-full bg-slate-900/85 backdrop-blur-md rounded-2xl p-5 border border-white/20 shrink-0 text-center flex flex-col items-center">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 mb-3 relative">
-                  <Camera className="w-7 h-7" />
-                  {isScanningLeaf && (
-                    <ScanLine className="w-8 h-8 text-emerald-400 absolute animate-bounce" />
-                  )}
-                </div>
-
-                <h4 className="text-sm font-bold text-white">
-                  Test AI Diagnostic Engine
-                </h4>
-                <p className="text-[11px] text-slate-200 mt-1 mb-4">
-                  Run a live simulation of the upcoming computer vision pathology scanner.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={handleSimulateAiScan}
-                  disabled={isScanningLeaf}
-                  className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-emerald-400 hover:bg-emerald-300 text-emerald-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              {/* Right Column: Interactive Q&A Form & Guardrailed Response (7 Cols) */}
+              <div className="lg:col-span-7 bg-slate-900/90 backdrop-blur-md rounded-2xl p-5 sm:p-6 border border-white/20 space-y-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void submitPublicAgriQuestion();
+                  }}
+                  className="space-y-3"
                 >
-                  {isScanningLeaf ? (
-                    <>
-                      <Cpu className="w-4 h-4 animate-spin" />
-                      <span>Scanning Leaf Features...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Run Simulated Leaf Scan</span>
-                    </>
-                  )}
-                </button>
+                  <div>
+                    <label
+                      htmlFor="public-agri-question-input"
+                      className="block text-xs font-bold uppercase tracking-wider text-emerald-200 mb-1"
+                    >
+                      Your Agriculture Question
+                    </label>
+                    <p id="public-agri-question-hint" className="text-[11px] text-slate-300 mb-2">
+                      Press Enter to submit or Shift+Enter for a new line (3–600 characters).
+                    </p>
+                    <textarea
+                      id="public-agri-question-input"
+                      name="question"
+                      rows={3}
+                      maxLength={600}
+                      value={publicQuestion}
+                      aria-describedby="public-agri-question-hint"
+                      aria-invalid={Boolean(publicQaError)}
+                      onChange={(e) => {
+                        setPublicQuestion(e.target.value);
+                        if (publicQaError) setPublicQaError(null);
+                      }}
+                      onCompositionEnd={(e) => {
+                        lastCompositionEndRef.current = e.timeStamp;
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (e.nativeEvent.isComposing) return;
+                          if (
+                            lastCompositionEndRef.current !== null &&
+                            Math.abs(e.timeStamp - lastCompositionEndRef.current) < 50
+                          ) {
+                            return;
+                          }
+                          void submitPublicAgriQuestion();
+                        }
+                      }}
+                      placeholder="Ask about crop diseases, pests, soil pH, fertilizers, seeds, microgreens, or irrigation..."
+                      className="w-full rounded-xl bg-slate-950/90 border border-emerald-700/60 px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    />
+                  </div>
 
-                {aiScanResult && (
-                  <div className="mt-4 p-3 rounded-xl bg-emerald-950 border border-emerald-500/40 text-left w-full animate-in fade-in zoom-in-95 duration-200">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-emerald-300">
-                      <span>{aiScanResult.confidence}</span>
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-[11px] text-slate-300 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Strictly answers agriculture &amp; agronomy topics only</span>
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={isAskingPublic}
+                      className="px-5 py-2.5 rounded-xl font-bold text-xs bg-emerald-400 hover:bg-emerald-300 text-emerald-950 shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                    >
+                      {isAskingPublic ? (
+                        <>
+                          <Cpu className="w-4 h-4 animate-spin" />
+                          <span>Analyzing Agronomy Query...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          <span>Ask Agri Doctor</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+
+                {publicQaError && (
+                  <div
+                    role="alert"
+                    className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/50 text-xs text-rose-200 flex items-center gap-2"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{publicQaError}</span>
+                  </div>
+                )}
+
+                {publicQaResult && (
+                  <div
+                    role="status"
+                    className={`p-4 sm:p-5 rounded-2xl border space-y-3 animate-in fade-in duration-200 ${
+                      publicQaResult.is_agriculture_related
+                        ? 'bg-emerald-950/85 border-emerald-500/40'
+                        : 'bg-amber-950/80 border-amber-500/50'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {publicQaResult.is_agriculture_related ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        )}
+                        <h4 className="text-sm font-black text-white">
+                          {publicQaResult.topic}
+                        </h4>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border ${
+                          publicQaResult.is_agriculture_related
+                            ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40'
+                            : 'bg-amber-500/20 text-amber-200 border-amber-400/40'
+                        }`}
+                      >
+                        {publicQaResult.is_agriculture_related ? 'ICAR / CIB&RC Agronomy' : 'Outside Agriculture Scope'}
+                      </span>
                     </div>
-                    <div className="text-xs font-bold text-white mt-1">
-                      {aiScanResult.disease}
-                    </div>
-                    <div className="text-[11px] text-emerald-200 mt-1">
-                      Rx: {aiScanResult.molecule}
-                    </div>
-                    <div className="text-[10px] text-slate-200">
-                      {aiScanResult.dosage}
+
+                    <p className="text-xs sm:text-sm text-slate-100 leading-relaxed">
+                      {publicQaResult.answer}
+                    </p>
+
+                    {publicQaResult.is_agriculture_related && publicQaResult.key_recommendations.length > 0 && (
+                      <div className="space-y-1.5 pt-2 border-t border-emerald-800/70">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-300 block">
+                          Actionable Field Steps:
+                        </span>
+                        <ul className="space-y-1 text-xs text-emerald-100">
+                          {publicQaResult.key_recommendations.map((rec, rIdx) => (
+                            <li key={rIdx} className="flex items-start gap-2">
+                              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                              <span>{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="p-2.5 rounded-xl bg-slate-900/80 border border-white/10 text-[11px] text-amber-200 flex items-start gap-2">
+                      <ShieldCheck className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Field Safety Note:</strong> {publicQaResult.safety_note}
+                      </span>
                     </div>
                   </div>
                 )}

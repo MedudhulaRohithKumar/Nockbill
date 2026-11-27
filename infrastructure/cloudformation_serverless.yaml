@@ -104,6 +104,18 @@ Parameters:
       Optional encrypted RDS snapshot identifier to restore from when migrating an existing
       unencrypted database to encrypted storage with zero data loss. Leave empty for fresh stacks.
 
+  GeminiApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Optional Google Gemini API Free-Tier key (Google AI Studio) for Agri Doctor AI engine
+
+  GroqApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Optional Groq Free-Tier API key for Agri Doctor AI automatic fallback
+
 Conditions:
   EnableDeletionProtection: !Equals [!Ref DeletionProtectionEnabled, 'true']
   EnableMultiAz: !Equals [!Ref MultiAzEnabled, 'true']
@@ -602,6 +614,8 @@ Resources:
           SES_REGION: !Ref AWS::Region
           APP_BASE_URL: "https://nockbill.com"
           GOOGLE_CLIENT_ID: "995123724994-6ejbal37p88sp32fmedph6k296uf8n7k.apps.googleusercontent.com"
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GROQ_API_KEY: !Ref GroqApiKey
           SECRET_KEY: !Sub '{{resolve:secretsmanager:${JwtSigningSecret}:SecretString}}'
           GOOGLE_BRIDGE_SECRET: !Sub '{{resolve:secretsmanager:${GoogleBridgeSigningSecret}:SecretString}}'
       FunctionUrlConfig:

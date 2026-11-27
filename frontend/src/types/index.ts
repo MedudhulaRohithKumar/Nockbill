@@ -495,12 +495,15 @@ export interface AgriDoctorMatchingProduct {
   company_name?: string;
   category?: string;
   unit?: string;
+  hsn_code?: string;
+  gst_rate?: number;
   selling_price: number;
   mrp?: number;
   current_stock: number;
   batch_number?: string;
   expiry_date?: string;
   in_stock: boolean;
+  matched_molecule?: string;
 }
 
 export interface AgriDoctorAdvisory {
@@ -513,6 +516,8 @@ export interface AgriDoctorAdvisory {
   dosage_per_pump: string;
   dosage_per_acre: string;
   symptoms: string;
+  root_cause?: string;
+  crop_safety_warning?: string;
   advisory_notes: string;
   matching_products: AgriDoctorMatchingProduct[];
 }
@@ -522,6 +527,39 @@ export interface AgriDoctorCrop {
   hindi_name: string;
   pest_count: number;
   pests: string[];
+}
+
+export interface PublicAgriQuestionResponse {
+  is_agriculture_related: boolean;
+  topic: string;
+  answer: string;
+  key_recommendations: string[];
+  safety_note: string;
+  provider: string;
+}
+
+export interface AgriDoctorApprovedMolecule {
+  technical_molecule: string;
+  active_keywords: string[];
+  verified_brands: string[];
+  dosage_per_pump: string;
+  dosage_per_acre: string;
+  phi_and_application: string;
+}
+
+export interface AgriDoctorDiagnosisResponse {
+  is_agriculture_related: boolean;
+  detected_crop: string;
+  likely_condition: string;
+  confidence: string;
+  treatment_category: string;
+  root_cause_explanation: string;
+  approved_molecules: AgriDoctorApprovedMolecule[];
+  verification_checklist: string[];
+  crop_safety_warnings: string[];
+  matching_products: AgriDoctorMatchingProduct[];
+  out_of_stock_notice?: string | null;
+  provider: string;
 }
 
 // ── Marketing & Seasonal WhatsApp Broadcast ─────────────────────────

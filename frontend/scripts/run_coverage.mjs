@@ -168,6 +168,32 @@ async function runFrontendSuite() {
   totalAssertions += 2;
   console.log('✓ [Test 3f] POS Farmer Mobile Lookup state isolation & new-farmer prompt verified');
 
+  // Test 3g: Agri Doctor Landing Page Q&A + Dashboard Crop-Safe Recommender + IME-Safe Enter Handling
+  const agriModalTsx = fs.readFileSync(path.join(SRC_DIR, 'components/billing/AgriDoctorModal.tsx'), 'utf8');
+  const dashboardTsx = fs.readFileSync(path.join(SRC_DIR, 'pages/DashboardPage.tsx'), 'utf8');
+  assert.ok(
+    homeTsx.includes('agriDoctorApi.askPublic') && homeTsx.includes('e.nativeEvent.isComposing'),
+    'HomePage.tsx must wire public Agri Doctor Q&A with IME-safe isComposing guard'
+  );
+  assert.ok(
+    agriModalTsx.includes('agriDoctorApi.diagnose') &&
+      agriModalTsx.includes('e.nativeEvent.isComposing') &&
+      agriModalTsx.includes('getCategoryConfig') &&
+      !agriModalTsx.includes('gst_rate: 18'),
+    'AgriDoctorModal.tsx must wire crop-safe diagnose API, dynamic category GST, and IME-safe Enter handling'
+  );
+  assert.ok(
+    !homeTsx.includes('keyCode') && !agriModalTsx.includes('keyCode'),
+    'Agri Doctor inputs must not use deprecated KeyboardEvent.keyCode'
+  );
+  assert.ok(
+    dashboardTsx.includes('id="dashboard-agri-symptom-input"') &&
+      dashboardTsx.includes('initialProblem={pendingDiagnosisQuery}'),
+    'DashboardPage.tsx must wire quick symptom diagnosis form to AgriDoctorModal'
+  );
+  totalAssertions += 4;
+  console.log('✓ [Test 3g] Agri Doctor public Q&A, dashboard crop-safe recommender & IME-safe Enter verified');
+
   const runtimeAssertions = await runRuntimeUnitTests();
   totalAssertions += runtimeAssertions;
   console.log(`✓ [Test 3c] Executed frontend TypeScript runtime unit tests (${runtimeAssertions} assertions passed)`);
