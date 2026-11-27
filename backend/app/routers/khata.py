@@ -391,6 +391,14 @@ def list_customer_khata(
     }
 
 
+_GENERIC_WALKIN_NAMES = {
+    "walk-in cash customer",
+    "walk-in customer",
+    "walk-in farmer",
+    "farmer",
+}
+
+
 @router.get("/customers/lookup")
 def lookup_customer_for_pos(
     phone: str = Query(..., min_length=3, max_length=40),
@@ -398,33 +406,14 @@ def lookup_customer_for_pos(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Fast POS returning-customer lookup by mobile number.
+    Fast POS returning-customer lookup by 10-digit mobile number.
     Returns profile fields, current pending Udhar balance, and recent bills for 1-Click Repeat Order.
     """
     shop_id = current_user.shop_id
     clean_phone = "".join(ch for ch in phone if ch.isdigit())[-10:]
     if not clean_phone:
         raise HTTPException(status_code=400, detail="Valid phone digits required.")
-
-    sales = (
-        db.query(Sale)
-        .options(selectinload(Sale.items))
-        .filter(Sale.shop_id == shop_id, Sale.customer_phone == clean_phone)
-        .order_by(Sale.sale_date.desc())
-        .all()
-    )
-    repaid_sum = (
-        db.query(func.coalesce(func.sum(KhataPayment.amount), 0))
-        .filter(
-            KhataPayment.shop_id == shop_id,
-            KhataPayment.ledger_type == "CUSTOMER",
-            KhataPayment.party_phone == clean_phone,
-        )
-        .scalar()
-    )
-    total_repaid = Decimal(str(repaid_sum or 0)).quantize(Decimal("0.01"))
-
-    if not sales:
+    if len(clean_phone) < 10:
         return {
             "found": False,
             "customer_phone": clean_phone,
@@ -433,7 +422,71 @@ def lookup_customer_for_pos(
             "recent_sales": [],
         }
 
-    latest = sales[0]
+    sales = (
+        db.query(Sale)
+        .options(selectinload(Sale.items))
+        .filter(Sale.shop_id == shop_id, Sale.customer_phone == clean_phone)
+        .order_by(Sale.sale_date.desc())
+        .all()
+    )
+    repayments = (
+        db.query(KhataPayment)
+        .filter(
+            KhataPayment.shop_id == shop_id,
+            KhataPayment.ledger_type == "CUSTOMER",
+            KhataPayment.party_phone == clean_phone,
+        )
+        .order_by(KhataPayment.created_at.desc())
+        .all()
+    )
+    total_repaid = sum(
+        (Decimal(str(rp.amount or 0)).quantize(Decimal("0.01")) for rp in repayments),
+        _DEC_ZERO,
+    )
+
+    if not sales and not repayments:
+        return {
+            "found": False,
+            "customer_phone": clean_phone,
+            "outstanding_balance": 0.0,
+            "bill_count": 0,
+            "recent_sales": [],
+        }
+
+    resolved_name: Optional[str] = None
+    resolved_address: Optional[str] = None
+    resolved_aadhar: Optional[str] = None
+    resolved_gstin: Optional[str] = None
+
+    for s in sales:
+        cname = (s.customer_name or "").strip()
+        if cname and resolved_name is None and cname.lower() not in _GENERIC_WALKIN_NAMES:
+            resolved_name = cname
+        caddr = (getattr(s, "customer_address", None) or "").strip()
+        if caddr and resolved_address is None:
+            resolved_address = caddr
+        caadhar = (getattr(s, "customer_aadhar", None) or "").strip()
+        if caadhar and resolved_aadhar is None:
+            resolved_aadhar = caadhar
+        cgstin = (getattr(s, "customer_gstin", None) or "").strip()
+        if cgstin and resolved_gstin is None:
+            resolved_gstin = cgstin
+
+    if resolved_name is None and repayments:
+        for rp in repayments:
+            rp_name = (rp.party_name or "").strip()
+            if rp_name and rp_name.lower() not in _GENERIC_WALKIN_NAMES:
+                resolved_name = rp_name
+                break
+        if resolved_gstin is None:
+            resolved_gstin = next(
+                ((rp.party_gstin or "").strip() for rp in repayments if (rp.party_gstin or "").strip()),
+                None,
+            )
+
+    if resolved_name is None and sales:
+        resolved_name = (sales[0].customer_name or "").strip() or None
+
     total_billed = _DEC_ZERO
     total_credit = _DEC_ZERO
     for s in sales:
@@ -466,11 +519,11 @@ def lookup_customer_for_pos(
 
     return {
         "found": True,
-        "customer_name": latest.customer_name,
+        "customer_name": resolved_name,
         "customer_phone": clean_phone,
-        "customer_address": getattr(latest, "customer_address", None),
-        "customer_aadhar": getattr(latest, "customer_aadhar", None),
-        "customer_gstin": getattr(latest, "customer_gstin", None),
+        "customer_address": resolved_address,
+        "customer_aadhar": resolved_aadhar,
+        "customer_gstin": resolved_gstin,
         "bill_count": len(sales),
         "total_billed": float(total_billed),
         "total_credit_billed": float(total_credit),

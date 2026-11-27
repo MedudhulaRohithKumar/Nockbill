@@ -190,6 +190,19 @@ export const BillingPage: React.FC = () => {
   };
 
   // ─── FARMER MOBILE NUMBER LOOKUP (Automatic on 10 Digits) ───────────────────
+  const handleFarmerPhoneChange = (rawInput: string) => {
+    const val = sanitizePhoneInput(rawInput);
+    if (val === customerPhone) return;
+    setCustomerPhone(val);
+    setCustomerLookup(null);
+    setCustomerName('');
+    setCustomerAddress('');
+    setCustomerAadhar('');
+    setCustomerGstin('');
+    setIsFarmerEditing(false);
+    setIsWalkIn(val.length === 0);
+  };
+
   useEffect(() => {
     const cleanDigits = sanitizePhoneInput(customerPhone);
     if (cleanDigits.length !== 10) {
@@ -200,6 +213,7 @@ export const BillingPage: React.FC = () => {
 
     let active = true;
     setIsSearchingFarmer(true);
+    setCustomerLookup(null);
 
     khataApi
       .lookupCustomer(cleanDigits)
@@ -209,19 +223,36 @@ export const BillingPage: React.FC = () => {
         if (res && res.found) {
           setCustomerLookup(res);
           setIsWalkIn(false);
-          setCustomerName((prev) => prev.trim() || res.customer_name || '');
-          setCustomerAddress((prev) => prev.trim() || res.customer_address || '');
-          setCustomerAadhar((prev) => prev.trim() || res.customer_aadhar || '');
-          setCustomerGstin((prev) => prev.trim() || res.customer_gstin || '');
+          setCustomerName(res.customer_name || '');
+          setCustomerAddress(res.customer_address || '');
+          setCustomerAadhar(res.customer_aadhar || '');
+          setCustomerGstin(res.customer_gstin || '');
+          setIsFarmerEditing(false);
         } else {
           setCustomerLookup(null);
           setIsWalkIn(false);
+          setCustomerName('');
+          setCustomerAddress('');
+          setCustomerAadhar('');
+          setCustomerGstin('');
+          setIsFarmerEditing(true);
+          if (document.activeElement?.id === 'farmer-mobile-input') {
+            window.requestAnimationFrame(() => {
+              document.getElementById('new-farmer-name-field')?.focus();
+            });
+          }
         }
       })
       .catch(() => {
         if (active) {
           setIsSearchingFarmer(false);
           setCustomerLookup(null);
+          setIsWalkIn(false);
+          setCustomerName('');
+          setCustomerAddress('');
+          setCustomerAadhar('');
+          setCustomerGstin('');
+          setIsFarmerEditing(true);
         }
       });
 
@@ -540,6 +571,7 @@ export const BillingPage: React.FC = () => {
     setCustomerAadhar('');
     setCustomerGstin('');
     setCustomerLookup(null);
+    setIsFarmerEditing(false);
     setIsWalkIn(true);
     setErrorMsg(null);
     setCashTendered('');
@@ -548,7 +580,7 @@ export const BillingPage: React.FC = () => {
 
   const handleWalkInToggle = () => {
     setIsWalkIn(true);
-    setCustomerName('Walk-in Cash Customer');
+    setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
     setCustomerAadhar('');
@@ -636,10 +668,25 @@ export const BillingPage: React.FC = () => {
       setErrorMsg('Please add at least one product to the staged bill.');
       return;
     }
+
+    const cleanPhone = sanitizePhoneInput(customerPhone);
+    if (!isWalkIn && cleanPhone.length > 0 && cleanPhone.length < 10) {
+      setErrorMsg('Please enter a valid 10-digit farmer mobile number or switch to Walk-in Cash.');
+      document.getElementById('farmer-mobile-input')?.focus();
+      return;
+    }
+    if (!isWalkIn && cleanPhone.length === 10 && !customerLookup?.found && !customerName.trim()) {
+      setIsFarmerEditing(true);
+      setErrorMsg(`Please enter Farmer Full Name for new mobile number +91 ${cleanPhone}.`);
+      window.requestAnimationFrame(() => {
+        document.getElementById('new-farmer-name-field')?.focus();
+      });
+      return;
+    }
+
     setErrorMsg(null);
     setIsSaving(true);
 
-    const cleanPhone = sanitizePhoneInput(customerPhone);
     const salePayload = {
       idempotency_key: billIdempotencyKey,
       customer_name: sanitizeText(customerName, 120) || (isWalkIn ? 'Walk-in Cash Customer' : 'Farmer'),
@@ -905,16 +952,13 @@ export const BillingPage: React.FC = () => {
                       </label>
                       <input
                         id="farmer-mobile-input"
+                        name="customer_phone"
                         type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel"
                         maxLength={10}
                         value={customerPhone}
-                        onChange={(e) => {
-                          const val = sanitizePhoneInput(e.target.value);
-                          setCustomerPhone(val);
-                          if (val.length === 0) {
-                            setIsWalkIn(true);
-                          }
-                        }}
+                        onChange={(e) => handleFarmerPhoneChange(e.target.value)}
                         placeholder="Enter 10-Digit Farmer Mobile Number (e.g. 9876543210)..."
                         className="w-full h-9 px-3 rounded-xl bg-surface-container-low text-xs sm:text-sm font-mono text-on-surface placeholder:text-on-surface-variant/60 focus:bg-sprout-tint focus:ring-2 focus:ring-primary focus:outline-none"
                       />
@@ -936,167 +980,302 @@ export const BillingPage: React.FC = () => {
                     >
                       Walk-in Cash
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsFarmerEditing((prev) => !prev)}
-                      className="text-xs px-3 py-2 rounded-xl font-bold bg-surface-container-low hover:bg-surface-container text-on-surface-variant border border-surface-container transition-colors cursor-pointer flex items-center gap-1"
-                      title="Edit Farmer Details"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>{isFarmerEditing ? 'Close' : 'Details'}</span>
-                    </button>
+                    {customerLookup?.found && (
+                      <button
+                        type="button"
+                        aria-expanded={isFarmerEditing}
+                        aria-controls="farmer-details-panel"
+                        onClick={() => setIsFarmerEditing((prev) => !prev)}
+                        className="text-xs px-3 py-2 rounded-xl font-bold bg-surface-container-low hover:bg-surface-container text-on-surface-variant border border-surface-container transition-colors cursor-pointer flex items-center gap-1"
+                        title="Update Registered Farmer Details"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>{isFarmerEditing ? 'Done' : 'Edit Details'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Farmer Profile Information Display */}
+                {/* Farmer Profile / New Number Details Flow */}
                 {isWalkIn ? (
                   <div className="flex items-center justify-between py-1 px-1 text-xs text-on-surface-variant">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-outline-variant" />
                       <span className="font-bold text-on-surface">Walk-in Cash Customer</span>
                       <span className="text-outline-variant">•</span>
-                      <span>No phone record or credit balance attached</span>
+                      <span>Enter a 10-digit mobile number above to look up or register a farmer</span>
                     </div>
                     <span className="text-[11px] font-mono text-outline">Counter POS</span>
                   </div>
-                ) : (
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
-                    {/* Farmer Identity */}
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-sprout-tint border border-primary/20 text-primary flex items-center justify-center shrink-0 font-['Grandstander'] font-black text-xl shadow-xs">
-                        {customerName ? customerName.charAt(0).toUpperCase() : 'F'}
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm sm:text-base font-bold text-on-surface">
-                            {customerName || 'Farmer (New Profile)'}
-                          </span>
-                          <span className="font-mono text-xs bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-md font-semibold">
-                            +91 {customerPhone}
-                          </span>
-                          {customerLookup?.found ? (
+                ) : customerPhone.length < 10 ? (
+                  <div role="status" className="flex items-center justify-between py-1 px-1 text-xs text-on-surface-variant">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                      <span>
+                        Enter all 10 digits (<strong className="font-mono text-on-surface">{customerPhone.length}/10</strong>) to check existing farmer profile...
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] text-outline">+91 {customerPhone}</span>
+                  </div>
+                ) : isSearchingFarmer ? (
+                  <div role="status" className="flex items-center gap-2 py-1 px-1 text-xs text-on-surface-variant">
+                    <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span>Looking up farmer record for <strong className="font-mono text-on-surface">+91 {customerPhone}</strong>...</span>
+                  </div>
+                ) : customerLookup?.found ? (
+                  <>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
+                      {/* Existing Registered Farmer Identity */}
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-sprout-tint border border-primary/20 text-primary flex items-center justify-center shrink-0 font-['Grandstander'] font-black text-xl shadow-xs">
+                          {(customerName || 'F').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm sm:text-base font-bold text-on-surface">
+                              {customerName || 'Registered Farmer'}
+                            </span>
+                            <span className="font-mono text-xs bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded-md font-semibold">
+                              +91 {customerPhone}
+                            </span>
                             <span className="text-[10px] font-bold bg-sprout-tint text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" /> REGISTERED FARMER
                             </span>
-                          ) : (
-                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                              NEW FARMER
+                          </div>
+                          <p className="text-xs text-on-surface-variant mt-0.5">
+                            {customerAddress || 'No village / address on file'}
+                            {customerAadhar ? ` • Aadhaar: XXXX-XXXX-${customerAadhar.slice(-4)}` : ''}
+                            {customerGstin ? ` • GSTIN: ${customerGstin}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Khata Balance & Purchase Telemetry Box */}
+                      <div className="flex items-center gap-4 self-stretch md:self-auto justify-between md:justify-end bg-surface-container-low px-4 py-2.5 rounded-xl border border-surface-container">
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[10px] text-khata-amber font-bold uppercase tracking-wider flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-khata-amber" />
+                            Khata Outstanding
+                          </span>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-mono text-base font-bold text-on-surface leading-tight">
+                              ₹{formatCurrency(customerLookup.outstanding_balance || 0)}
                             </span>
-                          )}
+                            <span className="font-mono text-[11px] text-on-surface-variant">
+                              / Due
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-xs text-on-surface-variant mt-0.5">
-                          {customerAddress || 'Village / Address will be saved upon billing'}
-                          {customerAadhar ? ` • Aadhaar: XXXX-XXXX-${customerAadhar.slice(-4)}` : ''}
-                        </p>
+
+                        <div className="w-px h-8 bg-surface-container-highest" />
+
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
+                            Lifetime Purchases
+                          </span>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="font-mono text-base font-bold text-on-surface leading-tight">
+                              ₹{formatCurrency(customerLookup.total_billed || 0)}
+                            </span>
+                            <span className="font-mono text-[11px] text-on-surface-variant">
+                              ({customerLookup.bill_count || 0} Bills)
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Khata Balance & Purchase Telemetry Box */}
-                    <div className="flex items-center gap-4 self-stretch md:self-auto justify-between md:justify-end bg-surface-container-low px-4 py-2.5 rounded-xl border border-surface-container">
-                      <div className="flex flex-col">
-                        <span className="font-mono text-[10px] text-khata-amber font-bold uppercase tracking-wider flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-khata-amber" />
-                          Khata Outstanding
+                    {/* Previously Purchased Products Chips (1-Click Re-Add for Returning Farmers) */}
+                    {customerLookup.recent_sales && customerLookup.recent_sales.length > 0 && (
+                      <div className="pt-2 border-t border-surface-container flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-on-surface-variant flex items-center gap-1">
+                            <History className="w-3.5 h-3.5 text-primary" />
+                            <span>Previously Bought by this Farmer (1-Click Re-Add):</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                          {customerLookup.recent_sales.flatMap((s) => s.items).slice(0, 8).map((pItem, idx) => (
+                            <button
+                              type="button"
+                              key={`${pItem.product_name}-${idx}`}
+                              onClick={() => handleReaddPastProduct(pItem)}
+                              className="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-sprout-tint text-on-surface hover:text-primary text-xs font-medium border border-surface-container flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3 text-primary" />
+                              <span>{pItem.product_name}</span>
+                              <span className="font-mono text-[10px] text-outline-variant font-semibold">
+                                ₹{formatCurrency(pItem.unit_price)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Edit Panel for Existing Registered Farmer */}
+                    {isFarmerEditing && (
+                      <div
+                        id="farmer-details-panel"
+                        className="bg-surface-container-low p-4 rounded-xl border border-surface-container grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in duration-150"
+                      >
+                        <div>
+                          <label htmlFor="farmer-name-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                            Farmer Full Name *
+                          </label>
+                          <input
+                            id="farmer-name-field"
+                            name="customer_name"
+                            type="text"
+                            autoComplete="name"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder="e.g. Ramesh Patel"
+                            className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface font-semibold border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="farmer-address-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                            Village / Plot Address
+                          </label>
+                          <input
+                            id="farmer-address-field"
+                            name="customer_address"
+                            type="text"
+                            autoComplete="street-address"
+                            value={customerAddress}
+                            onChange={(e) => setCustomerAddress(e.target.value)}
+                            placeholder="e.g. Rampur Village, Survey #12"
+                            className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="farmer-aadhar-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                            Aadhaar / Farmer UID (Optional)
+                          </label>
+                          <input
+                            id="farmer-aadhar-field"
+                            name="customer_aadhar"
+                            type="text"
+                            inputMode="numeric"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            maxLength={12}
+                            value={customerAadhar}
+                            onChange={(e) => setCustomerAadhar(e.target.value.replace(/\D/g, ''))}
+                            placeholder="12-digit Aadhaar number"
+                            className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs font-mono text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="farmer-gstin-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                            Buyer GSTIN (Optional)
+                          </label>
+                          <input
+                            id="farmer-gstin-field"
+                            name="customer_gstin"
+                            type="text"
+                            autoCapitalize="characters"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            maxLength={15}
+                            value={customerGstin}
+                            onChange={(e) => setCustomerGstin(sanitizeCode(e.target.value, 15, true))}
+                            placeholder="15-character GSTIN"
+                            className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs font-mono text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Brand-New Mobile Number -> Prompt directly for New Farmer Details (never show stale data) */
+                  <div
+                    id="farmer-details-panel"
+                    role="status"
+                    className="bg-surface-container-low p-4 rounded-xl border border-primary/25 dark:border-emerald-800/60 flex flex-col gap-3 animate-in fade-in duration-150"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800/60 px-2.5 py-0.5 rounded-full">
+                          NEW FARMER
                         </span>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="font-mono text-base font-bold text-on-surface leading-tight">
-                            ₹{formatCurrency(customerLookup?.outstanding_balance || 0)}
-                          </span>
-                          <span className="font-mono text-[11px] text-on-surface-variant">
-                            / Due
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="w-px h-8 bg-surface-container-highest" />
-
-                      <div className="flex flex-col">
-                        <span className="font-mono text-[10px] text-primary font-bold uppercase tracking-wider">
-                          Lifetime Purchases
+                        <span className="font-mono text-xs bg-surface-container-high text-on-surface px-2 py-0.5 rounded-md font-semibold">
+                          +91 {customerPhone}
                         </span>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="font-mono text-base font-bold text-on-surface leading-tight">
-                            ₹{formatCurrency(customerLookup?.total_billed || 0)}
-                          </span>
-                          <span className="font-mono text-[11px] text-on-surface-variant">
-                            ({customerLookup?.bill_count || 0} Bills)
-                          </span>
-                        </div>
+                        <span className="text-xs font-semibold text-on-surface">
+                          Enter farmer details below (saved automatically with this bill)
+                        </span>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* Previously Purchased Products Chips (1-Click Re-Add for Returning Farmers) */}
-                {customerLookup?.recent_sales && customerLookup.recent_sales.length > 0 && (
-                  <div className="pt-2 border-t border-surface-container flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-on-surface-variant flex items-center gap-1">
-                        <History className="w-3.5 h-3.5 text-primary" />
-                        <span>Previously Bought by this Farmer (1-Click Re-Add):</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                      {customerLookup.recent_sales.flatMap((s) => s.items).slice(0, 8).map((pItem, idx) => (
-                        <button
-                          type="button"
-                          key={`${pItem.product_name}-${idx}`}
-                          onClick={() => handleReaddPastProduct(pItem)}
-                          className="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-sprout-tint text-on-surface hover:text-primary text-xs font-medium border border-surface-container flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3 text-primary" />
-                          <span>{pItem.product_name}</span>
-                          <span className="font-mono text-[10px] text-outline-variant font-semibold">
-                            ₹{formatCurrency(pItem.unit_price)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Farmer Quick Edit Inline Form */}
-                {isFarmerEditing && (
-                  <div className="bg-surface-container-low p-4 rounded-xl border border-surface-container grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in duration-150">
-                    <div>
-                      <label htmlFor="farmer-name-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
-                        Farmer Full Name *
-                      </label>
-                      <input
-                        id="farmer-name-field"
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="e.g. Ramesh Patel"
-                        className="w-full h-8 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface font-semibold border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="farmer-address-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
-                        Village / Plot Address
-                      </label>
-                      <input
-                        id="farmer-address-field"
-                        type="text"
-                        value={customerAddress}
-                        onChange={(e) => setCustomerAddress(e.target.value)}
-                        placeholder="e.g. Rampur Village, Survey #12"
-                        className="w-full h-8 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="farmer-aadhar-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
-                        Aadhaar / Farmer UID (Optional)
-                      </label>
-                      <input
-                        id="farmer-aadhar-field"
-                        type="text"
-                        maxLength={12}
-                        value={customerAadhar}
-                        onChange={(e) => setCustomerAadhar(e.target.value.replace(/\D/g, ''))}
-                        placeholder="12-digit Aadhaar number"
-                        className="w-full h-8 px-2.5 rounded-lg bg-surface-container-lowest text-xs font-mono text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div>
+                        <label htmlFor="new-farmer-name-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                          Farmer Full Name *
+                        </label>
+                        <input
+                          id="new-farmer-name-field"
+                          name="customer_name"
+                          type="text"
+                          autoComplete="name"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Enter farmer name"
+                          className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface font-semibold border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="new-farmer-address-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                          Village / Plot Address
+                        </label>
+                        <input
+                          id="new-farmer-address-field"
+                          name="customer_address"
+                          type="text"
+                          autoComplete="street-address"
+                          value={customerAddress}
+                          onChange={(e) => setCustomerAddress(e.target.value)}
+                          placeholder="Enter village or address"
+                          className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="new-farmer-aadhar-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                          Aadhaar / Farmer UID (Optional)
+                        </label>
+                        <input
+                          id="new-farmer-aadhar-field"
+                          name="customer_aadhar"
+                          type="text"
+                          inputMode="numeric"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          maxLength={12}
+                          value={customerAadhar}
+                          onChange={(e) => setCustomerAadhar(e.target.value.replace(/\D/g, ''))}
+                          placeholder="12-digit Aadhaar number"
+                          className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs font-mono text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="new-farmer-gstin-field" className="block text-[10px] font-bold text-on-surface-variant uppercase mb-1">
+                          Buyer GSTIN (Optional)
+                        </label>
+                        <input
+                          id="new-farmer-gstin-field"
+                          name="customer_gstin"
+                          type="text"
+                          autoCapitalize="characters"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          maxLength={15}
+                          value={customerGstin}
+                          onChange={(e) => setCustomerGstin(sanitizeCode(e.target.value, 15, true))}
+                          placeholder="15-character GSTIN"
+                          className="w-full h-9 px-2.5 rounded-lg bg-surface-container-lowest text-xs font-mono text-on-surface border border-surface-container focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

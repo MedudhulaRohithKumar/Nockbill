@@ -155,6 +155,19 @@ async function runFrontendSuite() {
   }
   console.log('✓ [Test 3e] Zero window.print() screen dumps or document.write() CSP violations across frontend');
 
+  // Test 3f: POS Farmer Lookup resets stale profile state on new/changed phone numbers
+  const billingTsx = fs.readFileSync(path.join(SRC_DIR, 'pages/BillingPage.tsx'), 'utf8');
+  assert.ok(
+    billingTsx.includes('handleFarmerPhoneChange') && billingTsx.includes('id="new-farmer-name-field"'),
+    'BillingPage.tsx must reset farmer fields on phone change and prompt directly for new farmer details'
+  );
+  assert.ok(
+    !billingTsx.includes('prev.trim() || res.customer_name'),
+    'BillingPage.tsx must not retain previous farmer name across phone lookups'
+  );
+  totalAssertions += 2;
+  console.log('✓ [Test 3f] POS Farmer Mobile Lookup state isolation & new-farmer prompt verified');
+
   const runtimeAssertions = await runRuntimeUnitTests();
   totalAssertions += runtimeAssertions;
   console.log(`✓ [Test 3c] Executed frontend TypeScript runtime unit tests (${runtimeAssertions} assertions passed)`);

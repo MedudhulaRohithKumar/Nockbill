@@ -2282,6 +2282,77 @@ class TestSecurityAndScalabilitySuite(unittest.TestCase):
             self.assertTrue(res.content.startswith(b"%PDF-"), f"Invalid PDF header for {url}")
             self.assertGreater(len(res.content), 400, f"Suspiciously small PDF for {url}")
 
+    # ── POS Farmer Phone Lookup: Existing Profile Resolution vs Brand-New Phone Isolation ──
+    def test_pos_customer_lookup_existing_vs_new_phone(self):
+        # 1. Brand-new 10-digit mobile number returns found=False with zero stale fields
+        new_lookup = self.client.get("/api/khata/customers/lookup?phone=9553504366", headers=self.owner_a_headers)
+        self.assertEqual(new_lookup.status_code, 200, new_lookup.text)
+        self.assertEqual(new_lookup.json()["found"], False)
+        self.assertEqual(new_lookup.json()["customer_phone"], "9553504366")
+
+        # 2. Partial (<10 digits) phone returns found=False
+        partial_lookup = self.client.get("/api/khata/customers/lookup?phone=95535", headers=self.owner_a_headers)
+        self.assertEqual(partial_lookup.status_code, 200)
+        self.assertEqual(partial_lookup.json()["found"], False)
+
+        # 3. Create product + initial registered sale for Rohith (9876501234) with full profile
+        prod = self.client.post(
+            "/api/products",
+            json={
+                "product_name": "Gromor DAP",
+                "company_name": "Coromandel",
+                "category": "Fertilizer",
+                "unit": "Bags",
+                "purchase_price": "1200.00",
+                "selling_price": "1350.00",
+                "current_stock": "20",
+            },
+            headers=self.owner_a_headers,
+        ).json()
+
+        s1 = self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Rohith",
+                "customer_phone": "9876501234",
+                "customer_address": "Mancherial",
+                "customer_aadhar": "123456787656",
+                "payment_method": "Cash",
+                "items": [{"product_id": prod["id"], "product_name": prod["product_name"], "quantity": 1, "price": 1350.0}],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(s1.status_code, 201, s1.text)
+
+        # 4. Subsequent quick sale on same phone with generic placeholder name & blank address/aadhaar
+        s2 = self.client.post(
+            "/api/sales",
+            json={
+                "customer_name": "Farmer",
+                "customer_phone": "9876501234",
+                "payment_method": "UPI",
+                "items": [{"product_id": prod["id"], "product_name": prod["product_name"], "quantity": 1, "price": 1350.0}],
+            },
+            headers=self.owner_a_headers,
+        )
+        self.assertEqual(s2.status_code, 201, s2.text)
+
+        # 5. Lookup for 9876501234 preserves real name, address, and Aadhaar across bills
+        existing_lookup = self.client.get("/api/khata/customers/lookup?phone=9876501234", headers=self.owner_a_headers)
+        self.assertEqual(existing_lookup.status_code, 200)
+        ex_data = existing_lookup.json()
+        self.assertTrue(ex_data["found"])
+        self.assertEqual(ex_data["customer_name"], "Rohith")
+        self.assertEqual(ex_data["customer_address"], "Mancherial")
+        self.assertEqual(ex_data["customer_aadhar"], "123456787656")
+        self.assertEqual(ex_data["bill_count"], 2)
+
+        # 6. Looking up a new number (9553504366) afterwards still returns found=False with no data from Rohith
+        after_new = self.client.get("/api/khata/customers/lookup?phone=9553504366", headers=self.owner_a_headers)
+        self.assertEqual(after_new.status_code, 200)
+        self.assertFalse(after_new.json()["found"])
+        self.assertNotIn("customer_name", after_new.json())
+
 
 if __name__ == "__main__":
     unittest.main()
